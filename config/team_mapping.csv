@@ -1,0 +1,11 @@
+schema_type,team
+COTS,Core
+ORR,Core
+ORR,Cognos
+MMIS,Core
+MMIS,Cognos
+ISIM,Informatica
+EMAR,Informatica
+EMAR,EDMS
+OMNI,EDMS
+FADS,Letters

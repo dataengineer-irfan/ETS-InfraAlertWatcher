@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; color: #2C2C2A; line-height: 1.5;">
+  <p>Hi {{ owner_name or "team" }},</p>
+
+  <p>
+    The following database account is
+    {% if days_left < 0 %}
+      <strong style="color:#A32D2D;">already expired</strong> (expired {{ -days_left }} day{{ 's' if -days_left != 1 else '' }} ago)
+    {% else %}
+      expiring in <strong>{{ days_left }} day{{ 's' if days_left != 1 else '' }}</strong>
+    {% endif %}
+    and needs attention.
+  </p>
+
+  <table cellpadding="6" cellspacing="0" style="border-collapse: collapse; margin: 16px 0;">
+    <tr><td style="color:#5F5E5A;">State</td><td style="border:1px solid #D3D1C7;"><strong>{{ state }}</strong></td></tr>
+    <tr><td style="color:#5F5E5A;">Environment</td><td style="border:1px solid #D3D1C7;">{{ env }}</td></tr>
+    <tr><td style="color:#5F5E5A;">Username</td><td style="border:1px solid #D3D1C7;">{{ username }}</td></tr>
+    <tr><td style="color:#5F5E5A;">Schema</td><td style="border:1px solid #D3D1C7;">{{ schema_name }}</td></tr>
+    <tr><td style="color:#5F5E5A;">Expiry date</td><td style="border:1px solid #D3D1C7;">{{ exp_date }}</td></tr>
+  </table>
+
+  <p>
+    {% if is_first_reminder %}
+      This is the first reminder for this expiry date.
+    {% else %}
+      This is a repeat reminder - it will keep arriving daily until the expiry date is updated in the source file.
+    {% endif %}
+  </p>
+
+  <p style="color:#888780; font-size: 13px;">
+    Sent automatically by the expiry alert system. To stop these reminders, renew or update this account's
+    expiry date in the source spreadsheet.
+  </p>
+</body>
+</html>

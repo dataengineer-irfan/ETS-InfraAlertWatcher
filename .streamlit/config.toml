@@ -1,0 +1,18 @@
+# Streamlit configuration for the Expiry Watchtower Enterprise Dashboard.
+[theme]
+base = "dark"
+primaryColor = "#38BDF8"
+backgroundColor = "#020617"
+secondaryBackgroundColor = "#0F172A"
+textColor = "#F8FAFC"
+font = "sans serif"
+
+[server]
+fileWatcherType = "auto"
+headless = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

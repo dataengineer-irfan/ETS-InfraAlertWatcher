@@ -1,0 +1,45 @@
+# Everything a clone needs is committed, including the four component
+# workbooks and the OneDrive share links. Only things that regenerate
+# themselves are ignored, so a fresh pull never needs files added by hand.
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite database and its transient journals. Rebuilt in seconds by
+# src/ingest_components.py, and the dashboard auto-ingests on first run,
+# so there is nothing to re-add after a pull. Committing it would also
+# mean binary merge conflicts on every run.
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Downloaded by src/fetch_excel.py from EXCEL_URL, so it re-fetches itself.
+data/expiry_source.xlsx
+
+# Local run artefacts
+data/run_log.txt
+installed_versions.txt
+
+# Test output: the two built report pages and the pandas ground truth, all
+# rebuilt by `python tests/build_fixture.py`. The tests that read them
+# regenerate them first, so there is nothing to re-add after a pull.
+tests/fixture/
+
+# Secrets - never commit
+.env
+*.pem
+*.key
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

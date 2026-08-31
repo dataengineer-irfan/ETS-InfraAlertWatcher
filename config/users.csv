@@ -1,0 +1,5 @@
+username,display_name,role,state
+admin,Admin (Core Team),core,
+ak_lead,Alaska Team Lead,member,AK
+nh_lead,New Hampshire Team Lead,member,NH
+nd_lead,North Dakota Team Lead,member,ND
