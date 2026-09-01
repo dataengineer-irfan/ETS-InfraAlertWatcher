@@ -100,7 +100,6 @@ BOOKMARKS = [
              "q": "", "focus": "coverage"}},
 ]
 
-
 # ==========================================================================
 # Stylesheet
 # ==========================================================================
@@ -128,7 +127,14 @@ body{
 }
 .mono,.num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
 
-/* Panels are deep slate cards on dark canvas — border removed; depth = shade + shadow */
+/* Universal flex/grid containment — prevent text blowout */
+.head, .head-row, .brand, .narrative-strip, .crumbs, .views, .asof,
+.kpis, .kpi, .kpi-row1, .kpi-row2, .comps, .cc, .panel, .phead, .phint, .pbody,
+.slicers, .search, .filter-drawer, .tbl, .tbl td {
+  min-width:0;
+}
+
+/* Panels */
 .panel{
   background:var(--card); border-radius:7px;
   box-shadow:var(--shadow); min-height:0; min-width:0;
@@ -156,59 +162,87 @@ body{
 
 /* ---- header ---------------------------------------------------------- */
 .head{
-  display:flex; align-items:center; gap:12px; flex:none;
-  background:var(--card); border-radius:7px;
-  box-shadow:var(--shadow); padding:6px 10px;
+  display:flex; flex-direction:column; gap:4px; flex:none;
+  background:var(--card); border-radius:7px; box-shadow:var(--shadow);
+  padding:5px 10px; min-width:0; overflow:hidden;
 }
-.brand{ display:flex; align-items:baseline; gap:8px; flex:none; }
-.brand h1{ margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; }
+.head-row{
+  display:flex; align-items:center; gap:8px; width:100%; min-width:0; overflow:hidden;
+}
+.brand{ display:flex; align-items:baseline; gap:6px; flex:none; }
+.brand h1{ margin:0; font-size:13.5px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; }
 .brand .where{
-  font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.04em;
-  text-transform:uppercase; color:var(--accent);
-  background:var(--accent-tint); border:1px solid var(--accent-line);
-  border-radius:4px; padding:1px 6px; white-space:nowrap;
+  font-family:var(--mono); font-size:9.5px; font-weight:500; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--accent); background:var(--accent-tint);
+  border:1px solid var(--accent-line); border-radius:4px; padding:1px 5px; white-space:nowrap;
 }
-.crumbs{ display:flex; align-items:center; gap:5px; flex:1; min-width:0; overflow:hidden; }
-.crumbs .lead{ font-size:9.5px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
-               color:var(--mute); flex:none; }
-.crumbs .none{ font-size:10.5px; color:var(--slate); white-space:nowrap; }
-.cx{
-  display:inline-flex; align-items:center; gap:5px; flex:none;
-  background:var(--accent-tint); border:1px solid var(--accent-line); color:var(--accent);
-  border-radius:4px; padding:1px 4px 1px 6px; font-size:10.5px; white-space:nowrap;
-  font:inherit; font-size:10.5px; cursor:pointer;
+
+/* Smart Narrative Banner */
+.narrative-strip{
+  display:flex; align-items:center; gap:6px; flex:1 1 auto; min-width:0; max-width:100%;
+  background:var(--sunk); border-radius:5px; padding:2px 8px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.cx u{ text-decoration:none; color:var(--mute); font-size:8.5px; letter-spacing:.09em;
-       text-transform:uppercase; }
-.cx b{ font-family:var(--mono); font-weight:500; }
-.cx s{ text-decoration:none; font-size:11px; line-height:1; color:var(--accent);
-       opacity:.6; padding-left:1px; }
-.cx:hover s{ opacity:1; }
-.asof{ font-family:var(--mono); font-size:9.5px; color:var(--slate); text-align:right;
-       line-height:1.35; flex:none; white-space:nowrap; }
+.narrative-tag{
+  font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; padding:1px 5px; border-radius:3px; flex:none; white-space:nowrap;
+}
+.tag-alert{ background:rgba(239,68,68,0.22); color:#EF4444; border:1px solid rgba(239,68,68,0.4); }
+.tag-crit{ background:rgba(249,115,22,0.22); color:#F97316; border:1px solid rgba(249,115,22,0.4); }
+.tag-warn{ background:rgba(245,158,11,0.22); color:#F59E0B; border:1px solid rgba(245,158,11,0.4); }
+.tag-ok{ background:rgba(16,185,129,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.35); }
+.narrative-text{
+  font-size:10.5px; color:var(--ink); flex:1 1 auto; min-width:0; max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.narrative-text b{ font-weight:600; color:var(--ink); }
+
+.story-btn{
+  font:inherit; font-size:10px; font-weight:600; color:var(--accent);
+  background:var(--accent-tint); border:1px solid var(--accent-line); border-radius:5px;
+  padding:2px 8px; cursor:pointer; white-space:nowrap; flex:none;
+  transition:all .12s ease; display:inline-flex; align-items:center; gap:4px;
+}
+.story-btn:hover{ background:var(--accent); color:#000; }
+
+.asof{ font-family:var(--mono); font-size:9px; color:var(--slate); text-align:right;
+       line-height:1.25; flex:none; white-space:nowrap; }
 .asof b{ color:var(--ink); font-weight:600; }
 
-/* ---- saved views ----------------------------------------------------- */
+.crumbs{ display:flex; align-items:center; gap:5px; flex:1; min-width:0; overflow:hidden; }
+.crumbs .lead{ font-size:9px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+               color:var(--mute); flex:none; }
+.crumbs .none{ font-size:10px; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cx{
+  display:inline-flex; align-items:center; gap:4px; flex:none;
+  background:var(--accent-tint); border:1px solid var(--accent-line); color:var(--accent);
+  border-radius:4px; padding:1px 4px 1px 5px; font-size:10px; white-space:nowrap;
+  font:inherit; cursor:pointer;
+}
+.cx u{ text-decoration:none; color:var(--mute); font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
+.cx b{ font-family:var(--mono); font-weight:500; }
+.cx s{ text-decoration:none; font-size:10px; line-height:1; color:var(--accent); opacity:.6; padding-left:1px; }
+.cx:hover s{ opacity:1; }
+
 .views{ display:flex; align-items:center; gap:4px; flex:none; }
-.views .lead{ font-size:9.5px; font-weight:600; letter-spacing:.11em; text-transform:uppercase;
+.views .lead{ font-size:9px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
               color:var(--mute); margin-right:2px; }
 
-/* ---- one chip style for every control -------------------------------- */
-/* Default border is transparent — border color is reserved for "selected" state only */
+/* ---- chips ----------------------------------------------------------- */
 .chip{
-  font:inherit; font-size:11px; font-weight:500; color:var(--slate);
+  font:inherit; font-size:10.5px; font-weight:500; color:var(--slate);
   background:var(--sunk); border:1px solid transparent; border-radius:5px;
-  padding:3px 8px; cursor:pointer; white-space:nowrap; display:inline-flex;
-  align-items:center; gap:5px; line-height:1.25;
+  padding:2px 7px; cursor:pointer; white-space:nowrap; display:inline-flex;
+  align-items:center; gap:4px; line-height:1.25;
   transition:background .12s ease, border-color .12s ease, color .12s ease;
 }
 .chip:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
 .chip[aria-pressed="true"], .chip.on{
   background:var(--accent-tint); border-color:var(--accent); color:var(--accent); font-weight:600;
 }
-.chip .n{ font-family:var(--mono); font-size:10px; color:var(--mute); }
+.chip .n{ font-family:var(--mono); font-size:9.5px; color:var(--mute); }
 .chip[aria-pressed="true"] .n{ color:var(--accent); }
-.chip i{ width:7px; height:7px; border-radius:2px; flex:none; }
+.chip i{ width:6px; height:6px; border-radius:2px; flex:none; }
 .chip:focus-visible, .cx:focus-visible, .seg button:focus-visible,
 .tbl th button:focus-visible, .pg button:focus-visible{
   outline:2px solid var(--accent); outline-offset:1px;
@@ -218,110 +252,123 @@ body{
 .slicers{
   display:flex; align-items:center; gap:5px; flex-wrap:wrap; flex:none;
   background:var(--card); border-radius:7px;
-  box-shadow:var(--shadow); padding:5px 8px;
+  box-shadow:var(--shadow); padding:4px 8px; min-width:0;
 }
 .sgroup{ display:flex; align-items:center; gap:4px; }
-.sgroup > label{ font-size:9.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+.sgroup > label{ font-size:9px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
                  color:var(--mute); margin-right:1px; }
 .vr{ width:1px; align-self:stretch; background:var(--rule-soft); margin:0 3px; }
 
-/* Filter drawer — hidden until toggled */
 .filter-drawer{
   display:flex; flex-wrap:wrap; gap:5px; width:100%;
-  border-top:1px solid var(--rule-soft); margin-top:4px; padding-top:5px;
+  border-top:1px solid var(--rule-soft); margin-top:3px; padding-top:4px;
 }
 .filter-toggle{
-  font:inherit; font-size:11px; font-weight:600; color:var(--slate);
+  font:inherit; font-size:10.5px; font-weight:600; color:var(--slate);
   background:var(--sunk); border:1px solid transparent; border-radius:5px;
-  padding:3px 8px; cursor:pointer; white-space:nowrap; display:inline-flex;
-  align-items:center; gap:5px; transition:background .12s ease, border-color .12s ease, color .12s ease;
+  padding:2px 7px; cursor:pointer; white-space:nowrap; display:inline-flex;
+  align-items:center; gap:4px; transition:background .12s ease, border-color .12s ease, color .12s ease;
 }
 .filter-toggle:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
 .filter-toggle.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-tint); }
 .filter-badge{
-  font-family:var(--mono); font-size:9px; font-weight:700;
-  background:var(--accent); color:#000; border-radius:3px; padding:0 4px;
+  font-family:var(--mono); font-size:8.5px; font-weight:700;
+  background:var(--accent); color:#000; border-radius:3px; padding:0 3px;
 }
-.search{ position:relative; display:flex; align-items:center; flex:1; min-width:120px; max-width:230px; }
+.search{ position:relative; display:flex; align-items:center; flex:1; min-width:120px; max-width:220px; }
 .search input{
-  font:inherit; font-size:11px; font-family:var(--mono); width:100%; color:var(--ink);
+  font:inherit; font-size:10.5px; font-family:var(--mono); width:100%; color:var(--ink);
   background:var(--sunk); border:1px solid var(--rule); border-radius:5px;
-  padding:3px 22px 3px 8px;
+  padding:2px 20px 2px 7px;
 }
 .search input::placeholder{ color:var(--mute); font-family:var(--ui); }
 .search input:focus{ outline:none; border-color:var(--accent); background:var(--card); }
-.search .clr{ position:absolute; right:4px; border:0; background:none; cursor:pointer;
-              color:var(--mute); font-size:13px; line-height:1; padding:0 2px; }
+.search .clr{ position:absolute; right:3px; border:0; background:none; cursor:pointer;
+              color:var(--mute); font-size:12px; line-height:1; padding:0 2px; }
 
 /* ---- KPI strip ------------------------------------------------------- */
-.kpis{ display:grid; gap:var(--gap); grid-template-columns:repeat(6,minmax(0,1fr)); min-height:0; }
+.kpis{ display:grid; gap:var(--gap); grid-template-columns:repeat(6,minmax(0,1fr)); min-height:0; min-width:0; }
 .kpi{
   background:var(--card); border:none; border-left:3px solid var(--edge,transparent);
-  border-radius:7px; box-shadow:var(--shadow); padding:5px 9px 6px; cursor:pointer;
-  display:flex; flex-direction:column; justify-content:center; gap:1px;
-  text-align:left; font:inherit; min-width:0; overflow:hidden;
-  transition:background .12s ease, box-shadow .12s ease;
+  border-radius:7px; box-shadow:var(--shadow); padding:5px 8px 5px; cursor:pointer;
+  display:flex; flex-direction:column; justify-content:space-between;
+  text-align:left; font:inherit; min-width:0; max-width:100%; overflow:hidden;
+  transition:background .12s ease, box-shadow .12s ease; position:relative;
 }
 .kpi:hover{ background:var(--sunk); }
-/* Selected: inset shadow IS the visible border — border now means "selected", nothing else */
 .kpi[aria-pressed="true"]{ background:var(--accent-tint);
                            box-shadow:inset 0 0 0 1.5px var(--accent); }
 .kpi.flat{ cursor:default; }
 .kpi.flat:hover{ background:var(--card); }
+.kpi-row1{ display:flex; align-items:baseline; justify-content:space-between; gap:4px; width:100%; min-width:0; overflow:hidden; }
 .kpi .v{
-  font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:600;
-  font-size:clamp(17px,3.5vh,27px); line-height:1.05; color:var(--val,var(--ink));
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:700;
+  font-size:clamp(16px,3.2vh,24px); line-height:1.05; color:var(--val,var(--ink));
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
 }
-.kpi .v small{ font-size:.5em; font-weight:500; color:var(--mute); margin-left:3px; }
-.kpi .k{ font-size:10px; font-weight:600; color:var(--ink); white-space:nowrap;
-         overflow:hidden; text-overflow:ellipsis; }
-.kpi .s{ font-size:9.5px; color:var(--slate); font-family:var(--mono); white-space:nowrap;
-         overflow:hidden; text-overflow:ellipsis; }
-/* Dominant focal tile — larger number, more padding */
-.kpi[data-dom]{ padding:8px 12px 10px; }
-.kpi[data-dom] .v{ font-size:clamp(22px,4.5vh,36px); font-weight:700; }
-.kpi[data-dom] .k{ font-size:11px; }
+.kpi-spark{ width:42px; height:12px; flex:none; }
+.kpi .k{ font-size:9.5px; font-weight:600; color:var(--ink); white-space:nowrap;
+         overflow:hidden; text-overflow:ellipsis; min-width:0; max-width:100%; }
+.kpi-row2{ display:flex; align-items:center; justify-content:space-between; gap:4px; width:100%; min-width:0; overflow:hidden; }
+.kpi .s{ font-size:8.5px; color:var(--slate); font-family:var(--mono); white-space:nowrap;
+         overflow:hidden; text-overflow:ellipsis; min-width:0; max-width:100%; }
+.trend{
+  font-family:var(--mono); font-size:8px; font-weight:700; padding:1px 3px;
+  border-radius:3px; flex:none; white-space:nowrap; line-height:1.1;
+}
+.trend.good{ background:rgba(16,185,129,0.2); color:#10B981; }
+.trend.bad{ background:rgba(239,68,68,0.2); color:#EF4444; }
+.trend.flat{ background:var(--sunk); color:var(--mute); }
+
+.so-what{
+  font-size:8px; color:var(--slate); max-width:100%; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  line-height:1.15; margin-top:2px;
+}
+
+.kpi[data-dom]{ padding:6px 10px 6px; }
+.kpi[data-dom] .v{ font-size:clamp(20px,4vh,30px); font-weight:800; }
+.kpi[data-dom] .k{ font-size:10.5px; }
 
 /* ---- component cards ------------------------------------------------- */
 .comps{ display:grid; gap:var(--gap); grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
-        min-height:0; }
+        min-height:0; min-width:0; }
 .cc{
   background:var(--card); border:none; border-radius:7px;
-  box-shadow:var(--shadow); padding:8px 10px; cursor:pointer; font:inherit; text-align:left;
+  box-shadow:var(--shadow); padding:7px 9px; cursor:pointer; font:inherit; text-align:left;
   display:flex; flex-direction:column; justify-content:space-between; min-height:0; min-width:0; overflow:hidden;
   transition:background .12s ease, box-shadow .12s ease;
 }
 .cc:hover{ background:var(--sunk); box-shadow:var(--shadow), 0 0 0 1px var(--accent-line); }
 .cc[aria-pressed="true"]{ background:var(--accent-tint);
                           box-shadow:inset 0 0 0 1.5px var(--accent); }
-.cc .head-row{ display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden; }
-.cc .code{ font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:.08em;
+.cc .head-row{ display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; }
+.cc .code{ font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:.06em;
            color:var(--accent); background:var(--accent-tint); border:1px solid var(--accent-line);
-           border-radius:3px; padding:1px 5px; flex:none; }
+           border-radius:3px; padding:1px 4px; flex:none; }
 .cc[aria-pressed="true"] .code{ background:var(--accent); color:#fff; }
-.cc .nm{ font-size:11.5px; font-weight:700; color:var(--ink);
+.cc .nm{ font-size:11px; font-weight:700; color:var(--ink);
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
 .cc .foot{ margin-top:auto; display:flex; align-items:flex-end; justify-content:space-between;
-           gap:7px; padding-top:2px; }
+           gap:6px; padding-top:2px; min-width:0; }
 .cc .cnt{ font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:700;
-          font-size:clamp(16px,2.8vh,22px); line-height:1; }
-.cc .cnt em{ font-style:normal; font-size:9.5px; font-weight:500; color:var(--mute);
-             margin-left:3px; font-family:var(--ui); }
-.cc .nx{ font-family:var(--mono); font-size:9.5px; color:var(--slate); text-align:right;
-         white-space:nowrap; }
+          font-size:clamp(15px,2.5vh,20px); line-height:1; min-width:0; }
+.cc .cnt em{ font-style:normal; font-size:9px; font-weight:500; color:var(--mute);
+             margin-left:2px; font-family:var(--ui); }
+.cc .nx{ font-family:var(--mono); font-size:9px; color:var(--slate); text-align:right;
+         white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .cc .nx b{ color:var(--val,var(--ink)); font-weight:700; }
 .meter{ display:flex; height:4px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
-        margin:5px 0 2px; flex:none; }
-.meter-label{ font-size:9px; color:var(--mute); margin-bottom:4px; }
+        margin:4px 0 2px; flex:none; }
+.meter-label{ font-size:8.5px; color:var(--mute); margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .meter i{ display:block; height:100%; }
 
-/* ---- segmented control (focus panel + chart toggles) ----------------- */
+/* ---- segmented control ----------------------------------------------- */
 .seg{ display:inline-flex; background:var(--sunk); border:1px solid var(--rule);
       border-radius:5px; padding:1px; flex:none; }
 .seg button{
-  font:inherit; font-size:10px; font-weight:600; color:var(--slate); background:none;
-  border:0; border-radius:4px; padding:2px 7px; cursor:pointer; white-space:nowrap;
+  font:inherit; font-size:9.5px; font-weight:600; color:var(--slate); background:none;
+  border:0; border-radius:4px; padding:2px 6px; cursor:pointer; white-space:nowrap;
 }
 .seg button:hover{ color:var(--ink); }
 .seg button[aria-pressed="true"]{ background:var(--card); color:var(--accent);
@@ -330,10 +377,10 @@ body{
 /* ---- charts ---------------------------------------------------------- */
 .chart{ flex:1; min-height:0; display:block; width:100%; }
 .chart text{ font-family:var(--mono); }
-.legend{ display:flex; align-items:center; gap:11px; flex-wrap:wrap; flex:none;
-         font-size:9.5px; color:var(--slate); padding-top:4px; }
+.legend{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; flex:none;
+         font-size:9px; color:var(--slate); padding-top:3px; }
 .legend span{ display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
-.legend i{ width:7px; height:7px; border-radius:2px; }
+.legend i{ width:6px; height:6px; border-radius:2px; }
 
 /* ---- environment cards (focus: Environments) ------------------------- */
 .envs{ flex:1; min-height:0; display:grid; gap:5px; align-content:start;
@@ -356,11 +403,10 @@ body{
 /* ---- coverage matrix ------------------------------------------------- */
 .mx{ border-collapse:separate; border-spacing:3px; width:100%; flex:none; }
 .mx th{ font-family:var(--mono); font-size:8.5px; font-weight:600; letter-spacing:.07em;
-        color:var(--mute); padding:0 2px 2px; text-align:center; font-weight:600; }
+        color:var(--mute); padding:0 2px 2px; text-align:center; }
 .mx th.rh{ text-align:left; }
 .mx td{ padding:0; }
-.mx .rl{ font-family:var(--mono); font-size:10px; color:var(--ink); white-space:nowrap;
-         padding-right:6px; }
+.mx .rl{ font-family:var(--mono); font-size:10px; color:var(--ink); white-space:nowrap; padding-right:6px; }
 .mx .rl u{ text-decoration:none; color:var(--mute); font-size:8.5px; }
 .mx .c{ border-radius:3px; display:flex; align-items:center; justify-content:center;
         font-family:var(--mono); font-size:9.5px; font-weight:600; height:20px;
@@ -381,14 +427,14 @@ body{
 .tbl thead th button:hover{ color:var(--ink); }
 .tbl thead th[aria-sort] button{ color:var(--accent); }
 .tbl thead th button s{ text-decoration:none; font-size:8px; }
-.tbl tbody td{ padding:0 7px; height:25px; border-bottom:1px solid var(--rule-soft);
+.tbl tbody td{ padding:0 7px; height:26px; border-bottom:1px solid var(--rule-soft);
                white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
 .tbl tbody tr:hover td{ background:var(--sunk); }
 .tbl tbody tr.hot td{ background:var(--accent-tint); }
 .tbl td.r{ text-align:right; }
 .tbl .schema{ font-family:var(--mono); font-size:10.5px; }
 .tbl .sub{ font-size:9px; color:var(--slate); }
-.env-pill{ display:inline-block; font-family:var(--mono); font-size:9.5px; font-weight:600;
+.env-pill{ display:inline-block; font-family:var(--mono); font-size:9px; font-weight:600;
            letter-spacing:.04em; padding:1px 5px; border-radius:3px; background:var(--sunk);
            border:1px solid var(--rule); color:var(--ink); }
 .dot{ display:inline-flex; align-items:center; gap:5px; white-space:nowrap; font-weight:500; }
@@ -407,25 +453,78 @@ body{
 .pg .of{ font-family:var(--mono); }
 .pg .sp{ flex:1; }
 
-/* ---- empty state ----------------------------------------------------- */
+/* Table inline data bars */
+.time-cell{ position:relative; overflow:hidden; }
+.data-bar{
+  position:absolute; left:0; top:2px; bottom:2px;
+  border-radius:2px; pointer-events:none; z-index:0;
+  transition:width .2s ease;
+}
+.time-val{ position:relative; z-index:1; }
+
+/* Cross-visual Highlighting */
+.shell[data-hl-active="true"] [data-hl-comp],
+.shell[data-hl-active="true"] [data-hl-env],
+.shell[data-hl-active="true"] [data-hl-quarter]{
+  opacity:0.25; transition:opacity .15s ease;
+}
+.shell[data-hl-active="true"] [data-hl-match="true"]{
+  opacity:1 !important; filter:brightness(1.2);
+}
+
+/* Story Mode Overlay */
+.story-overlay{
+  position:fixed; inset:0; z-index:9999; display:none; pointer-events:auto;
+}
+.story-overlay.on{ display:flex; align-items:flex-end; justify-content:center; padding-bottom:20px; }
+.story-backdrop{
+  position:absolute; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(2px);
+}
+.story-box{
+  position:relative; z-index:10; background:var(--card); border:1px solid var(--accent);
+  border-radius:8px; box-shadow:0 12px 36px rgba(0,0,0,0.7); width:92%; max-width:580px;
+  padding:10px 14px; display:flex; flex-direction:column; gap:6px;
+  animation:slideUp .2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideUp{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+.story-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.story-badge{ font-size:10.5px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.05em; }
+.story-ctrls{ display:flex; align-items:center; gap:5px; }
+.story-ctrls button{
+  font:inherit; font-size:10px; font-weight:600; color:var(--slate); background:var(--sunk);
+  border:1px solid var(--rule); border-radius:4px; padding:2px 7px; cursor:pointer;
+}
+.story-ctrls button:hover{ color:var(--ink); border-color:var(--accent); }
+.story-desc{
+  font-size:11px; color:var(--ink); line-height:1.35; max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.story-progress{ height:3px; background:var(--sunk); border-radius:2px; overflow:hidden; width:100%; }
+.story-bar{ height:100%; background:var(--accent); transition:width .3s ease; }
+.story-spotlight{
+  position:relative; z-index:10000 !important;
+  box-shadow:0 0 0 2px var(--accent), 0 0 20px rgba(56, 189, 248, 0.4) !important;
+  border-radius:7px;
+}
+
+/* Empty state */
 .void{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center;
        justify-content:center; text-align:center; gap:3px; padding:8px; }
 .void .h{ font-size:11.5px; font-weight:600; }
 .void .p{ font-size:10.5px; color:var(--slate); max-width:34ch; }
 .void button{ margin-top:4px; }
 
-/* ---- tooltip — neutral dark, no cyan outline -------------------------- */
+/* Tooltip */
 #tip{
   position:fixed; z-index:99; pointer-events:none; opacity:0; transform:translateY(2px);
   transition:opacity .1s ease; max-width:260px;
-  background:#1E293B; color:#F8FAFC; font-size:11px; line-height:1.4;
-  border:1px solid #334155; border-radius:8px; padding:7px 11px;
+  background:#1E293B; color:#F8FAFC; font-size:10.5px; line-height:1.35;
+  border:1px solid #334155; border-radius:7px; padding:6px 10px;
   box-shadow:0 8px 24px rgba(0,0,0,0.6);
 }
 #tip.on{ opacity:1; transform:none; }
 #tip b{ font-family:var(--mono); font-weight:700; color:var(--slate); }
 
-/* ---- bottom panels (table + chart) are supporting detail, not co-equal headlines -- */
 .rowC .phead{ padding:5px 8px 4px; }
 .rowC .pbody{ padding:6px 8px 7px; }
 .rowC .ptitle{ font-size:10px; }
@@ -445,12 +544,18 @@ body{
 # Layout skeleton — every dynamic region is an empty mount point
 # ==========================================================================
 _BODY = r"""
-<div class="shell">
+<div class="shell" id="mShell">
   <div class="head">
-    <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
-    <div class="crumbs" id="mCrumbs"></div>
-    <div class="views" id="mViews"></div>
-    <div class="asof" id="mAsOf"></div>
+    <div class="head-row">
+      <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
+      <div class="narrative-strip" id="mNarrative" data-tip="Executive narrative summary reacting to active filters"></div>
+      <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
+      <div class="asof" id="mAsOf"></div>
+    </div>
+    <div class="head-row">
+      <div class="crumbs" id="mCrumbs"></div>
+      <div class="views" id="mViews"></div>
+    </div>
   </div>
 
   <div class="slicers" id="mSlicers"></div>
@@ -459,39 +564,39 @@ _BODY = r"""
 
   <div class="rowB">
     <div class="comps" id="mComps"></div>
-    <section class="panel" aria-labelledby="focusTitle">
+    <div class="panel">
       <div class="phead">
-        <span class="ptitle" id="focusTitle">Explore</span>
+        <span class="ptitle">Explore</span>
         <span class="phint" id="mFocusHint"></span>
-        <span id="mFocusSeg"></span>
+        <div class="seg" id="mFocusSeg"></div>
       </div>
       <div class="pbody" id="mFocus"></div>
-    </section>
+    </div>
   </div>
 
   <div class="rowC">
-    <section class="panel" aria-labelledby="tableTitle">
+    <div class="panel" id="mTablePanel">
       <div class="phead">
-        <span class="ptitle" id="tableTitle">Environment &amp; schema detail</span>
+        <span class="ptitle">Environment &amp; schema detail</span>
         <span class="phint" id="mTableHint"></span>
-        <span id="mTableSeg"></span>
+        <div class="seg" id="mTableSeg"></div>
       </div>
-      <div class="pbody" id="mTablePanel" style="padding:6px 6px 7px">
-        <div class="twrap" id="mTable"></div>
-        <div class="pg" id="mPager"></div>
-      </div>
-    </section>
-    <section class="panel" aria-labelledby="whenTitle">
+      <div class="pbody" id="mTable"></div>
+      <div class="pg" id="mPager"></div>
+    </div>
+
+    <div class="panel">
       <div class="phead">
-        <span class="ptitle" id="whenTitle">When renewals land</span>
+        <span class="ptitle">Workload by quarter</span>
         <span class="phint" id="mWhenHint"></span>
-        <span id="mWhenSeg"></span>
+        <div class="seg" id="mWhenSeg"></div>
       </div>
       <div class="pbody" id="mWhen"></div>
-    </section>
+    </div>
   </div>
 </div>
-<div id="tip" role="status" aria-live="polite"></div>
+<div class="story-overlay" id="mStoryModal"></div>
+<div id="tip"></div>
 """
 
 
@@ -508,16 +613,20 @@ const DATA = /*__DATA__*/;
 /*==ENGINE-START==*/
 const BANDS = DATA.bands, META = DATA.bandMeta, CODE = DATA.componentCode;
 const CRIT = DATA.criticalDays, WARN = DATA.warningDays;
-// The stylesheet reads the palette as CSS custom properties; SVG attributes
-// need the values themselves, so the charts read them from the same source.
 const T = DATA.tokens;
-// Coverage cells travel through the DOM as "row|CODE", so the short code has
-// to resolve back to the full component name on the way in.
 const NAME_OF = {};
 Object.keys(CODE).forEach(name => { NAME_OF[CODE[name]] = name; });
 
 const esc = v => String(v === null || v === undefined ? "" : v).replace(
   /[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// ---- length clamp helper ---------------------------------------------
+function clampStr(s, maxLen){
+  if (!s) return "";
+  s = String(s).trim();
+  if (s.length <= maxLen) return s;
+  return s.slice(0, maxLen - 1).trim() + "…";
+}
 
 const healthOf = d => d < 0 ? "Expired" : d <= CRIT ? "Critical" : d <= WARN ? "Warning" : "Healthy";
 const worstBand = set => BANDS.find(b => set.has(b)) || "Healthy";
@@ -529,12 +638,10 @@ function fmtDate(iso){
   if (p.length !== 3) return String(iso);
   return String(p[2]).padStart(2, "0") + " " + MONTHS[+p[1] - 1] + " " + p[0];
 }
+
 function fmtDays(d){
   if (d === null || d === undefined) return "--";
   d = Math.trunc(d);
-  // Overdue is compressed on the same scale as time remaining. Two records in
-  // this data lapsed in 2020 and 2022, and "2068d overdue" is a number nobody
-  // reads at a glance - "5.7yr overdue" is the same fact, understood.
   if (d < 0) return span(-d) + " overdue";
   if (d === 0) return "today";
   return span(d);
@@ -544,7 +651,7 @@ function span(d){
   if (d < 730) return Math.floor(d / 30) + "mo";
   return (d / 365).toFixed(1) + "yr";
 }
-// Long form for anyone who should not have to decode "13mo".
+
 function fmtDaysLong(d){
   if (d === null || d === undefined) return "no date";
   d = Math.trunc(d);
@@ -561,9 +668,6 @@ function spanLong(d){
 
 const URGENT = ["Expired", "Critical", "Warning"];
 
-// ---- the one filter pipeline -------------------------------------------
-// `skip` lets a control exclude its own dimension so it never filters
-// itself out of existence. Nothing else may bypass this function.
 function rows(S, skip){
   skip = skip || "";
   let out = DATA.records;
@@ -600,33 +704,38 @@ const SORTS = {
 
 function sorted(rs, key){ return rs.slice().sort((SORTS[key] || SORTS.soon).cmp); }
 
-// ---- small building blocks --------------------------------------------
-function meter(c){
-  const total = BANDS.reduce((s, b) => s + c[b], 0);
-  if (!total) return '<div class="meter"></div>';
-  return '<div class="meter">' + BANDS.filter(b => c[b]).map(b =>
-    '<i style="width:' + (c[b] / total * 100).toFixed(3) + '%;background:' + META[b].color
-    + '" data-tip="' + esc(c[b] + " " + META[b].label) + '"></i>'
+function chip({ act, val, label, n, on, swatch, tip }){
+  const sw = swatch ? '<i style="background:' + swatch + '"></i>' : "";
+  const num = n !== undefined ? '<span class="n">' + n + "</span>" : "";
+  const tp = tip ? ' data-tip="' + esc(tip) + '"' : "";
+  const cl = "chip" + (on ? " on" : "");
+  return '<button class="' + cl + '" type="button" data-act="' + esc(act) + '" data-val="'
+    + esc(val) + '"' + (on ? ' aria-pressed="true"' : "") + tp + ">"
+    + sw + esc(label) + num + "</button>";
+}
+
+function seg(name, opts, active){
+  return '<div class="seg">' + opts.map(o =>
+    '<button type="button" data-act="' + esc(name) + '" data-val="' + esc(o.id) + '"'
+    + (o.id === active ? ' aria-pressed="true"' : "")
+    + (o.tip ? ' data-tip="' + esc(o.tip) + '"' : "") + ">" + esc(o.label) + "</button>"
   ).join("") + "</div>";
 }
+
 function dot(band){
   return '<span class="dot" style="color:' + META[band].color + '"><i style="background:'
-    + META[band].color + '"></i>' + esc(band) + "</span>";
+    + META[band].color + '"></i>' + esc(META[band].label) + "</span>";
 }
-function chip(o){
-  return '<button class="chip" type="button" data-act="' + esc(o.act) + '" data-val="'
-    + esc(o.val === null || o.val === undefined ? "" : o.val) + '" aria-pressed="' + (o.on ? "true" : "false")
-    + (o.tip ? '" data-tip="' + esc(o.tip) : "")
-    + '">' + (o.swatch ? '<i style="background:' + o.swatch + '"></i>' : "")
-    + esc(o.label) + (o.n === undefined ? "" : '<span class="n">' + o.n + "</span>") + "</button>";
+
+function meter(c){
+  const tot = (c.Expired || 0) + (c.Critical || 0) + (c.Warning || 0) + (c.Healthy || 0);
+  if (!tot) return '<div class="meter"></div>';
+  return '<div class="meter">' + BANDS.map(b => {
+    const n = c[b] || 0;
+    return n ? '<i style="width:' + (n / tot * 100) + '%;background:' + META[b].color + '"></i>' : "";
+  }).join("") + "</div>";
 }
-function seg(act, options, current){
-  return '<span class="seg" role="group">' + options.map(o =>
-    '<button type="button" data-act="' + esc(act) + '" data-val="' + esc(o.id)
-    + '" aria-pressed="' + (o.id === current ? "true" : "false")
-    + (o.tip ? '" data-tip="' + esc(o.tip) : "")
-    + '">' + esc(o.label) + "</button>").join("") + "</span>";
-}
+
 function voidState(head, hint, action){
   return '<div class="void"><div class="h">' + esc(head) + '</div><div class="p">' + esc(hint)
     + "</div>" + (action || "") + "</div>";
@@ -635,7 +744,7 @@ function legend(){
   return '<div class="legend">' + BANDS.map(b =>
     '<span data-tip="' + esc(META[b].label + " - " + META[b].plain) + '"><i style="background:'
     + META[b].color + '"></i>' + esc(META[b].label) + "</span>").join("")
-    + '<span style="color:var(--mute)">Hover any mark for detail</span></div>';
+    + '<span style="color:var(--mute)">Hover mark for detail</span></div>';
 }
 
 // ---- header -----------------------------------------------------------
@@ -647,18 +756,16 @@ function renderCrumbs(S){
   if (S.band) bits.push(["Health", S.band === "__urgent__" ? "Needs attention" : S.band, "band"]);
   if (S.window && S.window !== "all")
     bits.push(["Dates", (DATA.windows.find(w => w.id === S.window) || {}).label, "window"]);
-  if ((S.q || "").trim()) bits.push(["Search", S.q.trim(), "q"]);
+  if ((S.q || "").trim()) bits.push(["Search", clampStr(S.q.trim(), 14), "q"]);
 
   if (!bits.length)
-    return '<span class="lead">Filters</span><span class="none">Showing every tracked item '
-      + '&mdash; click any card, tile, chip or row to narrow it.</span>';
+    return '<span class="lead">Filters</span><span class="none">Showing every tracked item</span>';
 
   return '<span class="lead">Filters</span>' + bits.map(b =>
     '<button class="cx" type="button" data-act="drop" data-val="' + esc(b[2])
     + '" data-tip="Remove this filter"><u>' + esc(b[0]) + '</u><b>' + esc(b[1])
     + "</b><s>&times;</s></button>").join("")
-    + '<button class="chip" type="button" data-act="reset" data-tip="Clear all filters '
-    + '(or press Escape)">Clear all</button>';
+    + '<button class="chip" type="button" data-act="reset" data-tip="Clear all filters">Clear all</button>';
 }
 
 function renderViews(S){
@@ -666,9 +773,137 @@ function renderViews(S){
     chip({ act: "view", val: b.id, label: b.label, on: S.view === b.id, tip: b.tip })).join("");
 }
 
+// ---- sparkline SVG ----------------------------------------------------
+function sparklineSvg(values, color, width, height){
+  width = width || 42; height = height || 12;
+  if (!values || values.length < 2) return "";
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max === min ? 1 : (max - min);
+  const pad = 1.2;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * (width - pad * 2) + pad;
+    const y = height - pad - ((v - min) / range) * (height - pad * 2);
+    return [x, y];
+  });
+  const dLine = "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L");
+  const dArea = dLine + " L" + (width - pad).toFixed(1) + "," + height + " L" + pad + "," + height + " Z";
+  const last = pts[pts.length - 1];
+  return '<svg class="kpi-spark" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">'
+    + '<path d="' + dArea + '" fill="' + color + '" fill-opacity="0.18"/>'
+    + '<path d="' + dLine + '" fill="none" stroke="' + color + '" stroke-width="1.1" stroke-linecap="round"/>'
+    + '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="1.5" fill="' + color + '"/>'
+    + '</svg>';
+}
+
+// ---- trend delta badge (max 30 chars) ---------------------------------
+function trendDelta(curr, prev, isLowerBetter){
+  if (prev === undefined || prev === null) return '<span class="trend flat">● Stable</span>';
+  const diff = curr - prev;
+  if (diff === 0) return '<span class="trend flat">● Stable</span>';
+  if (diff > 0){
+    const cls = isLowerBetter ? "bad" : "good";
+    return '<span class="trend ' + cls + '">&#9650; +' + diff + ' vs prev</span>';
+  } else {
+    const cls = isLowerBetter ? "good" : "bad";
+    return '<span class="trend ' + cls + '">&#9660; ' + diff + ' vs prev</span>';
+  }
+}
+
+// ---- smart narrative headline generator (hard cap <= 90 chars) ---------
+function renderNarrative(S){
+  const rs = rows(S);
+  const st = (DATA.mode === "all" ? S.state : DATA.state) || "All";
+  const compName = S.component ? CODE[S.component] : "all";
+
+  if (!rs.length){
+    return '<span class="narrative-tag tag-ok">&#9675; Empty</span>'
+      + '<span class="narrative-text" title="No items match active filters. Clear filters to reset.">'
+      + 'No items match current filters. Clear filters to reset.</span>';
+  }
+
+  const expired = rs.filter(r => r.days < 0);
+  const crit = rs.filter(r => r.days >= 0 && r.days <= CRIT);
+  const warn = rs.filter(r => r.days > CRIT && r.days <= WARN);
+  const nx = soonest(rs.filter(r => r.days >= 0)) || soonest(rs);
+
+  let tag = "", text = "";
+  if (expired.length > 0){
+    const worst = expired.reduce((a, b) => b.days < a.days ? b : a);
+    const sName = clampStr(worst.schema, 16);
+    tag = '<span class="narrative-tag tag-alert">&#9679; Action</span>';
+    text = '<b>' + esc(sName) + '</b> in ' + esc(worst.environment) + ' is <b>'
+      + esc(fmtDays(worst.days)) + '</b> overdue. Rotate credentials.';
+  } else if (crit.length > 0){
+    tag = '<span class="narrative-tag tag-crit">&#9650; Critical</span>';
+    const sName = nx ? clampStr(nx.schema, 14) : "";
+    text = '<b>' + crit.length + ' item' + (crit.length === 1 ? '' : 's') + '</b> due in 15d'
+      + (nx ? ' (next: ' + esc(sName) + ' in ' + esc(fmtDays(nx.days)) + ')' : '') + '. Renew now.';
+  } else if (warn.length > 0){
+    tag = '<span class="narrative-tag tag-warn">&#9670; Notice</span>';
+    text = '<b>' + warn.length + ' item' + (warn.length === 1 ? '' : 's') + '</b> due in 30d'
+      + (nx ? ' (next: ' + esc(fmtDate(nx.exp)) + ', ' + esc(fmtDays(nx.days)) + ')' : '') + '.';
+  } else {
+    tag = '<span class="narrative-tag tag-ok">&#10003; Compliant</span>';
+    text = 'All <b>' + rs.length + '</b> items healthy. Next: <b>'
+      + (nx ? (esc(fmtDays(nx.days)) + ' (' + esc(fmtDate(nx.exp)) + ')') : 'None') + '</b>.';
+  }
+
+  const plain = text.replace(/<[^>]+>/g, "");
+  return tag + '<span class="narrative-text" title="' + esc(plain) + '">' + text + '</span>';
+}
+
+// ---- activity comparison strip ---------------------------------------
+function renderSinceVisit(snaps){
+  if (!snaps || snaps.length < 2){
+    return "<b>" + DATA.records.length + "</b> tracked as of <b>" + esc(DATA.asOf) + "</b>";
+  }
+  const curr = snaps[snaps.length - 1], prev = snaps[snaps.length - 2];
+  const dExp = curr.expired - prev.expired;
+  const deltaText = dExp > 0 ? ('<b style="color:var(--expired)">+' + dExp + " overdue</b>") : '<span style="color:var(--healthy)">0 new overdue</span>';
+  return "<b>" + DATA.records.length + "</b> items as of <b>" + esc(DATA.asOf) + "</b><br/>"
+    + '<span style="color:var(--slate)">Last check: ' + deltaText + "</span>";
+}
+
+// ---- guided story mode step generator (hard cap <= 80 chars per step) --
+function storySteps(S){
+  const rs = DATA.records;
+  const expired = rs.filter(r => r.days < 0);
+  const nx = soonest(rs.filter(r => r.days >= 0)) || soonest(rs);
+
+  return [
+    {
+      target: "mKpis",
+      title: "1. Fleet Overview",
+      desc: "Fleet Overview: " + rs.length + " infrastructure items across " + DATA.states.length + " states with live monitoring.",
+      hint: "KPI headline metrics reflect live compliance status."
+    },
+    {
+      target: "mKpis",
+      title: "2. Immediate Risk",
+      desc: expired.length
+        ? "Risk Profile: " + expired.length + " overdue item(s) detected; credential rotation required."
+        : "Risk Profile: Zero expired items detected across all environments.",
+      hint: "Filter by 'Needs Attention' anytime to isolate these items."
+    },
+    {
+      target: "mFocus",
+      title: "3. Renewal Horizon",
+      desc: nx
+        ? "Timeline: Next renewal in " + fmtDays(nx.days) + " (" + fmtDate(nx.exp) + " for " + clampStr(nx.schema, 12) + ")."
+        : "Timeline: No upcoming renewals in scope.",
+      hint: "Hover any event point on the timeline for instant entity inspection."
+    },
+    {
+      target: "mWhen",
+      title: "4. Workload",
+      desc: "Workload: Renewal tasks are grouped by quarter across 2026–2029.",
+      hint: "Click any quarter bar to cross-filter detail tables across the screen."
+    }
+  ];
+}
+
 // ---- slicer bar -------------------------------------------------------
 function renderSlicers(S){
-  // Count active chip-row filters for the badge (excludes search — that shows inline)
   const activeCount = (DATA.mode === "all" && S.state ? 1 : 0)
     + (S.component ? 1 : 0)
     + (S.band && S.band !== "__urgent__" ? 1 : S.band === "__urgent__" ? 1 : 0)
@@ -676,7 +911,6 @@ function renderSlicers(S){
 
   const q = S.q || "";
 
-  // Always-visible row: search input + Filters toggle
   const topRow = [];
   topRow.push('<div class="search"><input id="q" type="search" value="' + esc(q)
     + '" placeholder="Find a schema, environment or date" aria-label="Search tracked items" />'
@@ -686,12 +920,11 @@ function renderSlicers(S){
     + ' data-act="toggleFilters" data-tip="'
     + (S.showFilters ? "Collapse filter options" : "Expand filters to narrow by state, component, health or date range") + '">'
     + (S.showFilters ? "&#9650; Filters" : "&#9660; Filters")
-    + (activeCount ? '<span class="filter-badge">' + activeCount + '</span>' : '')
-    + '</button>');
+    + (activeCount ? '<span class="filter-badge">' + activeCount + "</span>" : "")
+    + "</button>");
 
   if (!S.showFilters) return topRow.join("");
 
-  // Expanded drawer: the full chip rows
   const drawer = ['<div class="filter-drawer">'];
   if (DATA.mode === "all"){
     const by = {}; rows(S, "state").forEach(r => by[r.state] = (by[r.state] || 0) + 1);
@@ -713,60 +946,74 @@ function renderSlicers(S){
                   on: (S.window || "all") === w.id,
                   tip: w.id === "all" ? "No date limit" : "Only items in this date range" });
   }).join("") + "</div>");
-  drawer.push('</div>');
+  drawer.push("</div>");
 
   return topRow.join("") + drawer.join("");
 }
 
 // ---- KPI strip --------------------------------------------------------
 function renderKpis(S){
-  // Computed before the health filter, so the tile you are filtering by
-  // still shows its own total instead of collapsing to itself.
   const base = rows(S, "band");
   const c = counts(base), total = base.length;
   const inScope = rows(S);
   const nx = soonest(inScope.filter(r => r.days >= 0)) || soonest(inScope);
 
-  // What this count actually covers. Naming the live scope here means the
-  // headline number can never be read against the wrong denominator.
   const scope = [
     DATA.mode === "all" ? (S.state || DATA.states.length + " states") : DATA.state,
     S.component ? CODE[S.component] : DATA.components.length + " components",
   ];
   if (S.environment) scope.push(S.environment);
 
-  // The dominant tile is Expired when any items are overdue; otherwise Tracked items.
-  // data-dom triggers the larger focal styling in CSS.
   const hasExpired = c["Expired"] > 0;
+  const snaps = DATA.snapshots || [];
+  const prevSnap = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
 
+  const trackedSpark = sparklineSvg(snaps.map(s => s.tracked), T.accent);
+  const trackedTrend = trendDelta(total, prevSnap ? prevSnap.tracked : null, false);
   const tiles = [
     '<button class="kpi" type="button" data-act="band" data-val="" aria-pressed="'
     + (S.band ? "false" : "true") + '"'
     + (!hasExpired ? ' data-dom="1"' : "")
     + ' data-tip="Show every health status">'
-    + '<div class="v">' + total + '</div><div class="k">Tracked items</div>'
-    + '<div class="s">' + scope.map(esc).join(" &middot; ") + "</div></button>"
+    + '<div class="kpi-row1"><div class="v">' + total + '</div>' + trackedSpark + '</div>'
+    + '<div class="k">Tracked items</div>'
+    + '<div class="kpi-row2"><div class="s">' + scope.map(esc).join(" &middot; ") + '</div>' + trackedTrend + '</div>'
+    + '</button>'
   ];
 
   BANDS.forEach(b => {
-    // "3% of 30" rather than "3% of these": a percentage is only useful if the
-    // reader can see what it is a percentage of.
     const pct = total ? Math.round(c[b] / total * 100) + "% of " + total : "--";
     const isDom = b === "Expired" && hasExpired;
+    const key = b.toLowerCase();
+    const bSpark = sparklineSvg(snaps.map(s => s[key] || 0), META[b].color);
+    const bTrend = trendDelta(c[b], prevSnap ? (prevSnap[key] || 0) : null, b !== "Healthy");
+
+    let soWhatHtml = "";
+    if (b === "Expired" && c["Expired"] > 0){
+      soWhatHtml = '<div class="so-what" title="So what: Stale credentials violate policy. Now what: Rotate today.">So what: Stale credentials. Now what: Rotate today.</div>';
+    } else if (b === "Critical" && c["Critical"] > 0){
+      soWhatHtml = '<div class="so-what" title="So what: Expiry within 15 days. Now what: Stage renewal workflow.">So what: Expiry in 15d. Now what: Stage renewal workflow.</div>';
+    }
+
     tiles.push('<button class="kpi" type="button" data-act="band" data-val="' + esc(b)
       + '" aria-pressed="' + (S.band === b ? "true" : "false")
       + '" style="--val:' + META[b].color + ";--edge:" + META[b].color + '"'
       + (isDom ? ' data-dom="1"' : "")
       + ' data-tip="' + esc(META[b].label + " - " + META[b].plain + ". Click to show only these.")
-      + '"><div class="v">' + c[b] + '</div><div class="k">' + esc(META[b].label)
-      + '</div><div class="s">' + esc(pct) + "</div></button>");
+      + '">'
+      + '<div class="kpi-row1"><div class="v">' + c[b] + '</div>' + bSpark + '</div>'
+      + '<div class="k">' + esc(META[b].label) + '</div>'
+      + '<div class="kpi-row2"><div class="s">' + esc(pct) + '</div>' + bTrend + '</div>'
+      + soWhatHtml
+      + '</button>');
   });
 
   const band = nx ? nx.band : "Healthy";
+  const nxSpark = sparklineSvg(snaps.map(s => Math.max(0, s.soonest_days || 0)), META[band].color);
   tiles.push('<div class="kpi flat" style="--val:' + META[band].color + ";--edge:" + META[band].color
     + '"' + (nx ? ' data-tip="' + esc(nx.schema + " in " + nx.environment + " - " + nx.component) + '"' : "")
-    + '><div class="v">' + esc(nx ? fmtDays(nx.days) : "--")
-    + '</div><div class="k">Next expiry</div><div class="s">'
+    + '><div class="kpi-row1"><div class="v">' + esc(nx ? fmtDays(nx.days) : "--") + '</div>' + nxSpark + '</div>'
+    + '<div class="k">Next expiry</div><div class="s">'
     + esc(nx ? fmtDate(nx.exp) : "nothing in scope") + "</div></div>");
 
   return tiles.join("");
@@ -781,12 +1028,13 @@ function renderComps(S){
     const band = worstBand(new Set(sub.map(r => r.band)));
     const on = S.component === comp;
     return '<button class="cc" type="button" data-act="component" data-val="' + esc(comp)
+      + '" data-hl-comp="' + esc(comp) + '"'
       + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc((on ? "Click again to clear. " : "Click to focus ")
       + comp + " (" + CODE[comp] + ") — " + DATA.componentBlurb[comp])
       + '"><div class="head-row"><span class="code">' + esc(CODE[comp]) + '</span><span class="nm">'
       + esc(comp) + '</span></div>' + meter(c)
-      + '<div class="meter-label">Health distribution across tracked items</div>'
+      + '<div class="meter-label">Health distribution</div>'
       + '<div class="foot"><span class="cnt">' + sub.length + "<em>item"
       + (sub.length === 1 ? "" : "s") + '</em></span><span class="nx">'
       + (nx ? "next <b>" + esc(fmtDays(nx.days)) + "</b><br />" + esc(fmtDate(nx.exp))
@@ -794,11 +1042,11 @@ function renderComps(S){
   }).join("");
 }
 
-// ---- focus panel: horizon / environments / coverage -------------------
+// ---- focus panel ------------------------------------------------------
 const FOCUS_VIEWS = [
   { id: "horizon", label: "Timeline", tip: "Every item placed on a time axis" },
-  { id: "envs", label: "Environments", tip: "The environments carrying the current selection" },
-  { id: "coverage", label: "Coverage", tip: "Which pairings are tracked, and how urgent each is" }
+  { id: "envs", label: "Environments", tip: "Environments in current selection" },
+  { id: "coverage", label: "Coverage", tip: "State/Env vs Component coverage" }
 ];
 
 function focusHint(S){
@@ -820,10 +1068,7 @@ function renderFocus(S){
   return renderHorizon(S);
 }
 
-// The signature visual. Time on a square-root axis, because this data runs
-// to 2029: linear spacing would bury the next 90 days in the first 6% of
-// the width. Records stack into columns, so a renewal wave reads as a
-// shape rather than a number you have to look up.
+// The signature visual: Area gradient timeline with Today anchor & reference guides
 const GRID = [[30, "30d"], [90, "90d"], [180, "6mo"], [365, "1yr"],
               [730, "2yr"], [1095, "3yr"], [1460, "4yr"], [1825, "5yr"]];
 
@@ -841,11 +1086,21 @@ function renderHorizon(S){
   const px = d => x0 + (Math.sqrt(Math.max(d, 0)) / root) * (x1 - x0);
 
   const o = ['<svg class="chart" viewBox="0 0 ' + W + " " + H
-    + '" preserveAspectRatio="none" role="img" aria-label="Expiry timeline: '
-    + rs.length + ' tracked items by time until expiry">'];
+    + '" preserveAspectRatio="none" role="img" aria-label="Expiry timeline">'];
+
+  o.push("<defs>"
+    + '<linearGradient id="areaGrad" x1="0%" y1="0%" x2="0%" y2="100%">'
+    + '<stop offset="0%" stop-color="' + T.accent + '" stop-opacity="0.32"/>'
+    + '<stop offset="100%" stop-color="' + T.accent + '" stop-opacity="0.02"/>'
+    + "</linearGradient>"
+    + '<linearGradient id="critGrad" x1="0%" y1="0%" x2="0%" y2="100%">'
+    + '<stop offset="0%" stop-color="' + META.Critical.color + '" stop-opacity="0.28"/>'
+    + '<stop offset="100%" stop-color="' + META.Critical.color + '" stop-opacity="0.03"/>'
+    + "</linearGradient>"
+    + "</defs>");
 
   o.push('<rect x="' + x0.toFixed(1) + '" y="' + top + '" width="' + (px(CRIT) - x0).toFixed(1)
-    + '" height="' + (base - top).toFixed(1) + '" fill="' + META.Critical.tint + '"/>');
+    + '" height="' + (base - top).toFixed(1) + '" fill="url(#critGrad)"/>');
   o.push('<rect x="' + px(CRIT).toFixed(1) + '" y="' + top + '" width="'
     + (px(WARN) - px(CRIT)).toFixed(1) + '" height="' + (base - top).toFixed(1)
     + '" fill="' + META.Warning.tint + '"/>');
@@ -859,21 +1114,37 @@ function renderHorizon(S){
   o.push('<line x1="' + (gut - 21) + '" y1="' + base + '" x2="' + x1 + '" y2="' + base
     + '" stroke="' + T.rule + '" stroke-width="1"/>');
 
+  const guideLines = [
+    [30, "30d Warning", META.Warning.color],
+    [90, "90d Quarter", T.accent],
+    [365, "1yr Horizon", T.slate]
+  ];
+  guideLines.forEach(([d, lbl, clr]) => {
+    if (d <= horizon * 0.95){
+      const gx = px(d);
+      o.push('<line x1="' + gx.toFixed(1) + '" y1="' + (top + 2) + '" x2="' + gx.toFixed(1)
+        + '" y2="' + base + '" stroke="' + clr + '" stroke-opacity="0.38" stroke-width="1" stroke-dasharray="2 3"/>');
+      o.push('<text x="' + gx.toFixed(1) + '" y="' + (top + 10) + '" fill="' + clr + '" font-size="9"'
+        + ' font-weight="600" text-anchor="middle" opacity="0.8">' + esc(lbl) + "</text>");
+    }
+  });
+
   GRID.filter(g => g[0] <= horizon * 0.985).concat(horizon > 90 ? [[horizon, fmtDays(horizon)]] : [])
     .forEach(g => {
       const x = px(g[0]);
-      o.push('<line x1="' + x.toFixed(1) + '" y1="' + (top + 2) + '" x2="' + x.toFixed(1)
+      o.push('<line x1="' + x.toFixed(1) + '" y1="' + (top + 14) + '" x2="' + x.toFixed(1)
         + '" y2="' + base + '" stroke="' + T.ruleSoft + '" stroke-width="1" stroke-dasharray="2 4"/>');
       o.push('<text x="' + x.toFixed(1) + '" y="' + (base + 16) + '" fill="' + T.mute + '" font-size="11"'
         + ' text-anchor="middle">' + esc(g[1]) + "</text>");
     });
 
   o.push('<line x1="' + x0 + '" y1="' + (top - 8) + '" x2="' + x0 + '" y2="' + (base + 5)
-    + '" stroke="' + T.accent + '" stroke-width="1.5"/>');
+    + '" stroke="' + T.accent + '" stroke-width="1.8"/>');
+  o.push('<circle cx="' + x0 + '" cy="' + (top - 8) + '" r="3" fill="' + T.accent + '"/>');
+  o.push('<circle cx="' + x0 + '" cy="' + (base + 5) + '" r="2.5" fill="' + T.accent + '"/>');
   o.push('<text x="' + (x0 + 6) + '" y="' + (top - 1) + '" fill="' + T.accent + '" font-size="11"'
-    + ' font-weight="600" letter-spacing="1">TODAY</text>');
+    + ' font-weight="700" letter-spacing="1">TODAY</text>');
 
-  // Stack marks into 7px columns so clusters build visible height.
   const cols = new Map();
   future.forEach(r => {
     const k = Math.round(px(r.days) / 7);
@@ -891,7 +1162,8 @@ function renderHorizon(S){
       const y = base - 5 - i * STEP;
       o.push('<rect x="' + (cx - MARK / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + MARK
         + '" height="' + (STEP - 1.4).toFixed(1) + '" rx="1.2" fill="' + META[r.band].color
-        + '" data-tip="' + esc(r.schema + " &middot; " + r.environment + " &middot; " + r.component
+        + '" data-hl-comp="' + esc(r.component) + '" data-hl-env="' + esc(r.environment) + '"'
+        + ' data-tip="' + esc(r.schema + " &middot; " + r.environment + " &middot; " + r.component
         + " &middot; " + fmtDate(r.exp) + " (" + fmtDaysLong(r.days) + ")") + '"/>');
     });
     if (bucket.length > room)
@@ -906,8 +1178,7 @@ function renderHorizon(S){
 
   o.push("</svg>");
   return o.join("") + '<div class="legend"><span style="color:var(--slate)">Time runs on a '
-    + "square-root scale, so the next three months stay readable next to " + esc(DATA.lastYear)
-    + ". Column height is how many items land in that window.</span></div>";
+    + "square-root scale. Column height is density of items expiring in each window.</span></div>";
 }
 
 function renderEnvs(S){
@@ -920,18 +1191,18 @@ function renderEnvs(S){
     g.n++; g.nos.add(r.envNo); g.bands.add(r.band); g.min = Math.min(g.min, r.days);
   });
   if (!groups.size)
-    return voidState("No environments in scope",
-      "Clear a filter to bring environments back.",
+    return voidState("No envs", "Clear a filter to see environments.",
       '<button class="chip" type="button" data-act="reset">Clear all filters</button>');
 
   const items = [...groups.entries()].sort((a, b) => a[1].rank - b[1].rank);
   return '<div class="envs">' + items.map(([env, g]) => {
     const band = worstBand(g.bands), on = S.environment === env;
     return '<button class="ec" type="button" data-act="environment" data-val="' + esc(env)
+      + '" data-hl-env="' + esc(env) + '"'
       + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc(env + " - " + (DATA.envBlurb[env] || env) + ". " + g.n
       + " item(s), soonest " + fmtDaysLong(g.min) + ". "
-      + (on ? "Click again to clear." : "Click to focus every panel on this environment."))
+      + (on ? "Click again to clear." : "Click to focus environments."))
       + '"><div class="en">' + esc(env) + '</div><div class="eb">'
       + esc(DATA.envBlurb[env] || "") + '</div><div class="er"><span>' + g.n + " item"
       + (g.n === 1 ? "" : "s") + "</span><b>" + esc(fmtDays(g.min)) + "</b></div></button>";
@@ -941,7 +1212,7 @@ function renderEnvs(S){
 function renderCoverage(S){
   const rs = rows(S);
   if (!rs.length)
-    return voidState("Nothing to map", "No tracked item matches the current filters.",
+    return voidState("Nothing to map", "Adjust filters to show coverage.",
       '<button class="chip" type="button" data-act="reset">Clear all filters</button>');
 
   const rowKey = DATA.mode === "all" ? "state" : "environment";
@@ -963,14 +1234,14 @@ function renderCoverage(S){
     const tds = DATA.components.map(comp => {
       const c = cells.get(key + "|" + comp);
       if (!c) return '<td><div class="c void" data-tip="' + esc(key + " / " + CODE[comp]
-        + ": not tracked in the workbooks. That is different from healthy.") + '">&middot;</div></td>';
+        + ": not tracked.") + '">&middot;</div></td>';
       const band = worstBand(c.bands), solid = band !== "Healthy";
       return '<td><button class="c" type="button" data-act="cell" data-val="'
         + esc(key + "|" + CODE[comp]) + '" style="background:' + (solid ? META[band].color : META[band].tint)
         + ";color:" + (solid ? "#fff" : META[band].color) + ";border-color:" + META[band].color
         + (solid ? "" : ";border-color:rgba(0,0,0,0)") + '" data-tip="'
         + esc(key + " / " + comp + ": " + c.n + " item(s), soonest " + fmtDaysLong(c.min)
-        + ". Click to filter to this pairing.") + '">' + esc(fmtDays(c.min)) + "</button></td>";
+        + ". Click to filter.") + '">' + esc(fmtDays(c.min)) + "</button></td>";
     }).join("");
     const sub = rowKey === "state" ? "" : ' <u>' + esc([...meta.nos].sort((a, b) => a - b).join("/")) + "</u>";
     return "<tr><td class=\"rl\">" + esc(key) + sub + "</td>" + tds + "</tr>";
@@ -980,9 +1251,6 @@ function renderCoverage(S){
 }
 
 // ---- detail table ----------------------------------------------------
-// The first four headers are the column names the specification asks for,
-// spelled exactly as written there. "Time Left" is the one addition: the
-// date alone does not tell you whether to act this week.
 const COLS = [
   { id: "env", sort: "env", label: "Environment", w: "15%" },
   { id: "schema", sort: "schema", label: "Schema Name", w: "31%" },
@@ -1005,9 +1273,6 @@ function thead(cols, S){
       + '"><button type="button" tabindex="-1" style="cursor:default">' + esc(c.label)
       + "</button></th>";
     const active = S.sort === c.sort || (c.sort === "soon" && S.sort === "late");
-    // Expiry Date and Time Left both sort by date, so without this the arrow
-    // would appear twice and imply two active sorts. It belongs on the first
-    // column carrying the sort, which is the one the reader is looking at.
     const owner = cols.findIndex(x => x.sort === c.sort) === i;
     const arrow = !(active && owner) ? "" : (S.sort === "late" ? "&#9660;" : "&#9650;");
     return "<th" + (c.right ? ' class="r"' : "") + ' style="width:' + c.w + '"'
@@ -1033,31 +1298,35 @@ function renderTable(S){
   const page = Math.min(S.page, pages - 1);
   const slice = all.slice(page * per, page * per + per);
 
-  const body = slice.map(r =>
-    '<tr class="' + (r.band === "Healthy" ? "" : "hot") + '">'
+  const body = slice.map(r => {
+    let barPct = 10;
+    if (r.days < 0) barPct = 100;
+    else if (r.days <= CRIT) barPct = Math.round(80 + (1 - r.days / CRIT) * 20);
+    else if (r.days <= WARN) barPct = Math.round(45 + (1 - (r.days - CRIT) / (WARN - CRIT)) * 35);
+    else barPct = Math.max(10, Math.round((1 - Math.min(r.days, 730) / 730) * 40));
+
+    return '<tr class="' + (r.band === "Healthy" ? "" : "hot") + '"'
+      + ' data-hl-comp="' + esc(r.component) + '"'
+      + ' data-hl-env="' + esc(r.environment) + '"'
+      + ' data-hl-quarter="' + esc(r.quarter) + '">'
       + '<td><span class="env-pill" data-tip="' + esc(DATA.envBlurb[r.environment] || r.environment)
       + '">' + esc(r.environment) + "</span></td>"
       + '<td><span class="schema">' + esc(r.schema) + "</span>"
-      + (r.edited ? '<span class="tag" data-tip="Changed in Manage; differs from the workbook">EDITED</span>' : "")
-      // The schema name already ends in the component code, so repeating the
-      // code here would be decoration. The full component name is what someone
-      // meeting "ENV31_DBPWD" for the first time actually needs - and in the
-      // consolidated view the state is the one thing no column carries.
+      + (r.edited ? '<span class="tag" data-tip="Changed in Manage">EDITED</span>' : "")
       + ' <span class="sub">'
       + (DATA.mode === "all" ? esc(r.state) + " &middot; " : "")
       + esc(r.component) + "</span></td>"
       + '<td class="mono">' + esc(fmtDate(r.exp)) + "</td>"
       + "<td>" + dot(r.band) + "</td>"
-      + '<td class="r mono" style="color:' + META[r.band].color + ';font-weight:600" data-tip="'
-      + esc(fmtDaysLong(r.days)) + '">' + esc(fmtDays(r.days)) + "</td></tr>").join("");
+      + '<td class="r mono time-cell" data-tip="' + esc(fmtDaysLong(r.days)) + '">'
+      + '<div class="data-bar" style="width:' + barPct + '%;background:' + META[r.band].tint + ';border-right:2px solid ' + META[r.band].color + '"></div>'
+      + '<span class="time-val" style="color:' + META[r.band].color + ';font-weight:600">' + esc(fmtDays(r.days)) + "</span></td></tr>";
+  }).join("");
 
   return '<table class="tbl"><thead><tr>' + thead(COLS, S)
     + "</tr></thead><tbody>" + body + "</tbody></table>";
 }
 
-// One row per environment-and-component pairing. Same filters, same numbers,
-// fewer rows - for the reader who wants the shape of the workload rather
-// than the individual schema names.
 function summaryRows(S){
   const groups = new Map();
   rows(S).forEach(r => {
@@ -1088,10 +1357,12 @@ function renderSummary(S){
   const slice = all.slice(page * per, page * per + per);
 
   const body = slice.map(g =>
-    '<tr class="' + (g.band === "Healthy" ? "" : "hot") + '">'
+    '<tr class="' + (g.band === "Healthy" ? "" : "hot") + '"'
+      + ' data-hl-comp="' + esc(g.component) + '"'
+      + ' data-hl-env="' + esc(g.environment) + '">'
       + '<td><button class="env-pill" type="button" data-act="pair" data-val="'
       + esc(g.environment + "|" + CODE[g.component]) + '" data-tip="'
-      + esc("Filter everything to " + g.environment + " / " + g.component)
+      + esc("Filter to " + g.environment + " / " + g.component)
       + '">' + esc(g.environment) + "</button></td>"
       + '<td><span class="schema">' + esc(CODE[g.component]) + '</span> <span class="sub">'
       + esc(g.component) + "</span></td>"
@@ -1104,8 +1375,6 @@ function renderSummary(S){
     + "</tr></thead><tbody>" + body + "</tbody></table>";
 }
 
-// Paging counts whatever the table is currently listing, which is records in
-// Detail and pairings in Summary.
 function visibleCount(S){ return S.tview === "summary" ? summaryRows(S).length : rows(S).length; }
 
 function renderPager(S){
@@ -1130,14 +1399,12 @@ function renderPager(S){
     + '<span style="color:var(--mute)">Page ' + (page + 1) + " of " + pages + "</span>";
 }
 
-// ---- quarter bars ----------------------------------------------------
 function quarters(n){
   const out = [];
   let y = DATA.year, q = DATA.quarter;
   for (let i = 0; i < n; i++){ out.push("Q" + q + " " + y); if (++q > 4){ q = 1; y++; } }
   return out;
 }
-// "Q2 2027" -> 8107, so quarters can be compared without parsing dates.
 function qOrd(label){
   const m = /^Q([1-4]) (\d{4})$/.exec(label || "");
   if (!m) return null;
@@ -1157,40 +1424,37 @@ function renderWhen(S){
   let before = 0, after = 0;
   rs.forEach(r => {
     const o = qOrd(r.quarter);
-    // Long-overdue items sit in quarters that closed years ago. Counting them
-    // as "later than the window" would be the wrong way round.
-    if (o === null || o < first){ before++; return; }
-    if (o > last){ after++; return; }
+    if (o === null) return;
+    if (o < first) { before++; return; }
+    if (o > last)  { after++;  return; }
     byQ[r.quarter] = (byQ[r.quarter] || 0) + 1;
     const cur = bandOf[r.quarter];
     bandOf[r.quarter] = cur ? worstBand(new Set([cur, r.band])) : r.band;
   });
   const buckets = labels.map(l => [l, byQ[l] || 0, bandOf[l] || "Healthy"]);
 
-  const W = 1000, H = 200, top = 22, base = 162;
+  const W = 1000, H = 210, top = 18, base = 162;
   const peak = Math.max(1, ...buckets.map(b => b[1]));
-  const slot = W / buckets.length, bw = Math.min(slot * 0.6, 44);
+  const slot = W / buckets.length, bw = Math.min(slot * 0.58, 44);
   const share = S.qty === "share";
 
   const o = ['<svg class="chart" viewBox="0 0 ' + W + " " + H
-    + '" preserveAspectRatio="none" role="img" aria-label="Items expiring per quarter">'];
+    + '" preserveAspectRatio="none" role="img" aria-label="Workload by quarter">'];
+
   o.push('<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base
     + '" stroke="' + T.rule + '" stroke-width="1"/>');
 
   buckets.forEach((b, i) => {
     const cx = slot * (i + 0.5), n = b[1];
-    if (!n){
-      o.push('<line x1="' + (cx - bw / 2).toFixed(1) + '" y1="' + base + '" x2="'
-        + (cx + bw / 2).toFixed(1) + '" y2="' + base + '" stroke="' + T.ruleSoft + '" stroke-width="2"/>');
-    } else {
+    if (n){
       const h = (n / peak) * (base - top);
       const label = share ? Math.round(n / rs.length * 100) + "%" : n;
       o.push('<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="'
         + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="' + META[b[2]].color
-        + '" fill-opacity=".85" data-tip="' + esc(b[0] + ": " + n + " item(s) expiring, "
-        + Math.round(n / rs.length * 100) + "% of the " + rs.length + " in scope. Most urgent status "
-        + b[2] + ".") + '"/>');
-      o.push('<text x="' + cx.toFixed(1) + '" y="' + (base - h - 6).toFixed(1)
+        + '" fill-opacity=".88" data-hl-quarter="' + esc(b[0]) + '"'
+        + ' data-tip="' + esc(b[0] + ": " + n + " item" + (n === 1 ? "" : "s") + " ("
+        + Math.round(n / rs.length * 100) + "%), worst status " + b[2]) + '"/>');
+      o.push('<text x="' + cx.toFixed(1) + '" y="' + (base - h - 5).toFixed(1)
         + '" fill="' + T.ink + '" font-size="12" font-weight="600" text-anchor="middle">'
         + esc(label) + "</text>");
     }
@@ -1232,41 +1496,60 @@ function whereLabel(S){
 /*==ENGINE-END==*/
 
 /* ======================================================================
-   DOM layer. The only place that touches the document: it assigns the
-   strings the pure functions above return, and translates clicks back
-   into state changes.
+   DOM layer.
    ====================================================================== */
 const S = {
   state: DATA.mode === "state" ? DATA.state : null,
   component: null, environment: null, band: null, window: "all", q: "",
   focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all",
-  showFilters: false
+  showFilters: false,
+  storyStep: null,
+  storyTimer: null,
+  storyPaused: false
 };
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
-["mWhere", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
+["mWhere", "mNarrative", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenHint",
- "mWhenSeg", "mWhen"].forEach(k => MOUNTS[k] = $(k));
+ "mWhenSeg", "mWhen", "mStoryModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
-// Assign only when the string actually changed: fewer repaints, and the
-// browser keeps focus and hover where the user left them.
 const last = {};
 function put(key, html){
+  if (!MOUNTS[key]) return;
   if (last[key] === html) return;
   last[key] = html;
   MOUNTS[key].innerHTML = html;
 }
 
+function animateNumbers(){
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  document.querySelectorAll(".kpi .v").forEach(el => {
+    const txt = el.textContent.trim();
+    const target = parseInt(txt, 10);
+    if (isNaN(target)) return;
+    const dur = 260;
+    const start = performance.now();
+    const tick = now => {
+      const p = Math.min(1, (now - start) / dur);
+      const ease = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * ease);
+      if (p < 1) requestAnimationFrame(tick);
+      else el.textContent = target;
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
 function apply(){
   put("mWhere", esc(whereLabel(S)));
+  put("mNarrative", renderNarrative(S));
   put("mCrumbs", renderCrumbs(S));
   put("mViews", renderViews(S));
-  put("mAsOf", "<b>" + DATA.records.length + "</b> items tracked<br />as of <b>"
-    + esc(DATA.asOf) + "</b>");
+  put("mAsOf", renderSinceVisit(DATA.snapshots));
   const focused = document.activeElement === $("q");
   if (!focused) put("mSlicers", renderSlicers(S));
-  else { last.mSlicers = null; }          // refresh after the box loses focus
+  else { last.mSlicers = null; }
   put("mKpis", renderKpis(S));
   put("mComps", renderComps(S));
   put("mFocusSeg", seg("focus", FOCUS_VIEWS, S.focus));
@@ -1274,41 +1557,128 @@ function apply(){
   put("mFocus", renderFocus(S));
   put("mTableHint", tableHint(S));
   put("mTableSeg", seg("tview", [
-    { id: "detail", label: "Detail", tip: "One row per tracked item" },
-    { id: "summary", label: "Summary", tip: "One row per environment and component, with counts" }
+    { id: "detail", label: "Detail", tip: "One row per item" },
+    { id: "summary", label: "Summary", tip: "Environment/Comp groupings" }
   ], S.tview));
   put("mTable", renderTable(S));
   put("mPager", renderPager(S));
   put("mWhenHint", whenHint(S));
   put("mWhenSeg", seg("qty", [
-    { id: "count", label: "Count", tip: "Number of items per quarter" },
-    { id: "share", label: "Share", tip: "Each quarter as a percentage of the current selection" }
+    { id: "count", label: "Count", tip: "Number of items" },
+    { id: "share", label: "Share", tip: "Percentage of total" }
   ], S.qty));
   put("mWhen", renderWhen(S));
+
+  if (S.storyStep !== null) renderStoryModal();
+  animateNumbers();
 }
 
-// Selecting the value already active clears it, so every control is its
-// own off switch.
 function toggle(key, value){
   S[key] = S[key] === value ? null : value;
   S.view = null;
   S.page = 0;
 }
 
+// ---- Story Mode Controller --------------------------------------------
+function startStory(){
+  S.storyStep = 0;
+  S.storyPaused = false;
+  renderStoryModal();
+  advanceStoryTimer();
+}
+
+function stopStory(){
+  if (S.storyTimer) clearTimeout(S.storyTimer);
+  S.storyStep = null;
+  S.storyTimer = null;
+  document.querySelectorAll(".story-spotlight").forEach(el => el.classList.remove("story-spotlight"));
+  const modal = $("mStoryModal");
+  if (modal){ modal.classList.remove("on"); modal.innerHTML = ""; }
+}
+
+function nextStory(){
+  const steps = storySteps(S);
+  if (S.storyStep < steps.length - 1){
+    S.storyStep++;
+    renderStoryModal();
+    advanceStoryTimer();
+  } else {
+    stopStory();
+  }
+}
+
+function prevStory(){
+  if (S.storyStep > 0){
+    S.storyStep--;
+    renderStoryModal();
+    advanceStoryTimer();
+  }
+}
+
+function toggleStoryPause(){
+  S.storyPaused = !S.storyPaused;
+  if (S.storyPaused){
+    if (S.storyTimer) clearTimeout(S.storyTimer);
+  } else {
+    advanceStoryTimer();
+  }
+  renderStoryModal();
+}
+
+function advanceStoryTimer(){
+  if (S.storyTimer) clearTimeout(S.storyTimer);
+  if (S.storyPaused) return;
+  S.storyTimer = setTimeout(() => {
+    nextStory();
+  }, 4000);
+}
+
+function renderStoryModal(){
+  const modal = $("mStoryModal");
+  if (!modal || S.storyStep === null) return;
+  const steps = storySteps(S);
+  const step = steps[S.storyStep];
+  if (!step) return;
+
+  document.querySelectorAll(".story-spotlight").forEach(el => el.classList.remove("story-spotlight"));
+  const targetEl = $(step.target);
+  if (targetEl) targetEl.classList.add("story-spotlight");
+
+  modal.classList.add("on");
+  modal.innerHTML = '<div class="story-backdrop" data-act="stopStory"></div>'
+    + '<div class="story-box">'
+    + '<div class="story-head">'
+    + '<span class="story-badge">' + esc(step.title) + '</span>'
+    + '<div class="story-ctrls">'
+    + '<button type="button" data-act="prevStory"' + (S.storyStep === 0 ? " disabled" : "") + '>&#8249; Back</button>'
+    + '<button type="button" data-act="pauseStory">' + (S.storyPaused ? '&#9654; Resume' : '&#10074;&#10074; Pause') + '</button>'
+    + '<button type="button" data-act="nextStory">' + (S.storyStep === steps.length - 1 ? 'Finish &#10003;' : 'Next &#8250;') + '</button>'
+    + '<button type="button" data-act="stopStory" style="margin-left:4px" aria-label="Close story">&times;</button>'
+    + '</div></div>'
+    + '<div class="story-desc">' + esc(step.desc) + '</div>'
+    + '<div class="story-progress"><div class="story-bar" style="width:' + ((S.storyStep + 1) / steps.length * 100) + '%"></div></div>'
+    + '</div>';
+}
+
 function act(name, value){
   switch (name){
+    case "startStory": startStory(); return;
+    case "stopStory": stopStory(); return;
+    case "nextStory": nextStory(); return;
+    case "prevStory": prevStory(); return;
+    case "pauseStory": toggleStoryPause(); return;
     case "state":
       toggle("state", value);
-      S.component = null; S.environment = null;      // narrower choices no longer apply
+      S.component = null; S.environment = null;
       break;
     case "component":
       toggle("component", value);
       S.environment = null;
-      S.focus = S.component ? "envs" : "horizon";    // drill-through
+      S.focus = S.component ? "envs" : "horizon";
       break;
     case "environment":
       toggle("environment", value);
-      if (S.environment) S.focus = "horizon";        // redraw everything for that environment
+      if (S.environment) S.focus = "horizon";
       break;
     case "band":
       S.band = value === "" ? null : (S.band === value ? null : value);
@@ -1384,29 +1754,72 @@ document.addEventListener("input", e => {
   apply();
 });
 document.addEventListener("focusout", e => {
-  if (e.target.id === "q") apply();     // repaint the slicer counts once typing stops
+  if (e.target.id === "q") apply();
 });
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape"){ act("reset", ""); return; }
-  const typing = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
-  if (typing) return;
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "Escape"){
+    if (S.storyStep !== null){ stopStory(); return; }
+    act("reset", "");
+  }
+  if (e.key === "ArrowLeft") act("page", "prev");
   if (e.key === "ArrowRight") act("page", "next");
-  else if (e.key === "ArrowLeft") act("page", "prev");
 });
 
-// ---- tooltip ---------------------------------------------------------
+// ---- Cross-Visual Highlighting Listener ------------------------------
+const shellEl = $("mShell");
+if (shellEl){
+  shellEl.addEventListener("mouseover", e => {
+    const el = e.target.closest("[data-hl-comp], [data-hl-env], [data-hl-quarter]");
+    if (!el){
+      if (shellEl.dataset.hlActive){
+        delete shellEl.dataset.hlActive;
+        shellEl.querySelectorAll("[data-hl-match]").forEach(m => delete m.dataset.hlMatch);
+      }
+      return;
+    }
+    const comp = el.dataset.hlComp, env = el.dataset.hlEnv, qtr = el.dataset.hlQuarter;
+    shellEl.dataset.hlActive = "true";
+    shellEl.querySelectorAll("[data-hl-comp], [data-hl-env], [data-hl-quarter]").forEach(node => {
+      const mComp = comp && node.dataset.hlComp === comp;
+      const mEnv = env && node.dataset.hlEnv === env;
+      const mQtr = qtr && node.dataset.hlQuarter === qtr;
+      if (mComp || mEnv || mQtr){
+        node.dataset.hlMatch = "true";
+      } else {
+        delete node.dataset.hlMatch;
+      }
+    });
+  });
+  shellEl.addEventListener("mouseleave", () => {
+    delete shellEl.dataset.hlActive;
+    shellEl.querySelectorAll("[data-hl-match]").forEach(m => delete m.dataset.hlMatch);
+  });
+}
+
+// ---- Rich Tooltip Listener -------------------------------------------
 const tip = $("tip");
 let tipFor = null;
 document.addEventListener("mousemove", e => {
-  const hit = e.target.closest ? e.target.closest("[data-tip]") : null;
+  const hit = e.target.closest("[data-tip]");
   if (!hit){
     if (tipFor){ tip.classList.remove("on"); tipFor = null; }
     return;
   }
-  if (hit !== tipFor){ tipFor = hit; tip.innerHTML = hit.dataset.tip; tip.classList.add("on"); }
-  const pad = 12, w = tip.offsetWidth, h = tip.offsetHeight;
+  const text = hit.dataset.tip;
+  if (!text){
+    if (tipFor){ tip.classList.remove("on"); tipFor = null; }
+    return;
+  }
+  if (hit !== tipFor){
+    tipFor = hit;
+    tip.innerHTML = text.replace(/ &middot; /g, "<br/>");
+    tip.classList.add("on");
+  }
+  const pad = 12;
   let x = e.clientX + pad, y = e.clientY + pad;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
   if (x + w > innerWidth - 4) x = e.clientX - w - pad;
   if (y + h > innerHeight - 4) y = e.clientY - h - pad;
   tip.style.left = Math.max(4, x) + "px";
@@ -1414,21 +1827,6 @@ document.addEventListener("mousemove", e => {
 });
 document.addEventListener("mouseleave", () => { tip.classList.remove("on"); tipFor = null; });
 
-/* ----------------------------------------------------------------------
-   Fit to the screen, exactly.
-
-   Two things happen here. First the canvas tries to size its own iframe to
-   the space Streamlit actually has, so the report fills the window instead
-   of stopping at whatever pixel height Python guessed. If the browser
-   refuses that (a sandboxed frame would), the fixed height still holds and
-   the layout is merely a little shorter - never scrolling, which is the
-   requirement that matters.
-
-   Then the table asks how many rows fit in the room it was given and shows
-   exactly that many. This is what keeps "no scrolling" and "no wasted
-   space" from being in conflict: the page never grows past the viewport,
-   and the last row always lands just above the edge.
-   ---------------------------------------------------------------------- */
 function claimHeight(){
   try {
     const frame = window.frameElement;
@@ -1439,14 +1837,12 @@ function claimHeight(){
       frame.style.height = Math.floor(avail) + "px";
       frame.setAttribute("height", Math.floor(avail));
     }
-  } catch (err) {
-    /* Cross-origin frame: keep the height Python asked for. */
-  }
+  } catch (_e) {}
 }
 
-const ROW_H = 25, THEAD_H = 25;
+const THEAD_H = 24, ROW_H = 26;
 function fitRows(){
-  const box = MOUNTS.mTable;
+  const box = $("mTablePanel");
   if (!box) return false;
   const room = box.clientHeight;
   if (room < 20) return false;
@@ -1466,15 +1862,16 @@ relayout();
 addEventListener("resize", relayout);
 if (window.ResizeObserver) new ResizeObserver(() => { if (fitRows()) apply(); })
   .observe(MOUNTS.mTable);
-// Streamlit sizes its iframe a beat after first paint; re-check once.
 setTimeout(relayout, 250);
 
 if (typeof module !== "undefined" && module.exports){
   module.exports = { rows, counts, soonest, sorted, healthOf, worstBand, fmtDate, fmtDays,
                      fmtDaysLong, renderTable, renderSummary, summaryRows, visibleCount,
                      renderKpis, renderComps, renderHorizon, renderEnvs, renderCoverage,
-                     renderWhen, renderSlicers, renderCrumbs, renderPager, tableHint,
-                     whereLabel, focusHint, whenHint, quarters, qOrd, COLS, SUM_COLS, SORTS };
+                     renderWhen, renderSlicers, renderCrumbs, renderPager, renderNarrative,
+                     renderSinceVisit, sparklineSvg, trendDelta, storySteps, clampStr,
+                     tableHint, whereLabel, focusHint, whenHint, quarters, qOrd, COLS,
+                     SUM_COLS, SORTS };
 }
 """
 
@@ -1483,18 +1880,7 @@ if (typeof module !== "undefined" && module.exports){
 # Assembly
 # ==========================================================================
 def to_records(rows: list, *, env_order: list, component_order: list) -> list:
-    """
-    Flatten the loaded DataFrame into the shape the engine expects.
-
-    Lives here rather than in app.py so the browser payload has exactly one
-    definition, which is what lets tests/test_report_engine.mjs assert on the
-    same records the page draws. Takes `df.to_dict("records")` - plain dicts
-    only, so this module never has to import pandas.
-
-    `hay` is a pre-lowercased search string. Building it once at load time
-    keeps the search box instant no matter how the record count grows, and
-    means searching "oct 2026" finds the same rows as searching "ENV30".
-    """
+    """Flatten the loaded DataFrame into the shape the engine expects."""
     out = []
     for r in rows:
         env = r.get("env_label") or r.get("environment") or "UNMAPPED"
@@ -1544,9 +1930,9 @@ def _human_date(iso: str) -> str:
         return ""
 
 
-def _payload(records: list, *, mode: str, state, as_of: date, env_order: list) -> dict:
-    """The JSON handed to the browser. One flat record list, plus the labels
-    and orderings the engine needs to sort and explain itself."""
+def _payload(records: list, *, mode: str, state, as_of: date, env_order: list,
+             snapshots: list | None = None) -> dict:
+    """The JSON handed to the browser."""
     today = as_of
     return {
         "records": records,
@@ -1569,20 +1955,17 @@ def _payload(records: list, *, mode: str, state, as_of: date, env_order: list) -
         "year": today.year,
         "quarter": (today.month - 1) // 3 + 1,
         "lastYear": max((int(r["exp"][:4]) for r in records), default=today.year),
+        "snapshots": snapshots or [],
     }
 
 
 def build(records: list, *, mode: str = "all", state: str | None = None,
-          as_of: date | None = None, env_order: list | None = None) -> str:
-    """
-    One self-contained HTML document for the whole report.
-
-    `records` is a list of dicts with keys: state, component, environment,
-    envNo, envRank, compRank, schema, exp, days, band, quarter, edited, hay.
-    `mode` is "all" for the consolidated view or "state" for a single state.
-    """
+          as_of: date | None = None, env_order: list | None = None,
+          snapshots: list | None = None) -> str:
+    """One self-contained HTML document for the whole report."""
     data = _payload(records, mode=mode, state=state,
-                    as_of=as_of or date.today(), env_order=env_order or [])
+                    as_of=as_of or date.today(), env_order=env_order or [],
+                    snapshots=snapshots)
     css = _CSS.replace("/*__TOKENS__*/", _css_tokens())
     js = _JS.replace("/*__DATA__*/", json.dumps(data, separators=(",", ":")))
     title = f"Expiry Watchtower - {state}" if state else "Expiry Watchtower"

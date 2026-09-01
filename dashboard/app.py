@@ -31,7 +31,9 @@ sys.path.insert(0, str(ROOT / "src"))
 import report  # noqa: E402
 import ui  # noqa: E402
 from db import (  # noqa: E402
+    ensure_metric_snapshots,
     get_connection,
+    get_metric_snapshots,
     revert_component_exp_date,
     update_component_exp_date,
 )
@@ -91,8 +93,12 @@ def build_page(db_path: str, mode: str, state: str | None, _bust: int = 0) -> st
     """The report canvas as a self-contained zero-scroll HTML document."""
     df = load_records(db_path, _bust)
     records = report.to_records(df.to_dict("records"), env_order=ENV_ORDER,
-                               component_order=COMPONENT_ORDER)
-    return report.build(records, mode=mode, state=state, env_order=ENV_ORDER)
+                                component_order=COMPONENT_ORDER)
+    conn = get_connection(db_path)
+    ensure_metric_snapshots(conn, records)
+    snapshots = get_metric_snapshots(conn)
+    conn.close()
+    return report.build(records, mode=mode, state=state, env_order=ENV_ORDER, snapshots=snapshots)
 
 
 def ensure_ingested() -> None:

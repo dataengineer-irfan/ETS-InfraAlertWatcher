@@ -49,7 +49,8 @@ function loadEngine(file) {
     ";Object.assign(module.exports,{DATA,rows,counts,soonest,sorted,healthOf,worstBand," +
     "fmtDate,fmtDays,fmtDaysLong,renderTable,renderSummary,summaryRows,visibleCount," +
     "renderKpis,renderComps,renderHorizon,renderEnvs,renderCoverage,renderWhen," +
-    "renderSlicers,renderCrumbs,renderPager,tableHint,whereLabel,focusHint,whenHint," +
+    "renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
+    "trendDelta,storySteps,clampStr,tableHint,whereLabel,focusHint,whenHint," +
     "quarters,qOrd,COLS,SUM_COLS,SORTS});",
     ctx, { filename: path.basename(file) }
   );
@@ -457,6 +458,49 @@ eq("environment counts are complete",
    [...envHtml.matchAll(/<span>(\d+) items?<\/span>/g)].reduce((a, m) => a + Number(m[1]), 0),
    T.total);
 ok("environment cards are labelled in plain language", envHtml.includes("Disaster recovery"));
+
+// =========================================================================
+// 18. text length discipline & clampStr helper
+// =========================================================================
+eq("clampStr leaves short string intact", E.clampStr("hello", 10), "hello");
+eq("clampStr trims and adds ellipsis", E.clampStr("very long schema name", 12), "very long s…");
+eq("clampStr handles null/empty", E.clampStr(null, 10), "");
+
+// =========================================================================
+// 19. smart narrative banner (hard cap <= 90 plain text chars)
+// =========================================================================
+const narrativeAll = E.renderNarrative(base());
+const plainAll = narrativeAll.replace(/<[^>]+>/g, "");
+ok("narrative headline fits <= 90 chars across all items", plainAll.length <= 90, "got length " + plainAll.length + ": " + plainAll);
+
+const narrativeHealthy = E.renderNarrative(withS({ band: "Healthy" }));
+const plainHealthy = narrativeHealthy.replace(/<[^>]+>/g, "");
+ok("narrative headline fits <= 90 chars for healthy filter", plainHealthy.length <= 90, "got length " + plainHealthy.length + ": " + plainHealthy);
+
+const narrativeEmpty = E.renderNarrative(withS({ q: "nonexistent_query_xyz" }));
+const plainEmpty = narrativeEmpty.replace(/<[^>]+>/g, "");
+ok("narrative headline fits <= 90 chars for empty filter", plainEmpty.length <= 90, "got length " + plainEmpty.length + ": " + plainEmpty);
+
+// =========================================================================
+// 20. sparkline and trend deltas (hard cap <= 30 chars)
+// =========================================================================
+const spark = E.sparklineSvg([4, 3, 2, 2, 2], "#38BDF8");
+ok("sparkline generates svg path", spark.includes("<svg") && spark.includes("<path"));
+const tGood = E.trendDelta(5, 3, false);
+ok("trend delta upward good fits <= 30 chars", tGood.replace(/<[^>]+>/g, "").length <= 30 && tGood.includes("+2"));
+const tBad = E.trendDelta(5, 3, true);
+ok("trend delta upward bad fits <= 30 chars", tBad.replace(/<[^>]+>/g, "").length <= 30 && tBad.includes("+2"));
+const tFlat = E.trendDelta(3, 3, true);
+ok("trend delta flat fits <= 30 chars", tFlat.replace(/<[^>]+>/g, "").length <= 30 && tFlat.includes("Stable"));
+
+// =========================================================================
+// 21. guided story mode steps (hard cap <= 80 chars per step)
+// =========================================================================
+const steps = E.storySteps(base());
+eq("story mode returns 4 sequential steps", steps.length, 4);
+steps.forEach((st, idx) => {
+  ok("story step " + (idx + 1) + " desc fits <= 80 chars", st.desc.length <= 80, "got length " + st.desc.length + ": " + st.desc);
+});
 
 // =========================================================================
 // report
