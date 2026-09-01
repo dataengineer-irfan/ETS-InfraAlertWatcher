@@ -252,25 +252,26 @@ body{
   outline:2px solid var(--accent); outline-offset:1px;
 }
 
-/* ---- slicer bar ------------------------------------------------------ */
-.slicers{
+/* ---- search & slicers ------------------------------------------------ */
+.search-bar{
   display:inline-flex; align-items:center; gap:4px; flex:none;
-  background:transparent; box-shadow:none; padding:0; min-width:0;
 }
 .sgroup{ display:flex; align-items:center; gap:3px; }
 .sgroup > label{ font-size:8.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
                  color:var(--mute); margin-right:1px; }
 .vr{ width:1px; align-self:stretch; background:var(--rule-soft); margin:0 2px; }
 
+.filter-drawer-slot{ width:100%; min-width:0; }
+.filter-drawer-slot:empty{ display:none; }
 .filter-drawer{
-  display:flex; flex-wrap:wrap; gap:4px; width:100%;
-  border-top:1px solid var(--rule-soft); margin-top:2px; padding-top:3px;
+  display:flex; flex-wrap:wrap; align-items:center; gap:4px; width:100%;
+  border-top:1px solid var(--rule-soft); margin-top:2px; padding:3px 0 1px;
 }
 .filter-toggle{
-  font:inherit; font-size:10.5px; font-weight:600; color:var(--slate);
+  font:inherit; font-size:10px; font-weight:600; color:var(--slate);
   background:var(--sunk); border:1px solid transparent; border-radius:5px;
-  padding:2px 7px; cursor:pointer; white-space:nowrap; display:inline-flex;
-  align-items:center; gap:4px; transition:background .12s ease, border-color .12s ease, color .12s ease;
+  padding:2px 6px; cursor:pointer; white-space:nowrap; display:inline-flex;
+  align-items:center; gap:3px; transition:background .12s ease, border-color .12s ease, color .12s ease;
 }
 .filter-toggle:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
 .filter-toggle.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-tint); }
@@ -278,16 +279,16 @@ body{
   font-family:var(--mono); font-size:8.5px; font-weight:700;
   background:var(--accent); color:#000; border-radius:3px; padding:0 3px;
 }
-.search{ position:relative; display:flex; align-items:center; flex:1; min-width:120px; max-width:220px; }
+.search{ position:relative; display:flex; align-items:center; min-width:110px; max-width:180px; }
 .search input{
-  font:inherit; font-size:10.5px; font-family:var(--mono); width:100%; color:var(--ink);
+  font:inherit; font-size:10px; font-family:var(--mono); width:100%; color:var(--ink);
   background:var(--sunk); border:1px solid var(--rule); border-radius:5px;
-  padding:2px 20px 2px 7px;
+  padding:2px 18px 2px 6px;
 }
 .search input::placeholder{ color:var(--mute); font-family:var(--ui); }
 .search input:focus{ outline:none; border-color:var(--accent); background:var(--card); }
 .search .clr{ position:absolute; right:3px; border:0; background:none; cursor:pointer;
-              color:var(--mute); font-size:12px; line-height:1; padding:0 2px; }
+              color:var(--mute); font-size:11px; line-height:1; padding:0 2px; }
 
 /* ---- KPI strip ------------------------------------------------------- */
 .kpis{ display:grid; gap:var(--gap); grid-template-columns:repeat(6,minmax(0,1fr)); min-height:0; min-width:0; }
@@ -553,11 +554,12 @@ _BODY = r"""
     <div class="head-row">
       <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
       <div class="narrative-strip" id="mNarrative" data-tip="Executive narrative summary reacting to active filters"></div>
-      <div class="slicers" id="mSlicers"></div>
+      <div class="search-bar" id="mSearch"></div>
       <div class="views" id="mViews"></div>
       <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
       <div class="asof" id="mAsOf"></div>
     </div>
+    <div class="filter-drawer-slot" id="mSlicers"></div>
     <div class="crumbs" id="mCrumbs"></div>
   </div>
 
@@ -936,28 +938,29 @@ function storySteps(S){
   ];
 }
 
-// ---- slicer bar -------------------------------------------------------
-function renderSlicers(S){
+// ---- search & filter toggle (inline in command bar) ------------------
+function renderSearch(S){
   const activeCount = (DATA.mode === "all" && S.state ? 1 : 0)
     + (S.component ? 1 : 0)
     + (S.band && S.band !== "__urgent__" ? 1 : S.band === "__urgent__" ? 1 : 0)
     + ((S.window && S.window !== "all") ? 1 : 0);
 
   const q = S.q || "";
-
-  const topRow = [];
-  topRow.push('<div class="search"><input id="q" type="search" value="' + esc(q)
+  return '<div class="search"><input id="q" type="search" value="' + esc(q)
     + '" placeholder="Find a schema, environment or date" aria-label="Search tracked items" />'
     + (q ? '<button class="clr" type="button" data-act="drop" data-val="q" '
-         + 'aria-label="Clear search">&times;</button>' : "") + "</div>");
-  topRow.push('<button class="filter-toggle' + (S.showFilters ? " active" : "") + '" type="button"'
+         + 'aria-label="Clear search">&times;</button>' : "") + "</div>"
+    + '<button class="filter-toggle' + (S.showFilters ? " active" : "") + '" type="button"'
     + ' data-act="toggleFilters" data-tip="'
     + (S.showFilters ? "Collapse filter options" : "Expand filters to narrow by state, component, health or date range") + '">'
     + (S.showFilters ? "&#9650; Filters" : "&#9660; Filters")
     + (activeCount ? '<span class="filter-badge">' + activeCount + "</span>" : "")
-    + "</button>");
+    + "</button>";
+}
 
-  if (!S.showFilters) return topRow.join("");
+// ---- filter drawer (full-width dropdown slot below command bar) ------
+function renderSlicers(S){
+  if (!S.showFilters) return "";
 
   const drawer = ['<div class="filter-drawer">'];
   if (DATA.mode === "all"){
@@ -982,7 +985,7 @@ function renderSlicers(S){
   }).join("") + "</div>");
   drawer.push("</div>");
 
-  return topRow.join("") + drawer.join("");
+  return drawer.join("");
 }
 
 // ---- KPI strip --------------------------------------------------------
@@ -1544,7 +1547,7 @@ const S = {
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
-["mWhere", "mNarrative", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
+["mWhere", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenHint",
  "mWhenSeg", "mWhen", "mStoryModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
@@ -1567,8 +1570,9 @@ function apply(){
   put("mViews", renderViews(S));
   put("mAsOf", renderSinceVisit(DATA.snapshots));
   const focused = document.activeElement === $("q");
-  if (!focused) put("mSlicers", renderSlicers(S));
-  else { last.mSlicers = null; }
+  if (!focused) put("mSearch", renderSearch(S));
+  else { last.mSearch = null; }
+  put("mSlicers", renderSlicers(S));
   put("mKpis", renderKpis(S));
   put("mComps", renderComps(S));
   put("mFocusSeg", seg("focus", FOCUS_VIEWS, S.focus));
