@@ -619,7 +619,7 @@ def render_matrix_view(df: pd.DataFrame) -> None:
                     f"<td class='m' style='font-weight:600;'>{r.schema_name}</td>"
                     f"<td class='m'><span class='env-tag'>{r.environment}</span></td>"
                     f"<td>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
-                    f"<td class='m'>{r.exp_date}</td>"
+                    f"<td class='m'>{ui.fmt_date(r.exp_date)}</td>"
                     f"<td class='m c' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
                     f"<td class='c'>{ui.status_pill(r.band)}</td>"
                     f"</tr>"
