@@ -223,11 +223,10 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
             view["exp_dt"] = view["exp_dt"].dt.date
             view["days_left"] = view["days_left"].apply(ui.fmt_days)
             view["band"] = view["band"].apply(ui.health_text)
-            ids = work["id"].tolist()
-
+            editor_h = min(EDITOR_HEIGHT, max(140, (len(view) + 1) * 36 + 32))
             edited = st.data_editor(
                 view, key="mg_editor", hide_index=True, use_container_width=True,
-                num_rows="fixed", height=EDITOR_HEIGHT,
+                num_rows="fixed", height=editor_h,
                 column_config={
                     "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                     "env_label": st.column_config.TextColumn("Environment", disabled=True, width="small"),
@@ -240,6 +239,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                 },
             )
 
+            ids = work["id"].tolist()
             changes = []
             for position, record_id in enumerate(ids):
                 before = view.iloc[position]["exp_dt"]

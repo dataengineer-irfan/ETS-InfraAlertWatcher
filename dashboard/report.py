@@ -1062,7 +1062,7 @@ function renderComps(S){
     const band = worstBand(new Set(sub.map(r => r.band)));
     const on = S.component === comp;
     return '<button class="cc" type="button" data-act="component" data-val="' + esc(comp)
-      + '" data-hl-comp="' + esc(comp) + '"'
+      + '" data-hl-comp="' + esc(comp)
       + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc((on ? "Click again to clear. " : "Click to focus ")
       + comp + " (" + CODE[comp] + ") — " + DATA.componentBlurb[comp])
