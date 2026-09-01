@@ -330,16 +330,25 @@ def render_master_detail(df: pd.DataFrame) -> None:
 
     with left_col:
         st.markdown('<div class="eyebrow" style="margin-top:0;">Master Entity Directory</div>', unsafe_allow_html=True)
-        f1, f2, f3 = st.columns([2.0, 1.4, 1.4])
+        f1, f2, f3, f4 = st.columns([1.6, 1.0, 1.3, 1.1])
         q = f1.text_input("Filter", key="md_search", placeholder="Search schema, state, env...", label_visibility="collapsed")
         state_filter = f2.selectbox("State", ["All States"] + STATES, key="md_state", label_visibility="collapsed")
-        health_filter = f3.selectbox("Health", ["All Health"] + ui.BANDS, key="md_health", label_visibility="collapsed")
+        comp_filter = f3.selectbox(
+            "Component",
+            ["All Components"] + COMPONENT_ORDER,
+            key="md_comp",
+            label_visibility="collapsed",
+            format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
+        )
+        health_filter = f4.selectbox("Health", ["All Health"] + ui.BANDS, key="md_health", label_visibility="collapsed")
 
         filtered = df.copy()
         if q:
             filtered = search(filtered, q)
         if state_filter != "All States":
             filtered = filtered[filtered["state"] == state_filter]
+        if comp_filter != "All Components":
+            filtered = filtered[filtered["component"] == comp_filter]
         if health_filter != "All Health":
             filtered = filtered[filtered["band"] == health_filter]
 
@@ -350,7 +359,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
             selected_id = None
         else:
             record_options = {
-                f"#{r.id} · {r.state} · {r.schema_name} ({r.env_label}) · {r.exp_date} [{r.band}]": r.id
+                f"#{r.id} · {r.state} · {r.schema_name} ({r.env_label}) · {ui.fmt_date(r.exp_date)} [{r.band}]": r.id
                 for r in filtered.itertuples()
             }
             selected_label = st.selectbox(
@@ -374,10 +383,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
                     f"<td class='m' style='font-weight:600;'>{r.state}</td>"
                     f"<td class='m'>{r.schema_name}</td>"
                     f"<td class='m'><span class='env-tag'>{r.env_label}</span></td>"
+                    f"<td class='m'>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
                     f"<td class='m r' style='color:{meta['color']};font-weight:600;'>{ui.fmt_days(r.days_left)}</td>"
                     f"</tr>"
                 )
-            head = "<tr><th></th><th>State</th><th>Schema</th><th>Env</th><th class='r'>Remaining</th></tr>"
+            head = "<tr><th></th><th>State</th><th>Schema</th><th>Env</th><th>Comp</th><th class='r'>Remaining</th></tr>"
             st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;'><table class='tblx'>{head}{''.join(table_rows)}</table></div>", unsafe_allow_html=True)
 
     with right_col:
