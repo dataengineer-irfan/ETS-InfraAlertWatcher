@@ -477,6 +477,49 @@ body{
   opacity:1 !important; filter:brightness(1.2);
 }
 
+/* Floating Filter Popover / Modal (Power BI Standard) */
+.filter-popover-overlay{
+  position:fixed; inset:0; z-index:9990; display:none;
+  align-items:flex-start; justify-content:center; padding-top:42px; pointer-events:auto;
+}
+.filter-popover-overlay.on{ display:flex; }
+.filter-popover-backdrop{
+  position:absolute; inset:0; background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+}
+.filter-popover-card{
+  position:relative; z-index:10; background:#0F172A; border:1px solid #334155;
+  border-radius:9px; box-shadow:0 16px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(56,189,248,0.25);
+  width:92%; max-width:680px; padding:12px 16px 14px; display:flex; flex-direction:column; gap:10px;
+  animation:popIn .15s ease-out;
+}
+@keyframes popIn{ from{ opacity:0; transform:translateY(-8px) scale(0.98); } to{ opacity:1; transform:none; } }
+.popover-head{
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--rule-soft); padding-bottom:7px;
+}
+.popover-title{ display:flex; align-items:baseline; }
+.popover-close{
+  background:none; border:none; color:var(--slate); font-size:18px; line-height:1;
+  cursor:pointer; padding:2px 6px; border-radius:4px;
+}
+.popover-close:hover{ color:#fff; background:var(--sunk); }
+.popover-body{
+  display:flex; flex-direction:column; gap:8px; padding:2px 0;
+}
+.popover-body .sgroup{
+  display:flex; align-items:center; gap:8px;
+}
+.popover-body .sgroup > label{
+  font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:#94a3b8; width:72px; flex:none; text-align:right; margin-right:4px;
+}
+.sgroup-chips{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; flex:1; }
+.popover-foot{
+  display:flex; align-items:center; justify-content:space-between;
+  border-top:1px solid var(--rule-soft); padding-top:8px; margin-top:2px;
+}
+
 /* Story Mode Overlay */
 .story-overlay{
   position:fixed; inset:0; z-index:9999; display:none; pointer-events:auto;
@@ -559,7 +602,6 @@ _BODY = r"""
       <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
       <div class="asof" id="mAsOf"></div>
     </div>
-    <div class="filter-drawer-slot" id="mSlicers"></div>
     <div class="crumbs" id="mCrumbs"></div>
   </div>
 
@@ -598,6 +640,7 @@ _BODY = r"""
     </div>
   </div>
 </div>
+<div class="filter-popover-overlay" id="mSlicers"></div>
 <div class="story-overlay" id="mStoryModal"></div>
 <div id="tip"></div>
 """
@@ -958,34 +1001,47 @@ function renderSearch(S){
     + "</button>";
 }
 
-// ---- filter drawer (full-width dropdown slot below command bar) ------
+// ---- Floating Filter Popover / Modal (Power BI Standard) ------------------
 function renderSlicers(S){
   if (!S.showFilters) return "";
 
-  const drawer = ['<div class="filter-drawer">'];
+  const sections = [];
   if (DATA.mode === "all"){
     const by = {}; rows(S, "state").forEach(r => by[r.state] = (by[r.state] || 0) + 1);
-    drawer.push('<div class="sgroup"><label>State</label>' + DATA.states.map(s =>
+    sections.push('<div class="sgroup"><label>State</label><div class="sgroup-chips">' + DATA.states.map(s =>
       chip({ act: "state", val: s, label: s, n: by[s] || 0, on: S.state === s,
-             tip: "Show only " + s })).join("") + "</div>", '<div class="vr"></div>');
+             tip: "Show only " + s })).join("") + "</div></div>");
   }
   const byComp = {}; rows(S, "component").forEach(r => byComp[r.component] = (byComp[r.component] || 0) + 1);
-  drawer.push('<div class="sgroup"><label>Component</label>' + DATA.components.map(c =>
+  sections.push('<div class="sgroup"><label>Component</label><div class="sgroup-chips">' + DATA.components.map(c =>
     chip({ act: "component", val: c, label: CODE[c], n: byComp[c] || 0, on: S.component === c,
-           tip: c + " - " + DATA.componentBlurb[c] })).join("") + "</div>", '<div class="vr"></div>');
+           tip: c + " - " + DATA.componentBlurb[c] })).join("") + "</div></div>");
   const cb = counts(rows(S, "band"));
-  drawer.push('<div class="sgroup"><label>Health</label>' + BANDS.map(b =>
+  sections.push('<div class="sgroup"><label>Health</label><div class="sgroup-chips">' + BANDS.map(b =>
     chip({ act: "band", val: b, label: b, n: cb[b], on: S.band === b, swatch: META[b].color,
-           tip: META[b].label + " - " + META[b].plain })).join("") + "</div>", '<div class="vr"></div>');
-  drawer.push('<div class="sgroup"><label>Dates</label>' + DATA.windows.map(w => {
+           tip: META[b].label + " - " + META[b].plain })).join("") + "</div></div>");
+  sections.push('<div class="sgroup"><label>Dates</label><div class="sgroup-chips">' + DATA.windows.map(w => {
     const probe = Object.assign({}, S, { window: w.id });
     return chip({ act: "window", val: w.id, label: w.label, n: rows(probe).length,
                   on: (S.window || "all") === w.id,
                   tip: w.id === "all" ? "No date limit" : "Only items in this date range" });
-  }).join("") + "</div>");
-  drawer.push("</div>");
+  }).join("") + "</div></div>");
 
-  return drawer.join("");
+  return '<div class="filter-popover-backdrop" data-act="toggleFilters"></div>'
+    + '<div class="filter-popover-card">'
+    + '<div class="popover-head">'
+    + '<div class="popover-title">'
+    + '<span style="font-size:12px;font-weight:700;color:#f8fafc;">Filter Infrastructure Fleet</span>'
+    + '<span style="font-size:10px;color:var(--slate);margin-left:6px;">Multi-Dimensional Slicers</span>'
+    + '</div>'
+    + '<button class="popover-close" type="button" data-act="toggleFilters" aria-label="Close filters">&times;</button>'
+    + '</div>'
+    + '<div class="popover-body">' + sections.join("") + '</div>'
+    + '<div class="popover-foot">'
+    + '<button class="chip" type="button" data-act="reset">Reset Filters</button>'
+    + '<button class="story-btn" type="button" data-act="toggleFilters">Apply &amp; Close &#10003;</button>'
+    + '</div>'
+    + '</div>';
 }
 
 // ---- KPI strip --------------------------------------------------------
@@ -1571,8 +1627,13 @@ function apply(){
   put("mAsOf", renderSinceVisit(DATA.snapshots));
   const focused = document.activeElement === $("q");
   if (!focused) put("mSearch", renderSearch(S));
-  else { last.mSearch = null; }
-  put("mSlicers", renderSlicers(S));
+  const slicerHtml = renderSlicers(S);
+  put("mSlicers", slicerHtml);
+  const slicerMount = $("mSlicers");
+  if (slicerMount){
+    if (slicerHtml) slicerMount.classList.add("on");
+    else slicerMount.classList.remove("on");
+  }
   put("mKpis", renderKpis(S));
   put("mComps", renderComps(S));
   put("mFocusSeg", seg("focus", FOCUS_VIEWS, S.focus));
