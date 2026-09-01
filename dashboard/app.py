@@ -349,19 +349,11 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
 # View 3: Master-Detail Inspector Hub (Prompt #2)
 # ==========================================================================
 def render_master_detail(df: pd.DataFrame) -> None:
-    st.markdown("""
-    <div style="margin-bottom:10px;">
-      <div style="font-size:15px;font-weight:700;color:#f8fafc;">Master-Detail Workspace & Inspector Hub</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Select any tracked entity on the left to inspect metadata lineage, JSON payload, and execute renewals.</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    left_col, _, right_col = st.columns([1.8, 0.05, 2.2])
+    left_col, _, right_col = st.columns([1.8, 0.04, 2.2])
 
     with left_col:
-        st.markdown('<div class="eyebrow" style="margin-top:0;">Master Entity Directory</div>', unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns([1.6, 1.0, 1.3, 1.1])
-        q = f1.text_input("Filter", key="md_search", placeholder="Search schema, state, env...", label_visibility="collapsed")
+        q = f1.text_input("Filter", key="md_search", placeholder="Search schema, env...", label_visibility="collapsed")
         state_filter = f2.selectbox("State", ["All States"] + STATES, key="md_state", label_visibility="collapsed")
         comp_filter = f3.selectbox(
             "Component",
@@ -393,37 +385,46 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 for r in filtered.itertuples()
             }
             selected_label = st.selectbox(
-                "Select Record to Inspect",
+                "Active Entity Inspector Target",
                 list(record_options),
                 key="md_select_record",
                 label_visibility="collapsed",
             )
             selected_id = record_options[selected_label]
 
-            # High-density preview table
-            st.markdown(f"<div style='font-size:11px;color:#94a3b8;margin:6px 0 4px;'>Showing <b>{len(filtered)}</b> matching entities (soonest first):</div>", unsafe_allow_html=True)
+            # High-contrast entity count status bar
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 2px 6px;margin-top:2px;">
+              <span style="font-size:12.5px;font-weight:600;color:#f8fafc;">
+                Showing <b style="color:#38bdf8;font-family:var(--mono);font-size:13.5px;">{len(filtered)}</b> matching entities
+              </span>
+              <span style="font-size:10.5px;font-weight:600;color:#94a3b8;font-family:var(--mono);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:2px 7px;">
+                Soonest Expiry First
+              </span>
+            </div>
+            """, unsafe_allow_html=True)
+
             table_rows = []
             for r in filtered.head(20).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
                 is_active = (r.id == selected_id)
-                bg_active = "background:rgba(56,189,248,0.12);" if is_active else ""
+                bg_active = "background:rgba(56,189,248,0.14);box-shadow:inset 2px 0 0 #38bdf8;" if is_active else ""
                 table_rows.append(
                     f"<tr style='{bg_active}'>"
                     f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
                     f"<td class='m' style='font-weight:600;'>{r.state}</td>"
-                    f"<td class='m'>{r.schema_name}</td>"
+                    f"<td class='m' style='font-weight:{'700' if is_active else '400'};'>{r.schema_name}</td>"
                     f"<td class='m'><span class='env-tag'>{r.env_label}</span></td>"
                     f"<td class='m'>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
-                    f"<td class='m r' style='color:{meta['color']};font-weight:600;'>{ui.fmt_days(r.days_left)}</td>"
+                    f"<td class='m r' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
                     f"</tr>"
                 )
-            head = "<tr><th></th><th>State</th><th>Schema</th><th>Env</th><th>Comp</th><th class='r'>Remaining</th></tr>"
-            st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;'><table class='tblx'>{head}{''.join(table_rows)}</table></div>", unsafe_allow_html=True)
+            head = "<tr><th></th><th>State</th><th>Schema Name</th><th>Env</th><th>Comp</th><th class='r'>Remaining</th></tr>"
+            st.markdown(f"<div style='max-height:400px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;'><table class='tblx'>{head}{''.join(table_rows)}</table></div>", unsafe_allow_html=True)
 
     with right_col:
-        st.markdown('<div class="eyebrow" style="margin-top:0;">Contextual Inspector Panel</div>', unsafe_allow_html=True)
         if selected_id is None:
-            st.markdown(ui.empty("Select a record", "Choose an item from the master list to inspect."), unsafe_allow_html=True)
+            st.markdown(ui.empty("Select a record", "Choose an item from the master list on the left to inspect."), unsafe_allow_html=True)
             return
 
         rec = df[df["id"] == selected_id].iloc[0]
