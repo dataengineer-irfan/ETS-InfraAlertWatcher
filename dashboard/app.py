@@ -529,17 +529,16 @@ def render_master_detail(df: pd.DataFrame) -> None:
 # View 4: Hierarchical Matrix Cross-Tab (Prompt #3)
 # ==========================================================================
 def render_matrix_view(df: pd.DataFrame) -> None:
-    st.markdown("""
-    <div style="margin-bottom:10px;">
-      <div style="font-size:15px;font-weight:700;color:#f8fafc;">Hierarchical Matrix & Cross-Tab Analysis</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Multi-dimensional grouping across State, Component, and Environment with heat-map density & export.</div>
-    </div>
-    """, unsafe_allow_html=True)
-
     m_col1, m_col2, m_col3, m_col4 = st.columns([1.8, 1.2, 1.4, 1.0])
     s_term = m_col1.text_input("Filter Matrix", key="mat_search", placeholder="Filter schema / env / component...", label_visibility="collapsed")
     s_state = m_col2.selectbox("State Filter", ["All States"] + STATES, key="mat_state", label_visibility="collapsed")
-    s_comp = m_col3.selectbox("Component Filter", ["All Components"] + COMPONENT_ORDER, key="mat_comp", label_visibility="collapsed")
+    s_comp = m_col3.selectbox(
+        "Component Filter",
+        ["All Components"] + COMPONENT_ORDER,
+        key="mat_comp",
+        label_visibility="collapsed",
+        format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
+    )
 
     mat_df = df.copy()
     if s_term:
@@ -585,7 +584,7 @@ def render_matrix_view(df: pd.DataFrame) -> None:
         """, unsafe_allow_html=True)
     with k3:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#10b981'};">
+        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};">
           <div class="kpi-label">Critical & Warning</div>
           <div class="kpi-value">{crit_cnt + warn_cnt}</div>
           <div class="kpi-sub">{crit_cnt} critical · {warn_cnt} warning</div>
@@ -600,14 +599,13 @@ def render_matrix_view(df: pd.DataFrame) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
 
-    # 2D Cross-Tab Heat Matrix
-    st.markdown('<div class="eyebrow" style="margin-top:0;">State × Component Cross-Tab Matrix</div>', unsafe_allow_html=True)
-    states_to_show = STATES if s_state == "All States" else [s_state]
+    # 2D Cross-Tab Heat Matrix with Totals
+    states_to_show = [s for s in STATES if s in mat_df["state"].unique()] if s_state == "All States" else ([s_state] if s_state in mat_df["state"].unique() else [])
     comps_to_show = COMPONENT_ORDER if s_comp == "All Components" else [s_comp]
 
-    header_cols = "".join(f"<th>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in comps_to_show)
+    header_cols = "".join(f"<th style='text-align:center;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in comps_to_show)
     matrix_head = f"<tr><th>State</th>{header_cols}<th class='r'>Total</th></tr>"
 
     matrix_rows = []
@@ -624,49 +622,71 @@ def render_matrix_view(df: pd.DataFrame) -> None:
                 meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
                 cell_tds.append(
                     f"<td class='c'>"
-                    f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};'>"
+                    f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;'>"
                     f"<b>{meta['symbol']}</b> {c_cnt}"
                     f"</span></td>"
                 )
         st_tot = len(st_sub)
         matrix_rows.append(
-            f"<tr><td style='font-weight:700;'>{st_code}</td>{''.join(cell_tds)}<td class='m r'><b>{st_tot}</b></td></tr>"
+            f"<tr><td style='font-weight:700;font-family:var(--mono);'>{st_code}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{st_tot}</td></tr>"
         )
 
-    st.markdown(f"<div style='margin-bottom:12px;border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
-
-    # State grouping drilldowns
-    st.markdown('<div class="eyebrow">Hierarchical State Drilldowns</div>', unsafe_allow_html=True)
-    for state in states_to_show:
-        sub = mat_df[mat_df["state"] == state]
-        if sub.empty:
-            continue
-
-        exp_c = int((sub["days_left"] < 0).sum())
-        crit_c = int((sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-        warn_c = int((sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-        hlth_c = int((sub["days_left"] > ui.WARNING_DAYS).sum())
-
-        with st.expander(f"📍 {state} — {len(sub)} entities ({exp_c} Expired · {crit_c} Critical · {warn_c} Warning · {hlth_c} Healthy)", expanded=True):
-            display_df = sub[["schema_name", "environment", "component", "exp_date", "days_left", "band"]].copy()
-            display_df = display_df.sort_values("days_left")
-
-            rows_html = []
-            for r in display_df.itertuples():
-                meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-                rows_html.append(
-                    f"<tr>"
-                    f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
-                    f"<td class='m' style='font-weight:600;'>{r.schema_name}</td>"
-                    f"<td class='m'><span class='env-tag'>{r.environment}</span></td>"
-                    f"<td>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
-                    f"<td class='m'>{ui.fmt_date(r.exp_date)}</td>"
-                    f"<td class='m c' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
-                    f"<td class='c'>{ui.status_pill(r.band)}</td>"
-                    f"</tr>"
+    # Add Fleet Total row if viewing all states
+    if len(states_to_show) > 1:
+        total_tds = []
+        for comp_name in comps_to_show:
+            comp_sub = mat_df[mat_df["component"] == comp_name]
+            if comp_sub.empty:
+                total_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
+            else:
+                worst_b = ui.worst_band(comp_sub["band"].tolist())
+                meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
+                total_tds.append(
+                    f"<td class='c m' style='font-weight:700;color:{meta['color']};'>{len(comp_sub)}</td>"
                 )
-            head = "<tr><th></th><th>Schema Name</th><th>Environment</th><th>Component</th><th>Expiry Date</th><th style='text-align:center;'>Time Left</th><th style='text-align:center;'>Status</th></tr>"
-            st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
+        matrix_rows.append(
+            f"<tr style='background:rgba(255,255,255,0.03);border-top:1px solid var(--rule);'>"
+            f"<td style='font-weight:800;color:var(--accent);'>TOTAL</td>{''.join(total_tds)}<td class='m r' style='font-weight:800;color:#f8fafc;'>{tot_cnt}</td></tr>"
+        )
+
+    st.markdown(f"<div style='margin-bottom:10px;border:1px solid var(--rule);border-radius:7px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
+
+    # Tabbed State Drilldown Inspector (Zero-Scroll Containment)
+    if not states_to_show:
+        st.markdown(ui.empty("No records match filter", "Broaden your query or reset filters."), unsafe_allow_html=True)
+        return
+
+    def render_state_table(sub_df: pd.DataFrame) -> None:
+        display_df = sub_df[["schema_name", "environment", "component", "exp_date", "days_left", "band"]].copy()
+        display_df = display_df.sort_values("days_left")
+
+        rows_html = []
+        for r in display_df.itertuples():
+            meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+            rows_html.append(
+                f"<tr>"
+                f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
+                f"<td class='m' style='font-weight:600;'>{r.schema_name}</td>"
+                f"<td class='m'><span class='env-tag'>{r.environment}</span></td>"
+                f"<td>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
+                f"<td class='m'>{ui.fmt_date(r.exp_date)}</td>"
+                f"<td class='m c' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
+                f"<td class='c'>{ui.status_pill(r.band)}</td>"
+                f"</tr>"
+            )
+        head = "<tr><th></th><th>Schema Name</th><th>Environment</th><th>Component</th><th>Expiry Date</th><th style='text-align:center;'>Time Left</th><th style='text-align:center;'>Status</th></tr>"
+        st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
+
+    if len(states_to_show) == 1:
+        st_code = states_to_show[0]
+        st_sub = mat_df[mat_df["state"] == st_code]
+        render_state_table(st_sub)
+    else:
+        state_tabs = st.tabs([f"📍 {st_code} ({len(mat_df[mat_df['state'] == st_code])})" for st_code in states_to_show])
+        for tab_el, st_code in zip(state_tabs, states_to_show):
+            with tab_el:
+                st_sub = mat_df[mat_df["state"] == st_code]
+                render_state_table(st_sub)
 
 
 # ==========================================================================
