@@ -318,13 +318,13 @@ button[data-baseweb="tab"][aria-selected="true"] span {{
 /* ---- buttons ----------------------------------------------------------- */
 .stButton > button, [data-testid="stDownloadButton"] > button {{
   width:100%; background:var(--card) !important; color:#f8fafc !important;
-  border:1px solid var(--rule) !important; border-radius:6px; padding:.45rem .75rem;
+  border:none !important; border-radius:6px; padding:.45rem .75rem;
   font-family:var(--ui); font-size:12px; font-weight:600;
-  box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  box-shadow:0 1px 3px rgba(0,0,0,0.35);
   transition:all .15s ease;
 }}
 .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {{
-  border-color:var(--accent) !important; background:var(--accent-tint) !important; color:var(--accent) !important;
+  border:1px solid var(--accent) !important; background:var(--accent-tint) !important; color:var(--accent) !important;
 }}
 .stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus-visible {{
   outline:2px solid var(--accent); outline-offset:1px;
@@ -423,7 +423,7 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 }}
 .pill .sym {{ font-size:10.5px; line-height:1; font-weight:700; }}
 .card {{
-  background:var(--card); border:1px solid var(--rule); border-radius:8px;
+  background:var(--card); border-radius:8px;
   padding:10px 12px; box-shadow:0 2px 6px rgba(0,0,0,0.25);
 }}
 .void {{
@@ -463,7 +463,7 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   border:1px solid var(--accent-line); border-radius:4px; padding:1px 6px;
 }}
 .top-glow-kpi {{
-  background:var(--card); border:1px solid var(--rule); border-top:3px solid var(--glow,#38bdf8);
+  background:var(--card); border-top:3px solid var(--glow,#38bdf8);
   border-radius:8px; padding:10px 12px; box-shadow:0 2px 8px rgba(0,0,0,0.25);
 }}
 .top-glow-kpi .kpi-label {{

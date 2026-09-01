@@ -50,8 +50,8 @@ def load() -> pd.DataFrame:
         lambda d: "Expired" if d < 0 else "Critical" if d <= report.CRITICAL_DAYS
         else "Warning" if d <= report.WARNING_DAYS else "Healthy")
     df["edited"] = df["edited_at"].notna()
-    df["quarter"] = (df["exp_dt"].dt.year.astype(str).str[2:] + "Q"
-                     + df["exp_dt"].dt.quarter.astype(str))
+    df["quarter"] = ("Q" + df["exp_dt"].dt.quarter.astype(str)
+                     + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
     return df
 
@@ -62,7 +62,7 @@ def quarter_window(n: int = 12) -> list:
     y, q = today.year, (today.month - 1) // 3 + 1
     out = []
     for _ in range(n):
-        out.append(f"{y % 100:02d}Q{q}")
+        out.append(f"Q{q} {y}")
         q += 1
         if q > 4:
             q, y = 1, y + 1
@@ -71,9 +71,10 @@ def quarter_window(n: int = 12) -> list:
 
 def q_ord(label: str):
     try:
-        yy, qq = label.split("Q")
-        return (2000 + int(yy)) * 4 + int(qq) - 1
-    except (ValueError, AttributeError):
+        # "Q3 2026" -> ordinal
+        qq, yy = label.split(" ")
+        return int(yy) * 4 + int(qq[1:]) - 1
+    except (ValueError, AttributeError, IndexError):
         return None
 
 

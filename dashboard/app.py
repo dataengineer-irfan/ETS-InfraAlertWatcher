@@ -80,8 +80,8 @@ def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
     df["days_left"] = (df["exp_dt"] - pd.Timestamp(date.today())).dt.days.astype(int)
     df["band"] = df["days_left"].apply(ui.health_of)
     df["edited"] = df["edited_at"].notna()
-    df["quarter"] = (df["exp_dt"].dt.year.astype(str).str[2:] + "Q"
-                     + df["exp_dt"].dt.quarter.astype(str))
+    df["quarter"] = ("Q" + df["exp_dt"].dt.quarter.astype(str)
+                     + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
     return df
 

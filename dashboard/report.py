@@ -128,9 +128,9 @@ body{
 }
 .mono,.num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
 
-/* Panels are deep slate cards on dark canvas */
+/* Panels are deep slate cards on dark canvas — border removed; depth = shade + shadow */
 .panel{
-  background:var(--card); border:1px solid var(--rule); border-radius:7px;
+  background:var(--card); border-radius:7px;
   box-shadow:var(--shadow); min-height:0; min-width:0;
   display:flex; flex-direction:column; overflow:hidden;
 }
@@ -157,7 +157,7 @@ body{
 /* ---- header ---------------------------------------------------------- */
 .head{
   display:flex; align-items:center; gap:12px; flex:none;
-  background:var(--card); border:1px solid var(--rule); border-radius:7px;
+  background:var(--card); border-radius:7px;
   box-shadow:var(--shadow); padding:6px 10px;
 }
 .brand{ display:flex; align-items:baseline; gap:8px; flex:none; }
@@ -194,14 +194,15 @@ body{
               color:var(--mute); margin-right:2px; }
 
 /* ---- one chip style for every control -------------------------------- */
+/* Default border is transparent — border color is reserved for "selected" state only */
 .chip{
   font:inherit; font-size:11px; font-weight:500; color:var(--slate);
-  background:var(--card); border:1px solid var(--rule); border-radius:5px;
+  background:var(--sunk); border:1px solid transparent; border-radius:5px;
   padding:3px 8px; cursor:pointer; white-space:nowrap; display:inline-flex;
   align-items:center; gap:5px; line-height:1.25;
   transition:background .12s ease, border-color .12s ease, color .12s ease;
 }
-.chip:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--sunk); }
+.chip:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
 .chip[aria-pressed="true"], .chip.on{
   background:var(--accent-tint); border-color:var(--accent); color:var(--accent); font-weight:600;
 }
@@ -216,13 +217,31 @@ body{
 /* ---- slicer bar ------------------------------------------------------ */
 .slicers{
   display:flex; align-items:center; gap:5px; flex-wrap:wrap; flex:none;
-  background:var(--card); border:1px solid var(--rule); border-radius:7px;
+  background:var(--card); border-radius:7px;
   box-shadow:var(--shadow); padding:5px 8px;
 }
 .sgroup{ display:flex; align-items:center; gap:4px; }
 .sgroup > label{ font-size:9.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
                  color:var(--mute); margin-right:1px; }
 .vr{ width:1px; align-self:stretch; background:var(--rule-soft); margin:0 3px; }
+
+/* Filter drawer — hidden until toggled */
+.filter-drawer{
+  display:flex; flex-wrap:wrap; gap:5px; width:100%;
+  border-top:1px solid var(--rule-soft); margin-top:4px; padding-top:5px;
+}
+.filter-toggle{
+  font:inherit; font-size:11px; font-weight:600; color:var(--slate);
+  background:var(--sunk); border:1px solid transparent; border-radius:5px;
+  padding:3px 8px; cursor:pointer; white-space:nowrap; display:inline-flex;
+  align-items:center; gap:5px; transition:background .12s ease, border-color .12s ease, color .12s ease;
+}
+.filter-toggle:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
+.filter-toggle.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-tint); }
+.filter-badge{
+  font-family:var(--mono); font-size:9px; font-weight:700;
+  background:var(--accent); color:#000; border-radius:3px; padding:0 4px;
+}
 .search{ position:relative; display:flex; align-items:center; flex:1; min-width:120px; max-width:230px; }
 .search input{
   font:inherit; font-size:11px; font-family:var(--mono); width:100%; color:var(--ink);
@@ -237,15 +256,16 @@ body{
 /* ---- KPI strip ------------------------------------------------------- */
 .kpis{ display:grid; gap:var(--gap); grid-template-columns:repeat(6,minmax(0,1fr)); min-height:0; }
 .kpi{
-  background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--edge,var(--rule));
+  background:var(--card); border:none; border-left:3px solid var(--edge,transparent);
   border-radius:7px; box-shadow:var(--shadow); padding:5px 9px 6px; cursor:pointer;
   display:flex; flex-direction:column; justify-content:center; gap:1px;
   text-align:left; font:inherit; min-width:0; overflow:hidden;
-  transition:background .12s ease, border-color .12s ease;
+  transition:background .12s ease, box-shadow .12s ease;
 }
 .kpi:hover{ background:var(--sunk); }
-.kpi[aria-pressed="true"]{ background:var(--accent-tint); border-color:var(--accent);
-                           box-shadow:inset 0 0 0 1px var(--accent); }
+/* Selected: inset shadow IS the visible border — border now means "selected", nothing else */
+.kpi[aria-pressed="true"]{ background:var(--accent-tint);
+                           box-shadow:inset 0 0 0 1.5px var(--accent); }
 .kpi.flat{ cursor:default; }
 .kpi.flat:hover{ background:var(--card); }
 .kpi .v{
@@ -258,19 +278,23 @@ body{
          overflow:hidden; text-overflow:ellipsis; }
 .kpi .s{ font-size:9.5px; color:var(--slate); font-family:var(--mono); white-space:nowrap;
          overflow:hidden; text-overflow:ellipsis; }
+/* Dominant focal tile — larger number, more padding */
+.kpi[data-dom]{ padding:8px 12px 10px; }
+.kpi[data-dom] .v{ font-size:clamp(22px,4.5vh,36px); font-weight:700; }
+.kpi[data-dom] .k{ font-size:11px; }
 
 /* ---- component cards ------------------------------------------------- */
 .comps{ display:grid; gap:var(--gap); grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
         min-height:0; }
 .cc{
-  background:var(--card); border:1px solid var(--rule); border-radius:7px;
+  background:var(--card); border:none; border-radius:7px;
   box-shadow:var(--shadow); padding:8px 10px; cursor:pointer; font:inherit; text-align:left;
   display:flex; flex-direction:column; justify-content:space-between; min-height:0; min-width:0; overflow:hidden;
-  transition:background .12s ease, border-color .12s ease;
+  transition:background .12s ease, box-shadow .12s ease;
 }
-.cc:hover{ background:var(--sunk); border-color:var(--accent-line); }
-.cc[aria-pressed="true"]{ border-color:var(--accent); background:var(--accent-tint);
-                          box-shadow:inset 0 0 0 1px var(--accent); }
+.cc:hover{ background:var(--sunk); box-shadow:var(--shadow), 0 0 0 1px var(--accent-line); }
+.cc[aria-pressed="true"]{ background:var(--accent-tint);
+                          box-shadow:inset 0 0 0 1.5px var(--accent); }
 .cc .head-row{ display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden; }
 .cc .code{ font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:.08em;
            color:var(--accent); background:var(--accent-tint); border:1px solid var(--accent-line);
@@ -288,7 +312,8 @@ body{
          white-space:nowrap; }
 .cc .nx b{ color:var(--val,var(--ink)); font-weight:700; }
 .meter{ display:flex; height:4px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
-        margin:5px 0 4px; flex:none; }
+        margin:5px 0 2px; flex:none; }
+.meter-label{ font-size:9px; color:var(--mute); margin-bottom:4px; }
 .meter i{ display:block; height:100%; }
 
 /* ---- segmented control (focus panel + chart toggles) ----------------- */
@@ -314,13 +339,13 @@ body{
 .envs{ flex:1; min-height:0; display:grid; gap:5px; align-content:start;
        grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); overflow:hidden; }
 .ec{
-  background:var(--sunk); border:1px solid var(--rule); border-left:3px solid var(--val,var(--rule));
+  background:var(--sunk); border:none; border-left:3px solid var(--val,var(--rule-soft));
   border-radius:6px; padding:4px 7px 5px; cursor:pointer; font:inherit; text-align:left;
-  min-width:0; overflow:hidden; transition:background .12s ease, border-color .12s ease;
+  min-width:0; overflow:hidden; transition:background .12s ease, box-shadow .12s ease;
 }
-.ec:hover{ background:var(--card); border-color:var(--accent-line); }
-.ec[aria-pressed="true"]{ background:var(--accent-tint); border-color:var(--accent);
-                          box-shadow:inset 0 0 0 1px var(--accent); }
+.ec:hover{ background:var(--card); box-shadow:0 0 0 1px var(--accent-line); }
+.ec[aria-pressed="true"]{ background:var(--accent-tint);
+                          box-shadow:inset 0 0 0 1.5px var(--accent); }
 .ec .en{ font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.03em; }
 .ec .eb{ font-size:9px; color:var(--slate); white-space:nowrap; overflow:hidden;
          text-overflow:ellipsis; }
@@ -374,10 +399,11 @@ body{
 .pg{ display:flex; align-items:center; gap:6px; flex:none; padding-top:5px; font-size:10px;
      color:var(--slate); }
 .pg button{ font:inherit; font-family:var(--mono); font-size:11px; line-height:1;
-            background:var(--card); border:1px solid var(--rule); border-radius:4px;
-            width:20px; height:19px; cursor:pointer; color:var(--ink); }
-.pg button:disabled{ color:var(--rule); cursor:default; }
-.pg button:not(:disabled):hover{ border-color:var(--accent); color:var(--accent); }
+            background:var(--card); border:none; border-radius:4px;
+            width:20px; height:19px; cursor:pointer; color:var(--ink);
+            box-shadow:0 1px 3px rgba(0,0,0,0.4); }
+.pg button:disabled{ color:var(--rule-soft); cursor:default; box-shadow:none; }
+.pg button:not(:disabled):hover{ box-shadow:0 0 0 1.5px var(--accent); color:var(--accent); }
 .pg .of{ font-family:var(--mono); }
 .pg .sp{ flex:1; }
 
@@ -388,16 +414,21 @@ body{
 .void .p{ font-size:10.5px; color:var(--slate); max-width:34ch; }
 .void button{ margin-top:4px; }
 
-/* ---- tooltip --------------------------------------------------------- */
+/* ---- tooltip — neutral dark, no cyan outline -------------------------- */
 #tip{
   position:fixed; z-index:99; pointer-events:none; opacity:0; transform:translateY(2px);
   transition:opacity .1s ease; max-width:260px;
-  background:#0F172A; color:#F8FAFC; font-size:11px; line-height:1.4;
-  border:1px solid #38BDF8; border-radius:6px; padding:6px 10px;
-  box-shadow:0 4px 14px rgba(0,0,0,0.5);
+  background:#1E293B; color:#F8FAFC; font-size:11px; line-height:1.4;
+  border:1px solid #334155; border-radius:8px; padding:7px 11px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.6);
 }
 #tip.on{ opacity:1; transform:none; }
-#tip b{ font-family:var(--mono); font-weight:700; color:#38BDF8; }
+#tip b{ font-family:var(--mono); font-weight:700; color:var(--slate); }
+
+/* ---- bottom panels (table + chart) are supporting detail, not co-equal headlines -- */
+.rowC .phead{ padding:5px 8px 4px; }
+.rowC .pbody{ padding:6px 8px 7px; }
+.rowC .ptitle{ font-size:10px; }
 
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
 @media (max-width:1150px){
@@ -637,37 +668,54 @@ function renderViews(S){
 
 // ---- slicer bar -------------------------------------------------------
 function renderSlicers(S){
-  const out = [];
+  // Count active chip-row filters for the badge (excludes search — that shows inline)
+  const activeCount = (DATA.mode === "all" && S.state ? 1 : 0)
+    + (S.component ? 1 : 0)
+    + (S.band && S.band !== "__urgent__" ? 1 : S.band === "__urgent__" ? 1 : 0)
+    + ((S.window && S.window !== "all") ? 1 : 0);
+
+  const q = S.q || "";
+
+  // Always-visible row: search input + Filters toggle
+  const topRow = [];
+  topRow.push('<div class="search"><input id="q" type="search" value="' + esc(q)
+    + '" placeholder="Find a schema, environment or date" aria-label="Search tracked items" />'
+    + (q ? '<button class="clr" type="button" data-act="drop" data-val="q" '
+         + 'aria-label="Clear search">&times;</button>' : "") + "</div>");
+  topRow.push('<button class="filter-toggle' + (S.showFilters ? " active" : "") + '" type="button"'
+    + ' data-act="toggleFilters" data-tip="'
+    + (S.showFilters ? "Collapse filter options" : "Expand filters to narrow by state, component, health or date range") + '">'
+    + (S.showFilters ? "&#9650; Filters" : "&#9660; Filters")
+    + (activeCount ? '<span class="filter-badge">' + activeCount + '</span>' : '')
+    + '</button>');
+
+  if (!S.showFilters) return topRow.join("");
+
+  // Expanded drawer: the full chip rows
+  const drawer = ['<div class="filter-drawer">'];
   if (DATA.mode === "all"){
     const by = {}; rows(S, "state").forEach(r => by[r.state] = (by[r.state] || 0) + 1);
-    out.push('<div class="sgroup"><label>State</label>' + DATA.states.map(s =>
+    drawer.push('<div class="sgroup"><label>State</label>' + DATA.states.map(s =>
       chip({ act: "state", val: s, label: s, n: by[s] || 0, on: S.state === s,
              tip: "Show only " + s })).join("") + "</div>", '<div class="vr"></div>');
   }
-
   const byComp = {}; rows(S, "component").forEach(r => byComp[r.component] = (byComp[r.component] || 0) + 1);
-  out.push('<div class="sgroup"><label>Component</label>' + DATA.components.map(c =>
+  drawer.push('<div class="sgroup"><label>Component</label>' + DATA.components.map(c =>
     chip({ act: "component", val: c, label: CODE[c], n: byComp[c] || 0, on: S.component === c,
            tip: c + " - " + DATA.componentBlurb[c] })).join("") + "</div>", '<div class="vr"></div>');
-
   const cb = counts(rows(S, "band"));
-  out.push('<div class="sgroup"><label>Health</label>' + BANDS.map(b =>
+  drawer.push('<div class="sgroup"><label>Health</label>' + BANDS.map(b =>
     chip({ act: "band", val: b, label: b, n: cb[b], on: S.band === b, swatch: META[b].color,
            tip: META[b].label + " - " + META[b].plain })).join("") + "</div>", '<div class="vr"></div>');
-
-  out.push('<div class="sgroup"><label>Dates</label>' + DATA.windows.map(w => {
+  drawer.push('<div class="sgroup"><label>Dates</label>' + DATA.windows.map(w => {
     const probe = Object.assign({}, S, { window: w.id });
     return chip({ act: "window", val: w.id, label: w.label, n: rows(probe).length,
                   on: (S.window || "all") === w.id,
                   tip: w.id === "all" ? "No date limit" : "Only items in this date range" });
-  }).join("") + "</div>", '<div class="vr"></div>');
+  }).join("") + "</div>");
+  drawer.push('</div>');
 
-  const q = S.q || "";
-  out.push('<div class="search"><input id="q" type="search" value="' + esc(q)
-    + '" placeholder="Find a schema, environment or date" aria-label="Search tracked items" />'
-    + (q ? '<button class="clr" type="button" data-act="drop" data-val="q" '
-         + 'aria-label="Clear search">&times;</button>' : "") + "</div>");
-  return out.join("");
+  return topRow.join("") + drawer.join("");
 }
 
 // ---- KPI strip --------------------------------------------------------
@@ -687,9 +735,15 @@ function renderKpis(S){
   ];
   if (S.environment) scope.push(S.environment);
 
+  // The dominant tile is Expired when any items are overdue; otherwise Tracked items.
+  // data-dom triggers the larger focal styling in CSS.
+  const hasExpired = c["Expired"] > 0;
+
   const tiles = [
     '<button class="kpi" type="button" data-act="band" data-val="" aria-pressed="'
-    + (S.band ? "false" : "true") + '" data-tip="Show every health status">'
+    + (S.band ? "false" : "true") + '"'
+    + (!hasExpired ? ' data-dom="1"' : "")
+    + ' data-tip="Show every health status">'
     + '<div class="v">' + total + '</div><div class="k">Tracked items</div>'
     + '<div class="s">' + scope.map(esc).join(" &middot; ") + "</div></button>"
   ];
@@ -698,10 +752,12 @@ function renderKpis(S){
     // "3% of 30" rather than "3% of these": a percentage is only useful if the
     // reader can see what it is a percentage of.
     const pct = total ? Math.round(c[b] / total * 100) + "% of " + total : "--";
+    const isDom = b === "Expired" && hasExpired;
     tiles.push('<button class="kpi" type="button" data-act="band" data-val="' + esc(b)
       + '" aria-pressed="' + (S.band === b ? "true" : "false")
-      + '" style="--val:' + META[b].color + ";--edge:" + META[b].color
-      + '" data-tip="' + esc(META[b].label + " - " + META[b].plain + ". Click to show only these.")
+      + '" style="--val:' + META[b].color + ";--edge:" + META[b].color + '"'
+      + (isDom ? ' data-dom="1"' : "")
+      + ' data-tip="' + esc(META[b].label + " - " + META[b].plain + ". Click to show only these.")
       + '"><div class="v">' + c[b] + '</div><div class="k">' + esc(META[b].label)
       + '</div><div class="s">' + esc(pct) + "</div></button>");
   });
@@ -730,6 +786,7 @@ function renderComps(S){
       + comp + " (" + CODE[comp] + ") — " + DATA.componentBlurb[comp])
       + '"><div class="head-row"><span class="code">' + esc(CODE[comp]) + '</span><span class="nm">'
       + esc(comp) + '</span></div>' + meter(c)
+      + '<div class="meter-label">Health distribution across tracked items</div>'
       + '<div class="foot"><span class="cnt">' + sub.length + "<em>item"
       + (sub.length === 1 ? "" : "s") + '</em></span><span class="nx">'
       + (nx ? "next <b>" + esc(fmtDays(nx.days)) + "</b><br />" + esc(fmtDate(nx.exp))
@@ -1077,15 +1134,14 @@ function renderPager(S){
 function quarters(n){
   const out = [];
   let y = DATA.year, q = DATA.quarter;
-  for (let i = 0; i < n; i++){ out.push(String(y).slice(2) + "Q" + q); if (++q > 4){ q = 1; y++; } }
+  for (let i = 0; i < n; i++){ out.push("Q" + q + " " + y); if (++q > 4){ q = 1; y++; } }
   return out;
 }
-// "27Q2" -> 109, so quarters can be compared without parsing dates.
+// "Q2 2027" -> 8107, so quarters can be compared without parsing dates.
 function qOrd(label){
-  const m = /^(\d\d)Q([1-4])$/.exec(label || "");
+  const m = /^Q([1-4]) (\d{4})$/.exec(label || "");
   if (!m) return null;
-  const y = +m[1];
-  return (y < 70 ? 2000 + y : 1900 + y) * 4 + (+m[2] - 1);
+  return +m[2] * 4 + (+m[1] - 1);
 }
 
 function renderWhen(S){
@@ -1183,7 +1239,8 @@ function whereLabel(S){
 const S = {
   state: DATA.mode === "state" ? DATA.state : null,
   component: null, environment: null, band: null, window: "all", q: "",
-  focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all"
+  focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all",
+  showFilters: false
 };
 
 const $ = id => document.getElementById(id);
@@ -1299,6 +1356,7 @@ function act(name, value){
     case "focus": S.focus = value; break;
     case "tview": S.tview = value; S.page = 0; break;
     case "qty": S.qty = value; break;
+    case "toggleFilters": S.showFilters = !S.showFilters; break;
     case "sort":
       S.sort = (S.sort === "soon" && value === "soon") ? "late" : value;
       S.page = 0;

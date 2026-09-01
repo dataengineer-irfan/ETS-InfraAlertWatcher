@@ -63,7 +63,8 @@ const T = JSON.parse(fs.readFileSync(path.join(FIX, "truth.json"), "utf8"));
 // A fresh default state, matching what the page starts with.
 const base = () => ({
   state: null, component: null, environment: null, band: null, window: "all", q: "",
-  focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all"
+  focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all",
+  showFilters: false
 });
 const withS = o => Object.assign(base(), o);
 const COMPS = Object.keys(E.DATA.componentCode);
@@ -198,13 +199,13 @@ eq("worstBand of nothing", E.worstBand(new Set()), "Healthy");
 // =========================================================================
 eq("quarters length", E.quarters(12).length, 12);
 eq("quarters start at today's quarter", E.quarters(1)[0],
-   String(E.DATA.year).slice(2) + "Q" + E.DATA.quarter);
-ok("quarters roll the year over", E.quarters(12).some(q => q.endsWith("Q1")));
-ok("quarter labels are well formed", E.quarters(12).every(q => /^\d\dQ[1-4]$/.test(q)));
+   "Q" + E.DATA.quarter + " " + E.DATA.year);
+ok("quarters roll the year over", E.quarters(12).some(q => /^Q1 \d{4}$/.test(q)));
+ok("quarter labels are well formed", E.quarters(12).every(q => /^Q[1-4] \d{4}$/.test(q)));
 ok("qOrd is monotonic across the window",
    E.quarters(12).map(E.qOrd).every((v, i, a) => i === 0 || a[i - 1] < v));
 eq("qOrd rejects junk", E.qOrd("nope"), null);
-eq("qOrd 20Q4 sorts before 26Q3", E.qOrd("20Q4") < E.qOrd("26Q3"), true);
+eq("qOrd Q4 2020 sorts before Q3 2026", E.qOrd("Q4 2020") < E.qOrd("Q3 2026"), true);
 ok("every record has a parseable quarter",
    E.DATA.records.every(r => E.qOrd(r.quarter) !== null));
 
@@ -366,7 +367,8 @@ eq("where label with no state", E.whereLabel(base()), "All states");
 eq("where label with a state", E.whereLabel(withS({ state: "ND" })), "ND");
 
 // Slicer counts must respect every filter except their own dimension.
-const sl = E.renderSlicers(withS({ state: "AK" }));
+// The filter drawer is closed by default; open it for these checks.
+const sl = E.renderSlicers(withS({ state: "AK", showFilters: true }));
 COMPS.forEach(c => ok("component slicer count for " + E.DATA.componentCode[c] + " is AK-scoped",
    sl.includes(">" + E.DATA.componentCode[c] + '<span class="n">' + T.byStateComp.AK[c])));
 
@@ -378,8 +380,8 @@ eq("state mode ships every record", ES.DATA.records.length, T.total);
 eq("state mode scopes by default",
    ES.rows(Object.assign(base(), { state: "AK" })).length, T.byState.AK);
 ok("state mode hides the state slicer",
-   !ES.renderSlicers(Object.assign(base(), { state: "AK" })).includes(">State<"));
-ok("consolidated mode shows the state slicer", E.renderSlicers(base()).includes(">State<"));
+   !ES.renderSlicers(Object.assign(base(), { state: "AK", showFilters: true })).includes(">State<"));
+ok("consolidated mode shows the state slicer", E.renderSlicers(Object.assign(base(), { showFilters: true })).includes(">State<"));
 eq("state mode header shows the state",
    ES.whereLabel(Object.assign(base(), { state: "AK" })), "AK");
 ok("state mode coverage rows are environments, not states",
