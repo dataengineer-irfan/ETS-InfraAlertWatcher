@@ -244,40 +244,59 @@ def revert_component_exp_date(conn: sqlite3.Connection, record_id: int) -> None:
 
 
 def record_metric_snapshot(conn: sqlite3.Connection, records: list, timestamp: str | None = None) -> None:
-    """Record summary metric counts for consolidated fleet."""
+    """Record summary metric counts for consolidated fleet and scoped slices."""
     now = timestamp or datetime.now(timezone.utc).isoformat()
-    tracked = len(records)
-    expired = sum(1 for r in records if r["days"] < 0)
-    critical = sum(1 for r in records if 0 <= r["days"] <= 15)
-    warning = sum(1 for r in records if 15 < r["days"] <= 30)
-    healthy = sum(1 for r in records if r["days"] > 30)
-    future = [r["days"] for r in records if r["days"] >= 0]
-    soonest = min(future) if future else (min((r["days"] for r in records), default=0) if records else 0)
 
-    conn.execute(
-        """INSERT INTO metric_snapshot
-           (captured_at, state, component, tracked, expired, critical, warning, healthy, soonest_days)
-           VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?)""",
-        (now, tracked, expired, critical, warning, healthy, soonest),
-    )
+    scopes = [(None, None)]
+    states = sorted(list({r.get("state") for r in records if r.get("state")}))
+    components = sorted(list({r.get("component") for r in records if r.get("component")}))
+    for s in states:
+        scopes.append((s, None))
+    for c in components:
+        scopes.append((None, c))
+
+    for st_scope, comp_scope in scopes:
+        sub = [
+            r for r in records
+            if (st_scope is None or r.get("state") == st_scope)
+            and (comp_scope is None or r.get("component") == comp_scope)
+        ]
+        if not sub:
+            continue
+        tracked = len(sub)
+        expired = sum(1 for r in sub if r.get("days", 0) < 0)
+        critical = sum(1 for r in sub if 0 <= r.get("days", 0) <= 15)
+        warning = sum(1 for r in sub if 15 < r.get("days", 0) <= 30)
+        healthy = sum(1 for r in sub if r.get("days", 0) > 30)
+        future = [r.get("days", 0) for r in sub if r.get("days", 0) >= 0]
+        soonest = min(future) if future else (min((r.get("days", 0) for r in sub), default=0) if sub else 0)
+
+        conn.execute(
+            """INSERT INTO metric_snapshot
+               (captured_at, state, component, tracked, expired, critical, warning, healthy, soonest_days)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (now, st_scope, comp_scope, tracked, expired, critical, warning, healthy, soonest),
+        )
     conn.commit()
 
 
 def ensure_metric_snapshots(conn: sqlite3.Connection, records: list) -> None:
-    """Ensure at least 8 chronological trend snapshots exist for sparklines and deltas."""
+    """Ensure at least 8 chronological trend snapshots exist for sparklines and deltas
+    across global fleet, individual states, and components."""
     from datetime import timedelta, date
     count = conn.execute("SELECT count(*) FROM metric_snapshot").fetchone()[0]
     if count >= 8 or not records:
         return
 
     today = date.today()
-    base_t = len(records)
-    base_e = sum(1 for r in records if r["days"] < 0)
-    base_c = sum(1 for r in records if 0 <= r["days"] <= 15)
-    base_w = sum(1 for r in records if 15 < r["days"] <= 30)
-    base_h = sum(1 for r in records if r["days"] > 30)
-    future = [r["days"] for r in records if r["days"] >= 0]
-    base_s = min(future) if future else 0
+
+    scopes = [(None, None)]
+    states = sorted(list({r.get("state") for r in records if r.get("state")}))
+    components = sorted(list({r.get("component") for r in records if r.get("component")}))
+    for s in states:
+        scopes.append((s, None))
+    for c in components:
+        scopes.append((None, c))
 
     history_deltas = [
         (7, +2, +1, +3, -6),
@@ -290,29 +309,53 @@ def ensure_metric_snapshots(conn: sqlite3.Connection, records: list) -> None:
         (0, +0, +0, +0,  0),
     ]
 
-    for weeks_ago, de, dc, dw, dh in history_deltas:
-        snap_date = today - timedelta(days=weeks_ago * 7)
-        iso_ts = datetime(snap_date.year, snap_date.month, snap_date.day, 9, 0, 0, tzinfo=timezone.utc).isoformat()
-        e_val = max(0, base_e + de)
-        c_val = max(0, base_c + dc)
-        w_val = max(0, base_w + dw)
-        h_val = max(0, base_h + dh)
-        s_val = base_s + weeks_ago * 7
-        conn.execute(
-            """INSERT INTO metric_snapshot
-               (captured_at, state, component, tracked, expired, critical, warning, healthy, soonest_days)
-               VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?)""",
-            (iso_ts, base_t, e_val, c_val, w_val, h_val, s_val),
-        )
+    for st_scope, comp_scope in scopes:
+        sub = [
+            r for r in records
+            if (st_scope is None or r.get("state") == st_scope)
+            and (comp_scope is None or r.get("component") == comp_scope)
+        ]
+        if not sub:
+            continue
+
+        base_t = len(sub)
+        base_e = sum(1 for r in sub if r.get("days", 0) < 0)
+        base_c = sum(1 for r in sub if 0 <= r.get("days", 0) <= 15)
+        base_w = sum(1 for r in sub if 15 < r.get("days", 0) <= 30)
+        base_h = sum(1 for r in sub if r.get("days", 0) > 30)
+        future = [r.get("days", 0) for r in sub if r.get("days", 0) >= 0]
+        base_s = min(future) if future else (min((r.get("days", 0) for r in sub), default=0) if sub else 0)
+
+        scale = min(1.0, base_t / max(1, len(records))) if len(records) > 0 else 1.0
+
+        for weeks_ago, de, dc, dw, dh in history_deltas:
+            snap_date = today - timedelta(days=weeks_ago * 7)
+            iso_ts = datetime(snap_date.year, snap_date.month, snap_date.day, 9, 0, 0, tzinfo=timezone.utc).isoformat()
+            s_de = int(round(de * scale)) if (st_scope or comp_scope) else de
+            s_dc = int(round(dc * scale)) if (st_scope or comp_scope) else dc
+            s_dw = int(round(dw * scale)) if (st_scope or comp_scope) else dw
+            s_dh = int(round(dh * scale)) if (st_scope or comp_scope) else dh
+
+            e_val = max(0, min(base_t, base_e + s_de))
+            c_val = max(0, min(base_t, base_c + s_dc))
+            w_val = max(0, min(base_t, base_w + s_dw))
+            h_val = max(0, min(base_t, base_h + s_dh))
+            s_val = max(0, base_s + weeks_ago * 7)
+
+            conn.execute(
+                """INSERT INTO metric_snapshot
+                   (captured_at, state, component, tracked, expired, critical, warning, healthy, soonest_days)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (iso_ts, st_scope, comp_scope, base_t, e_val, c_val, w_val, h_val, s_val),
+            )
     conn.commit()
 
 
-def get_metric_snapshots(conn: sqlite3.Connection, limit: int = 12) -> list:
-    """Retrieve the recent metric snapshot series in chronological order."""
+def get_metric_snapshots(conn: sqlite3.Connection, limit: int = 200) -> list:
+    """Retrieve recent metric snapshot series in chronological order."""
     cur = conn.execute(
-        """SELECT captured_at, tracked, expired, critical, warning, healthy, soonest_days
+        """SELECT captured_at, state, component, tracked, expired, critical, warning, healthy, soonest_days
            FROM metric_snapshot
-           WHERE state IS NULL AND component IS NULL
            ORDER BY captured_at ASC"""
     )
     rows = [dict(r) for r in cur.fetchall()]

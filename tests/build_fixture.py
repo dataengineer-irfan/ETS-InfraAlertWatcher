@@ -140,11 +140,26 @@ def main() -> int:
                                         encoding="utf-8")
 
     sample_snapshots = [
-        {"captured_at": "2026-07-01T09:00:00Z", "tracked": 91, "expired": 4, "critical": 2, "warning": 6, "healthy": 79, "soonest_days": 12},
-        {"captured_at": "2026-07-15T09:00:00Z", "tracked": 91, "expired": 3, "critical": 2, "warning": 5, "healthy": 81, "soonest_days": 20},
-        {"captured_at": "2026-08-01T09:00:00Z", "tracked": 91, "expired": 2, "critical": 1, "warning": 4, "healthy": 84, "soonest_days": 45},
-        {"captured_at": "2026-08-15T09:00:00Z", "tracked": 91, "expired": 2, "critical": 0, "warning": 3, "healthy": 86, "soonest_days": 70},
-        {"captured_at": "2026-09-01T09:00:00Z", "tracked": 91, "expired": 2, "critical": 0, "warning": 2, "healthy": 87, "soonest_days": 88},
+        # Global fleet
+        {"captured_at": "2026-07-01T09:00:00Z", "state": None, "component": None, "tracked": 91, "expired": 4, "critical": 2, "warning": 6, "healthy": 79, "soonest_days": 12},
+        {"captured_at": "2026-07-15T09:00:00Z", "state": None, "component": None, "tracked": 91, "expired": 3, "critical": 2, "warning": 5, "healthy": 81, "soonest_days": 20},
+        {"captured_at": "2026-08-01T09:00:00Z", "state": None, "component": None, "tracked": 91, "expired": 2, "critical": 1, "warning": 4, "healthy": 84, "soonest_days": 45},
+        {"captured_at": "2026-08-15T09:00:00Z", "state": None, "component": None, "tracked": 91, "expired": 2, "critical": 0, "warning": 3, "healthy": 86, "soonest_days": 70},
+        {"captured_at": "2026-09-01T09:00:00Z", "state": None, "component": None, "tracked": 91, "expired": 2, "critical": 0, "warning": 2, "healthy": 87, "soonest_days": 88},
+
+        # State AK scope
+        {"captured_at": "2026-07-01T09:00:00Z", "state": "AK", "component": None, "tracked": 31, "expired": 1, "critical": 1, "warning": 2, "healthy": 27, "soonest_days": 14},
+        {"captured_at": "2026-07-15T09:00:00Z", "state": "AK", "component": None, "tracked": 31, "expired": 1, "critical": 1, "warning": 1, "healthy": 28, "soonest_days": 25},
+        {"captured_at": "2026-08-01T09:00:00Z", "state": "AK", "component": None, "tracked": 31, "expired": 0, "critical": 0, "warning": 1, "healthy": 30, "soonest_days": 50},
+        {"captured_at": "2026-08-15T09:00:00Z", "state": "AK", "component": None, "tracked": 31, "expired": 0, "critical": 0, "warning": 1, "healthy": 30, "soonest_days": 75},
+        {"captured_at": "2026-09-01T09:00:00Z", "state": "AK", "component": None, "tracked": 31, "expired": 0, "critical": 0, "warning": 0, "healthy": 31, "soonest_days": 95},
+
+        # Component PATCH scope
+        {"captured_at": "2026-07-01T09:00:00Z", "state": None, "component": "PATCH", "tracked": 24, "expired": 1, "critical": 1, "warning": 2, "healthy": 20, "soonest_days": 15},
+        {"captured_at": "2026-07-15T09:00:00Z", "state": None, "component": "PATCH", "tracked": 24, "expired": 1, "critical": 0, "warning": 2, "healthy": 21, "soonest_days": 30},
+        {"captured_at": "2026-08-01T09:00:00Z", "state": None, "component": "PATCH", "tracked": 24, "expired": 0, "critical": 0, "warning": 1, "healthy": 23, "soonest_days": 60},
+        {"captured_at": "2026-08-15T09:00:00Z", "state": None, "component": "PATCH", "tracked": 24, "expired": 0, "critical": 0, "warning": 1, "healthy": 23, "soonest_days": 80},
+        {"captured_at": "2026-09-01T09:00:00Z", "state": None, "component": "PATCH", "tracked": 24, "expired": 0, "critical": 0, "warning": 0, "healthy": 24, "soonest_days": 110},
     ]
 
     for mode, state in (("all", None), ("state", "AK")):

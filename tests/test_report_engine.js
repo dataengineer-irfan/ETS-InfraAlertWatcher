@@ -50,8 +50,8 @@ function loadEngine(file) {
     "fmtDate,fmtDays,fmtDaysLong,renderTable,renderSummary,summaryRows,visibleCount," +
     "renderKpis,renderComps,renderHorizon,renderEnvs,renderCoverage,renderWhen," +
     "renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
-    "trendDelta,storySteps,clampStr,tableHint,whereLabel,focusHint,whenHint," +
-    "quarters,qOrd,COLS,SUM_COLS,SORTS});",
+    "trendDelta,storySteps,clampStr,getScopeSnapshots,METRIC_DIRECTIONS,tableHint," +
+    "whereLabel,focusHint,whenHint,quarters,qOrd,COLS,SUM_COLS,SORTS});",
     ctx, { filename: path.basename(file) }
   );
   return ctx.module.exports;
@@ -482,19 +482,75 @@ const plainEmpty = narrativeEmpty.replace(/<[^>]+>/g, "");
 ok("narrative headline fits <= 90 chars for empty filter", plainEmpty.length <= 90, "got length " + plainEmpty.length + ": " + plainEmpty);
 
 // =========================================================================
-// 20. sparkline and trend deltas (hard cap <= 30 chars)
+// 20. sparkline and metric-aware trend deltas
 // =========================================================================
 const spark = E.sparklineSvg([4, 3, 2, 2, 2], "#38BDF8");
 ok("sparkline generates svg path", spark.includes("<svg") && spark.includes("<path"));
-const tGood = E.trendDelta(5, 3, false);
-ok("trend delta upward good fits <= 30 chars", tGood.replace(/<[^>]+>/g, "").length <= 30 && tGood.includes("+2"));
-const tBad = E.trendDelta(5, 3, true);
-ok("trend delta upward bad fits <= 30 chars", tBad.replace(/<[^>]+>/g, "").length <= 30 && tBad.includes("+2"));
-const tFlat = E.trendDelta(3, 3, true);
-ok("trend delta flat fits <= 30 chars", tFlat.replace(/<[^>]+>/g, "").length <= 30 && tFlat.includes("Stable"));
+
+// Centralized METRIC_DIRECTIONS config checks
+eq("expired metric is lower-is-better", E.METRIC_DIRECTIONS.expired, "lower");
+eq("critical metric is lower-is-better", E.METRIC_DIRECTIONS.critical, "lower");
+eq("warning metric is lower-is-better", E.METRIC_DIRECTIONS.warning, "lower");
+eq("overdue metric is lower-is-better", E.METRIC_DIRECTIONS.overdue, "lower");
+eq("healthy metric is higher-is-better", E.METRIC_DIRECTIONS.healthy, "higher");
+eq("tracked metric is higher-is-better", E.METRIC_DIRECTIONS.tracked, "higher");
+
+// Expired / Critical / Warning: decrease is green/positive, increase is red/negative
+const expDec = E.trendDelta(0, 2, "expired");
+ok("expired decrease renders good/green", expDec.includes("trend good") && expDec.includes("&#9660; -2"));
+const expInc = E.trendDelta(3, 1, "expired");
+ok("expired increase renders bad/red", expInc.includes("trend bad") && expInc.includes("&#9650; +2"));
+
+const critDec = E.trendDelta(0, 1, "critical");
+ok("critical decrease renders good/green", critDec.includes("trend good") && critDec.includes("&#9660; -1"));
+const critInc = E.trendDelta(2, 0, "critical");
+ok("critical increase renders bad/red", critInc.includes("trend bad") && critInc.includes("&#9650; +2"));
+
+const warnDec = E.trendDelta(1, 3, "warning");
+ok("warning decrease renders good/green", warnDec.includes("trend good") && warnDec.includes("&#9660; -2"));
+const warnInc = E.trendDelta(4, 2, "warning");
+ok("warning increase renders bad/red", warnInc.includes("trend bad") && warnInc.includes("&#9650; +2"));
+
+// Healthy / Tracked: increase is green/positive, decrease is red/negative
+const hlthInc = E.trendDelta(88, 85, "healthy");
+ok("healthy increase renders good/green", hlthInc.includes("trend good") && hlthInc.includes("&#9650; +3"));
+const hlthDec = E.trendDelta(80, 85, "healthy");
+ok("healthy decrease renders bad/red", hlthDec.includes("trend bad") && hlthDec.includes("&#9660; -5"));
+
+const trkInc = E.trendDelta(95, 91, "tracked");
+ok("tracked increase renders good/green", trkInc.includes("trend good") && trkInc.includes("&#9650; +4"));
+const trkDec = E.trendDelta(88, 91, "tracked");
+ok("tracked decrease renders bad/red", trkDec.includes("trend bad") && trkDec.includes("&#9660; -3"));
+
+// Flat & missing snapshot delta rendering
+const flatDelta = E.trendDelta(3, 3, "tracked");
+ok("stable delta renders flat", flatDelta.includes("trend flat") && flatDelta.includes("Stable"));
+const noSnapDelta = E.trendDelta(24, null, "tracked");
+ok("missing snapshot delta renders neutral dash", noSnapDelta.includes("trend none") && noSnapDelta.includes("&mdash;"));
 
 // =========================================================================
-// 21. guided story mode steps (hard cap <= 80 chars per step)
+// 21. scope-matched snapshot resolution (Bug 1)
+// =========================================================================
+const globalSnaps = E.getScopeSnapshots(base());
+ok("global scope resolves global fleet snapshots", globalSnaps.length > 0 && globalSnaps.every(s => !s.state && !s.component));
+
+const stateSnaps = ES.getScopeSnapshots(base());
+ok("state scope resolves state-pinned snapshots", stateSnaps.length > 0 && stateSnaps.every(s => s.state === "AK"));
+
+const patchSnaps = E.getScopeSnapshots(withS({ component: "PATCH" }));
+ok("component scope resolves PATCH snapshots", patchSnaps.length > 0 && patchSnaps.every(s => s.component === "PATCH"));
+
+const adhocEnvSnaps = E.getScopeSnapshots(withS({ environment: "DEV" }));
+eq("adhoc environment filter returns empty snapshots to prevent cross-scope mismatch", adhocEnvSnaps.length, 0);
+
+const adhocSearchSnaps = E.getScopeSnapshots(withS({ q: "crypto" }));
+eq("adhoc search filter returns empty snapshots to prevent cross-scope mismatch", adhocSearchSnaps.length, 0);
+
+const kpisFiltered = E.renderKpis(withS({ environment: "DEV" }));
+ok("filtered KPI tile does NOT leak cross-scope deltas", !kpisFiltered.includes("-67 vs prev") && kpisFiltered.includes("trend none"));
+
+// =========================================================================
+// 22. guided story mode steps (hard cap <= 80 chars per step)
 // =========================================================================
 const steps = E.storySteps(base());
 eq("story mode returns 4 sequential steps", steps.length, 4);

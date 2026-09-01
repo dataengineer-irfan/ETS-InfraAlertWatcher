@@ -319,6 +319,7 @@ body{
 .trend.good{ background:rgba(16,185,129,0.2); color:#10B981; }
 .trend.bad{ background:rgba(239,68,68,0.2); color:#EF4444; }
 .trend.flat{ background:var(--sunk); color:var(--mute); }
+.trend.none{ color:var(--mute); background:transparent; }
 
 .so-what{
   font-size:8px; color:var(--slate); max-width:100%; min-width:0;
@@ -795,16 +796,49 @@ function sparklineSvg(values, color, width, height){
     + '</svg>';
 }
 
-// ---- trend delta badge (max 30 chars) ---------------------------------
-function trendDelta(curr, prev, isLowerBetter){
-  if (prev === undefined || prev === null) return '<span class="trend flat">● Stable</span>';
+// ---- centralized metric direction config -----------------------------
+const METRIC_DIRECTIONS = {
+  tracked: "higher",
+  expired: "lower",
+  critical: "lower",
+  warning: "lower",
+  healthy: "higher",
+  overdue: "lower",
+  soonest: "higher",
+  coverage: "higher"
+};
+
+// ---- scope-matched snapshot resolver ---------------------------------
+function getScopeSnapshots(S){
+  const snaps = DATA.snapshots;
+  if (!snaps || !snaps.length) return [];
+
+  // Check if any non-supported ad-hoc filters are active:
+  // (environment, band, date window, search query)
+  if (S.environment) return [];
+  if (S.band && S.band !== "__urgent__") return [];
+  if (S.window && S.window !== "all") return [];
+  if (S.q && S.q.trim()) return [];
+
+  const targetState = (DATA.mode === "state" ? DATA.state : S.state) || null;
+  const targetComp = S.component || null;
+
+  return snaps.filter(s => (s.state || null) === targetState && (s.component || null) === targetComp);
+}
+
+// ---- metric-aware trend delta badge (max 30 chars) -------------------
+function trendDelta(curr, prev, metricKey){
+  if (prev === undefined || prev === null) return '<span class="trend none">&mdash;</span>';
   const diff = curr - prev;
   if (diff === 0) return '<span class="trend flat">● Stable</span>';
+
+  const isHigherBetter = METRIC_DIRECTIONS[metricKey] === "higher";
+  const isGood = isHigherBetter ? (diff > 0) : (diff < 0);
+  const cls = isGood ? "good" : "bad";
+
   if (diff > 0){
-    const cls = isLowerBetter ? "bad" : "good";
     return '<span class="trend ' + cls + '">&#9650; +' + diff + ' vs prev</span>';
   } else {
-    const cls = isLowerBetter ? "good" : "bad";
     return '<span class="trend ' + cls + '">&#9660; ' + diff + ' vs prev</span>';
   }
 }
@@ -965,11 +999,11 @@ function renderKpis(S){
   if (S.environment) scope.push(S.environment);
 
   const hasExpired = c["Expired"] > 0;
-  const snaps = DATA.snapshots || [];
+  const snaps = getScopeSnapshots(S);
   const prevSnap = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
 
   const trackedSpark = sparklineSvg(snaps.map(s => s.tracked), T.accent);
-  const trackedTrend = trendDelta(total, prevSnap ? prevSnap.tracked : null, false);
+  const trackedTrend = trendDelta(total, prevSnap ? prevSnap.tracked : null, "tracked");
   const tiles = [
     '<button class="kpi" type="button" data-act="band" data-val="" aria-pressed="'
     + (S.band ? "false" : "true") + '"'
@@ -986,7 +1020,7 @@ function renderKpis(S){
     const isDom = b === "Expired" && hasExpired;
     const key = b.toLowerCase();
     const bSpark = sparklineSvg(snaps.map(s => s[key] || 0), META[b].color);
-    const bTrend = trendDelta(c[b], prevSnap ? (prevSnap[key] || 0) : null, b !== "Healthy");
+    const bTrend = trendDelta(c[b], prevSnap ? (prevSnap[key] !== undefined ? prevSnap[key] : null) : null, key);
 
     let soWhatHtml = "";
     if (b === "Expired" && c["Expired"] > 0){
@@ -1743,6 +1777,201 @@ function act(name, value){
 
 document.addEventListener("click", e => {
   const hit = e.target.closest("[data-act]");
+  if (!focused) put("mSlicers", renderSlicers(S));
+  else { last.mSlicers = null; }
+  put("mKpis", renderKpis(S));
+  put("mComps", renderComps(S));
+  put("mFocusSeg", seg("focus", FOCUS_VIEWS, S.focus));
+  put("mFocusHint", focusHint(S));
+  put("mFocus", renderFocus(S));
+  put("mTableHint", tableHint(S));
+  put("mTableSeg", seg("tview", [
+    { id: "detail", label: "Detail", tip: "One row per item" },
+    { id: "summary", label: "Summary", tip: "Environment/Comp groupings" }
+  ], S.tview));
+  put("mTable", renderTable(S));
+  put("mPager", renderPager(S));
+  put("mWhenHint", whenHint(S));
+  put("mWhenSeg", seg("qty", [
+    { id: "count", label: "Count", tip: "Number of items" },
+    { id: "share", label: "Share", tip: "Percentage of total" }
+  ], S.qty));
+  put("mWhen", renderWhen(S));
+
+  if (S.storyStep !== null) renderStoryModal();
+  animateNumbers();
+}
+
+function toggle(key, value){
+  S[key] = S[key] === value ? null : value;
+  S.view = null;
+  S.page = 0;
+}
+
+// ---- Story Mode Controller --------------------------------------------
+function startStory(){
+  S.storyStep = 0;
+  S.storyPaused = false;
+  renderStoryModal();
+  advanceStoryTimer();
+}
+
+function stopStory(){
+  if (S.storyTimer) clearTimeout(S.storyTimer);
+  S.storyStep = null;
+  S.storyTimer = null;
+  document.querySelectorAll(".story-spotlight").forEach(el => el.classList.remove("story-spotlight"));
+  const modal = $("mStoryModal");
+  if (modal){ modal.classList.remove("on"); modal.innerHTML = ""; }
+}
+
+function nextStory(){
+  const steps = storySteps(S);
+  if (S.storyStep < steps.length - 1){
+    S.storyStep++;
+    renderStoryModal();
+    advanceStoryTimer();
+  } else {
+    stopStory();
+  }
+}
+
+function prevStory(){
+  if (S.storyStep > 0){
+    S.storyStep--;
+    renderStoryModal();
+    advanceStoryTimer();
+  }
+}
+
+function toggleStoryPause(){
+  S.storyPaused = !S.storyPaused;
+  if (S.storyPaused){
+    if (S.storyTimer) clearTimeout(S.storyTimer);
+  } else {
+    advanceStoryTimer();
+  }
+  renderStoryModal();
+}
+
+function advanceStoryTimer(){
+  if (S.storyTimer) clearTimeout(S.storyTimer);
+  if (S.storyPaused) return;
+  S.storyTimer = setTimeout(() => {
+    nextStory();
+  }, 4000);
+}
+
+function renderStoryModal(){
+  const modal = $("mStoryModal");
+  if (!modal || S.storyStep === null) return;
+  const steps = storySteps(S);
+  const step = steps[S.storyStep];
+  if (!step) return;
+
+  document.querySelectorAll(".story-spotlight").forEach(el => el.classList.remove("story-spotlight"));
+  const targetEl = $(step.target);
+  if (targetEl) targetEl.classList.add("story-spotlight");
+
+  modal.classList.add("on");
+  modal.innerHTML = '<div class="story-backdrop" data-act="stopStory"></div>'
+    + '<div class="story-box">'
+    + '<div class="story-head">'
+    + '<span class="story-badge">' + esc(step.title) + '</span>'
+    + '<div class="story-ctrls">'
+    + '<button type="button" data-act="prevStory"' + (S.storyStep === 0 ? " disabled" : "") + '>&#8249; Back</button>'
+    + '<button type="button" data-act="pauseStory">' + (S.storyPaused ? '&#9654; Resume' : '&#10074;&#10074; Pause') + '</button>'
+    + '<button type="button" data-act="nextStory">' + (S.storyStep === steps.length - 1 ? 'Finish &#10003;' : 'Next &#8250;') + '</button>'
+    + '<button type="button" data-act="stopStory" style="margin-left:4px" aria-label="Close story">&times;</button>'
+    + '</div></div>'
+    + '<div class="story-desc">' + esc(step.desc) + '</div>'
+    + '<div class="story-progress"><div class="story-bar" style="width:' + ((S.storyStep + 1) / steps.length * 100) + '%"></div></div>'
+    + '</div>';
+}
+
+function act(name, value){
+  switch (name){
+    case "startStory": startStory(); return;
+    case "stopStory": stopStory(); return;
+    case "nextStory": nextStory(); return;
+    case "prevStory": prevStory(); return;
+    case "pauseStory": toggleStoryPause(); return;
+    case "state":
+      toggle("state", value);
+      S.component = null; S.environment = null;
+      break;
+    case "component":
+      toggle("component", value);
+      S.environment = null;
+      S.focus = S.component ? "envs" : "horizon";
+      break;
+    case "environment":
+      toggle("environment", value);
+      if (S.environment) S.focus = "horizon";
+      break;
+    case "band":
+      S.band = value === "" ? null : (S.band === value ? null : value);
+      S.view = null; S.page = 0;
+      break;
+    case "window":
+      S.window = (S.window === value && value !== "all") ? "all" : value;
+      S.view = null; S.page = 0;
+      break;
+    case "cell": {
+      const [key, code] = value.split("|");
+      const comp = NAME_OF[code];
+      if (DATA.mode === "all") S.state = key; else S.environment = key;
+      S.component = comp; S.focus = "horizon"; S.view = null; S.page = 0;
+      break;
+    }
+    case "pair": {
+      const [env, code] = value.split("|");
+      S.environment = env; S.component = NAME_OF[code];
+      S.focus = "horizon"; S.view = null; S.page = 0;
+      break;
+    }
+    case "drop":
+      if (value === "q"){ S.q = ""; const box = $("q"); if (box) box.value = ""; }
+      else if (value === "window") S.window = "all";
+      else S[value] = null;
+      S.view = null; S.page = 0;
+      break;
+    case "reset":
+      Object.assign(S, {
+        state: DATA.mode === "state" ? DATA.state : null, component: null, environment: null,
+        band: null, window: "all", q: "", focus: "horizon", sort: "soon", page: 0, view: "all"
+      });
+      { const box = $("q"); if (box) box.value = ""; }
+      break;
+    case "view": {
+      const bm = DATA.bookmarks.find(b => b.id === value);
+      if (!bm) break;
+      Object.assign(S, bm.set);
+      if (DATA.mode === "state") S.state = DATA.state;
+      if ("q" in bm.set){ const box = $("q"); if (box) box.value = bm.set.q; }
+      S.view = value; S.page = 0;
+      break;
+    }
+    case "focus": S.focus = value; break;
+    case "tview": S.tview = value; S.page = 0; break;
+    case "qty": S.qty = value; break;
+    case "toggleFilters": S.showFilters = !S.showFilters; break;
+    case "sort":
+      S.sort = (S.sort === "soon" && value === "soon") ? "late" : value;
+      S.page = 0;
+      break;
+    case "page": {
+      const per = Math.max(1, S.rows);
+      const pages = Math.max(1, Math.ceil(visibleCount(S) / per));
+      S.page = Math.min(pages - 1, Math.max(0, S.page + (value === "next" ? 1 : -1)));
+      break;
+    }
+  }
+  apply();
+}
+
+document.addEventListener("click", e => {
+  const hit = e.target.closest("[data-act]");
   if (!hit || hit.disabled) return;
   e.preventDefault();
   act(hit.dataset.act, hit.dataset.val || "");
@@ -1870,8 +2099,8 @@ if (typeof module !== "undefined" && module.exports){
                      renderKpis, renderComps, renderHorizon, renderEnvs, renderCoverage,
                      renderWhen, renderSlicers, renderCrumbs, renderPager, renderNarrative,
                      renderSinceVisit, sparklineSvg, trendDelta, storySteps, clampStr,
-                     tableHint, whereLabel, focusHint, whenHint, quarters, qOrd, COLS,
-                     SUM_COLS, SORTS };
+                     getScopeSnapshots, METRIC_DIRECTIONS, tableHint, whereLabel, focusHint,
+                     whenHint, quarters, qOrd, COLS, SUM_COLS, SORTS };
 }
 """
 
