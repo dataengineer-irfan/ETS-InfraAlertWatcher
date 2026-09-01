@@ -280,19 +280,19 @@ code, kbd, .mono {{ font-family:var(--mono); }}
 
 /* ---- tabs: enterprise dark tab bar -------------------------- */
 [data-baseweb="tab-list"] {{
-  gap:4px; background:var(--card); border:1px solid var(--rule); border-radius:8px;
-  padding:3px; height:38px; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.35);
+  gap:3px; background:var(--card); border:1px solid var(--rule); border-radius:7px;
+  padding:2px; height:32px; align-items:center; box-shadow:0 2px 6px rgba(0,0,0,0.3);
 }}
 button[data-baseweb="tab"] {{
-  height:32px !important; min-height:32px !important; padding:0 16px !important;
-  border-radius:6px; background:transparent !important;
-  transition:all .15s ease;
+  height:28px !important; min-height:28px !important; padding:0 12px !important;
+  border-radius:5px; background:transparent !important;
+  transition:all .12s ease;
 }}
 button[data-baseweb="tab"] div,
 button[data-baseweb="tab"] p,
 button[data-baseweb="tab"] span,
 button[data-baseweb="tab"] {{
-  color:#94a3b8 !important; font-family:var(--ui); font-size:12.5px !important;
+  color:#94a3b8 !important; font-family:var(--ui); font-size:12px !important;
   font-weight:600 !important; letter-spacing:.01em;
 }}
 button[data-baseweb="tab"]:hover {{
@@ -313,13 +313,13 @@ button[data-baseweb="tab"][aria-selected="true"] span {{
   color:#38bdf8 !important; font-weight:700 !important;
 }}
 [data-baseweb="tab-highlight"], [data-baseweb="tab-border"] {{ display:none; }}
-[data-baseweb="tab-panel"] {{ padding:6px 0 0 !important; }}
+[data-baseweb="tab-panel"] {{ padding:4px 0 0 !important; margin:0 !important; }}
 
 /* ---- buttons ----------------------------------------------------------- */
 .stButton > button, [data-testid="stDownloadButton"] > button {{
   width:100%; background:var(--card) !important; color:#f8fafc !important;
-  border:none !important; border-radius:6px; padding:.45rem .75rem;
-  font-family:var(--ui); font-size:12px; font-weight:600;
+  border:none !important; border-radius:6px; padding:.3rem .6rem; min-height:30px;
+  font-family:var(--ui); font-size:11.5px; font-weight:600;
   box-shadow:0 1px 3px rgba(0,0,0,0.35);
   transition:all .15s ease;
 }}
@@ -332,19 +332,19 @@ button[data-baseweb="tab"][aria-selected="true"] span {{
 .stButton > button[kind="primary"] {{
   background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
   border:1px solid #38bdf8 !important; color:#fff !important; font-weight:700;
-  box-shadow:0 0 12px rgba(56,189,248,0.25);
+  box-shadow:0 0 10px rgba(56,189,248,0.25);
 }}
 .stButton > button[kind="primary"]:hover {{
   background:linear-gradient(135deg, #38bdf8 0%, #0284c7 100%) !important;
-  color:#fff !important; box-shadow:0 0 16px rgba(56,189,248,0.4);
+  color:#fff !important; box-shadow:0 0 14px rgba(56,189,248,0.4);
 }}
 
 /* ---- state chooser ----------------------------------------------------- */
 .pickline {{
-  display:flex; align-items:baseline; gap:10px; padding:6px 0 8px; margin-bottom:4px;
+  display:flex; align-items:center; gap:8px; padding:2px 0 3px; margin-bottom:2px;
 }}
-.pickline .h {{ font-size:14px; font-weight:700; color:#f8fafc !important; }}
-.pickline .p {{ font-size:12px; color:#94a3b8 !important; }}
+.pickline .h {{ font-size:12.5px; font-weight:700; color:#f8fafc !important; }}
+.pickline .p {{ font-size:11px; color:#94a3b8 !important; }}
 .statebar {{ display:flex; align-items:center; gap:8px; }}
 
 /* ---- Inputs, Selectors, Popovers & Expanders --------------------------- */

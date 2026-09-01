@@ -153,7 +153,7 @@ body{
 /* ---- shell: header, slicers, then three content rows ------------------ */
 .shell{
   height:100%; padding:var(--gap); display:grid; gap:var(--gap);
-  grid-template-rows:auto auto minmax(54px,.62fr) minmax(132px,1.5fr) minmax(142px,1.8fr);
+  grid-template-rows:auto auto minmax(50px,.6fr) minmax(130px,1.5fr) minmax(140px,1.8fr);
 }
 .rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
        min-height:0; }
@@ -162,9 +162,9 @@ body{
 
 /* ---- header ---------------------------------------------------------- */
 .head{
-  display:flex; flex-direction:column; gap:4px; flex:none;
+  display:flex; flex-direction:column; gap:3px; flex:none;
   background:var(--card); border-radius:7px; box-shadow:var(--shadow);
-  padding:5px 10px; min-width:0; overflow:hidden;
+  padding:4px 8px; min-width:0; overflow:hidden;
 }
 .head-row{
   display:flex; align-items:center; gap:8px; width:100%; min-width:0; overflow:hidden;

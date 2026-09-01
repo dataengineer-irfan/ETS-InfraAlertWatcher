@@ -838,8 +838,8 @@ with tab_overview:
 with tab_state:
     chosen = st.session_state.get("st_state")
 
-    cols = st.columns([1, 1, 1, 5])
-    for col, state in zip(cols, STATES):
+    cols = st.columns([0.8, 0.8, 0.8, 4.4])
+    for col, state in zip(cols[:3], STATES):
         if col.button(state, key=f"st_pick_{state}",
                       type="primary" if chosen == state else "secondary",
                       use_container_width=True):
@@ -853,10 +853,10 @@ with tab_state:
             subset = records[records["state"] == chosen]
             overdue = int((subset["days_left"] < 0).sum())
             st.markdown(ui.pick_line(
-                f"{chosen} selected",
+                f"{chosen} Selected",
                 f"{len(subset)} records · "
                 + (f"{overdue} overdue" if overdue else "none overdue")
-                + " · press the same button again to go back"),
+                + " · click to deselect"),
                 unsafe_allow_html=True)
         else:
             st.markdown(ui.pick_line(
