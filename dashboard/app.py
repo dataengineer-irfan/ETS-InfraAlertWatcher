@@ -319,17 +319,17 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
 # ==========================================================================
 def render_master_detail(df: pd.DataFrame) -> None:
     st.markdown("""
-    <div style="margin-bottom:12px;">
+    <div style="margin-bottom:10px;">
       <div style="font-size:15px;font-weight:700;color:#f8fafc;">Master-Detail Workspace & Inspector Hub</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Select any entity on the left to inspect metadata lineage, JSON payload, and execute renewals.</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Select any tracked entity on the left to inspect metadata lineage, JSON payload, and execute renewals.</div>
     </div>
     """, unsafe_allow_html=True)
 
     left_col, _, right_col = st.columns([1.8, 0.05, 2.2])
 
     with left_col:
-        st.markdown('<div class="eyebrow" style="margin-top:0;">Master Records Filter</div>', unsafe_allow_html=True)
-        f1, f2, f3 = st.columns([2.0, 1.5, 1.5])
+        st.markdown('<div class="eyebrow" style="margin-top:0;">Master Entity Directory</div>', unsafe_allow_html=True)
+        f1, f2, f3 = st.columns([2.0, 1.4, 1.4])
         q = f1.text_input("Filter", key="md_search", placeholder="Search schema, state, env...", label_visibility="collapsed")
         state_filter = f2.selectbox("State", ["All States"] + STATES, key="md_state", label_visibility="collapsed")
         health_filter = f3.selectbox("Health", ["All Health"] + ui.BANDS, key="md_health", label_visibility="collapsed")
@@ -345,11 +345,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
         filtered = filtered.sort_values("days_left")
 
         if filtered.empty:
-            st.markdown(ui.empty("No records match filter", "Try broadening your search query."), unsafe_allow_html=True)
+            st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
             selected_id = None
         else:
             record_options = {
-                f"{r.state} · {r.schema_name} ({r.env_label}) · {r.exp_date} [{r.band}]": r.id
+                f"#{r.id} · {r.state} · {r.schema_name} ({r.env_label}) · {r.exp_date} [{r.band}]": r.id
                 for r in filtered.itertuples()
             }
             selected_label = st.selectbox(
@@ -360,17 +360,19 @@ def render_master_detail(df: pd.DataFrame) -> None:
             )
             selected_id = record_options[selected_label]
 
-            # Compact preview table
-            st.markdown(f"<div style='font-size:11px;color:#94a3b8;margin:6px 0 4px;'>Showing <b>{len(filtered)}</b> matching entities:</div>", unsafe_allow_html=True)
+            # High-density preview table
+            st.markdown(f"<div style='font-size:11px;color:#94a3b8;margin:6px 0 4px;'>Showing <b>{len(filtered)}</b> matching entities (soonest first):</div>", unsafe_allow_html=True)
             table_rows = []
-            for r in filtered.head(15).itertuples():
+            for r in filtered.head(20).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                is_active = (r.id == selected_id)
+                bg_active = "background:rgba(56,189,248,0.12);" if is_active else ""
                 table_rows.append(
-                    f"<tr>"
+                    f"<tr style='{bg_active}'>"
                     f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
                     f"<td class='m' style='font-weight:600;'>{r.state}</td>"
                     f"<td class='m'>{r.schema_name}</td>"
-                    f"<td class='m'><span class='env-pill'>{r.env_label}</span></td>"
+                    f"<td class='m'><span class='env-tag'>{r.env_label}</span></td>"
                     f"<td class='m r' style='color:{meta['color']};font-weight:600;'>{ui.fmt_days(r.days_left)}</td>"
                     f"</tr>"
                 )
@@ -378,7 +380,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
             st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;'><table class='tblx'>{head}{''.join(table_rows)}</table></div>", unsafe_allow_html=True)
 
     with right_col:
-        st.markdown('<div class="eyebrow" style="margin-top:0;">Detail Inspector Panel</div>', unsafe_allow_html=True)
+        st.markdown('<div class="eyebrow" style="margin-top:0;">Contextual Inspector Panel</div>', unsafe_allow_html=True)
         if selected_id is None:
             st.markdown(ui.empty("Select a record", "Choose an item from the master list to inspect."), unsafe_allow_html=True)
             return
@@ -387,11 +389,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
         meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
 
         st.markdown(f"""
-        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:12px;">
+        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">RECORD ID #{rec['id']} · {rec['state']}</span>
-              <div style="font-size:17px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:2px;">{rec['schema_name']}</div>
+              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · {rec['component']}</span>
+              <div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:2px;">{rec['schema_name']}</div>
             </div>
             {ui.status_pill(rec['band'])}
           </div>
@@ -407,7 +409,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 <div class="card" style="font-size:12px;line-height:1.6;">
                   <div><b>Component:</b> {rec['component']}</div>
                   <div style="color:#94a3b8;font-size:10.5px;margin-bottom:6px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
-                  <div><b>Environment:</b> <code>{rec['env_label']}</code> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
+                  <div><b>Environment:</b> <span class="env-tag">{rec['env_label']}</span> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
                   <div><b>Module Code:</b> <code>{rec['module'] or 'N/A'}</code></div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -416,7 +418,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 <div class="card" style="font-size:12px;line-height:1.6;">
                   <div><b>Current Expiry:</b> <code style="font-weight:700;color:{meta['color']}">{rec['exp_date']}</code></div>
                   <div><b>Workbook Source:</b> <code>{rec['source_exp_date']}</code></div>
-                  <div><b>Status Delta:</b> <b>{ui.fmt_days(rec['days_left'])}</b> ({rec['days_left']} days)</div>
+                  <div><b>Life Remaining:</b> <b>{ui.fmt_days(rec['days_left'])}</b> ({rec['days_left']} days)</div>
                   <div><b>Quarter Horizon:</b> <code>{rec['quarter']}</code></div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -439,10 +441,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 st.markdown("<div class='eyebrow'>SQLite Lineage Query</div>", unsafe_allow_html=True)
                 st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
             else:
-                st.markdown(f"<pre style='background:var(--sunk);padding:8px;border-radius:6px;font-size:11px;'>{json.dumps(payload, indent=2)}</pre>", unsafe_allow_html=True)
+                st.markdown(f"<div class='code-box'>{json.dumps(payload, indent=2)}</div>", unsafe_allow_html=True)
 
         with i_tab3:
-            st.markdown(ui.note("Modify working expiry date or revert back to Excel source:"), unsafe_allow_html=True)
+            st.markdown(ui.note("Extend expiry date or revert back to Excel workbook value:"), unsafe_allow_html=True)
+
             act_col1, act_col2 = st.columns(2)
             with act_col1:
                 with st.form(f"md_form_{rec['id']}"):
@@ -453,6 +456,20 @@ def render_master_detail(df: pd.DataFrame) -> None:
                         rerun()
 
             with act_col2:
+                st.markdown("<div style='font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:6px;'>Quick Renewal Presets</div>", unsafe_allow_html=True)
+                p_c1, p_c2 = st.columns(2)
+                cur_dt = rec["exp_dt"].date()
+                if p_c1.button("+90 Days", key=f"preset_90_{rec['id']}", use_container_width=True):
+                    target_dt = cur_dt + pd.Timedelta(days=90)
+                    apply_edits([(rec["id"], target_dt)])
+                    st.success(f"Extended +90 days to {target_dt}")
+                    rerun()
+                if p_c2.button("+1 Year", key=f"preset_365_{rec['id']}", use_container_width=True):
+                    target_dt = cur_dt + pd.Timedelta(days=365)
+                    apply_edits([(rec["id"], target_dt)])
+                    st.success(f"Extended +1 year to {target_dt}")
+                    rerun()
+
                 if rec["edited"]:
                     st.warning(f"Locally modified from `{rec['source_exp_date']}`")
                     if st.button("Revert to Workbook Date", key=f"revert_btn_{rec['id']}", use_container_width=True):
@@ -471,9 +488,9 @@ def render_master_detail(df: pd.DataFrame) -> None:
 # ==========================================================================
 def render_matrix_view(df: pd.DataFrame) -> None:
     st.markdown("""
-    <div style="margin-bottom:12px;">
+    <div style="margin-bottom:10px;">
       <div style="font-size:15px;font-weight:700;color:#f8fafc;">Hierarchical Matrix & Cross-Tab Analysis</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Multi-dimensional grouping by State, Component, and Environment with status chips & export.</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Multi-dimensional grouping across State, Component, and Environment with heat-map density & export.</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -500,8 +517,85 @@ def render_matrix_view(df: pd.DataFrame) -> None:
             use_container_width=True,
         )
 
-    # State grouping summaries
-    for state in (STATES if s_state == "All States" else [s_state]):
+    # Top KPI summary strip
+    tot_cnt = len(mat_df)
+    exp_cnt = int((mat_df["days_left"] < 0).sum())
+    crit_cnt = int((mat_df["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+    warn_cnt = int((mat_df["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+    hlth_cnt = int((mat_df["days_left"] > ui.WARNING_DAYS).sum())
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:#38bdf8;">
+          <div class="kpi-label">Entities in View</div>
+          <div class="kpi-value">{tot_cnt}</div>
+          <div class="kpi-sub">Across active filters</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};">
+          <div class="kpi-label">Expired Items</div>
+          <div class="kpi-value">{exp_cnt}</div>
+          <div class="kpi-sub">{'Requires immediate renewal' if exp_cnt else 'Zero expired'}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#10b981'};">
+          <div class="kpi-label">Critical & Warning</div>
+          <div class="kpi-value">{crit_cnt + warn_cnt}</div>
+          <div class="kpi-sub">{crit_cnt} critical · {warn_cnt} warning</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:#10b981;">
+          <div class="kpi-label">Healthy Entities</div>
+          <div class="kpi-value">{hlth_cnt}</div>
+          <div class="kpi-sub">{(hlth_cnt/tot_cnt*100):.0f}% healthy fleet</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+
+    # 2D Cross-Tab Heat Matrix
+    st.markdown('<div class="eyebrow" style="margin-top:0;">State × Component Cross-Tab Matrix</div>', unsafe_allow_html=True)
+    states_to_show = STATES if s_state == "All States" else [s_state]
+    comps_to_show = COMPONENT_ORDER if s_comp == "All Components" else [s_comp]
+
+    header_cols = "".join(f"<th>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in comps_to_show)
+    matrix_head = f"<tr><th>State</th>{header_cols}<th class='r'>Total</th></tr>"
+
+    matrix_rows = []
+    for st_code in states_to_show:
+        st_sub = mat_df[mat_df["state"] == st_code]
+        cell_tds = []
+        for comp_name in comps_to_show:
+            cell_sub = st_sub[st_sub["component"] == comp_name]
+            if cell_sub.empty:
+                cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
+            else:
+                c_cnt = len(cell_sub)
+                worst_b = ui.worst_band(cell_sub["band"].tolist())
+                meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
+                cell_tds.append(
+                    f"<td class='c'>"
+                    f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};'>"
+                    f"<b>{meta['symbol']}</b> {c_cnt}"
+                    f"</span></td>"
+                )
+        st_tot = len(st_sub)
+        matrix_rows.append(
+            f"<tr><td style='font-weight:700;'>{st_code}</td>{''.join(cell_tds)}<td class='m r'><b>{st_tot}</b></td></tr>"
+        )
+
+    st.markdown(f"<div style='margin-bottom:12px;border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
+
+    # State grouping drilldowns
+    st.markdown('<div class="eyebrow">Hierarchical State Drilldowns</div>', unsafe_allow_html=True)
+    for state in states_to_show:
         sub = mat_df[mat_df["state"] == state]
         if sub.empty:
             continue
@@ -522,7 +616,7 @@ def render_matrix_view(df: pd.DataFrame) -> None:
                     f"<tr>"
                     f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
                     f"<td class='m' style='font-weight:600;'>{r.schema_name}</td>"
-                    f"<td class='m'><span class='env-pill'>{r.environment}</span></td>"
+                    f"<td class='m'><span class='env-tag'>{r.environment}</span></td>"
                     f"<td>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
                     f"<td class='m'>{r.exp_date}</td>"
                     f"<td class='m c' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
@@ -530,7 +624,7 @@ def render_matrix_view(df: pd.DataFrame) -> None:
                     f"</tr>"
                 )
             head = "<tr><th></th><th>Schema Name</th><th>Environment</th><th>Component</th><th>Expiry Date</th><th style='text-align:center;'>Time Left</th><th style='text-align:center;'>Status</th></tr>"
-            st.markdown(f"<div style='max-height:380px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
 
 
 # ==========================================================================
@@ -538,7 +632,7 @@ def render_matrix_view(df: pd.DataFrame) -> None:
 # ==========================================================================
 def render_governance_center() -> None:
     st.markdown("""
-    <div style="margin-bottom:14px;">
+    <div style="margin-bottom:12px;">
       <div style="font-size:15px;font-weight:700;color:#f8fafc;">Live Database Governance & Email Alert Simulator</div>
       <div style="font-size:12px;color:#94a3b8;margin-top:2px;">Zero-mock SQLite lineage inspection, AST workbook validation, and email notification simulation.</div>
     </div>
@@ -586,13 +680,13 @@ def render_governance_center() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
     g_col1, _, g_col2 = st.columns([1.8, 0.05, 2.2])
 
     with g_col1:
         st.markdown('<div class="eyebrow" style="margin-top:0;">Database Schema & Lineage Status</div>', unsafe_allow_html=True)
         st.markdown(f"""
-        <div class="card" style="margin-bottom:16px;">
+        <div class="card" style="margin-bottom:14px;">
           <div style="font-size:12.5px;font-weight:700;color:#f8fafc;margin-bottom:8px;">
             SQLite Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code>
           </div>
@@ -645,9 +739,9 @@ def render_governance_center() -> None:
                 st.info(f"Dry-run executed. {len(due_alerts)} notification(s) evaluated successfully with zero transport errors.")
         else:
             st.markdown(f"""
-            <div class="card" style="text-align:center;padding:24px 16px;margin-bottom:12px;">
-              <div style="font-size:24px;color:#10b981;margin-bottom:4px;">✓</div>
-              <div style="font-size:14px;font-weight:700;color:#f8fafc;">No Pending Email Alerts</div>
+            <div class="card" style="text-align:center;padding:20px 16px;margin-bottom:10px;">
+              <div style="font-size:22px;color:#10b981;margin-bottom:4px;">✓</div>
+              <div style="font-size:13.5px;font-weight:700;color:#f8fafc;">No Pending Email Alerts</div>
               <div style="font-size:11.5px;color:#94a3b8;margin-top:4px;max-width:40ch;margin-left:auto;margin-right:auto;">
                 All tracked database accounts and components currently have more than {ui.CRITICAL_DAYS} days of life remaining.
               </div>
@@ -714,6 +808,37 @@ with tab_state:
             "state — and a Manage view for recording renewals. The Overview tab already shows "
             "all three states together."), unsafe_allow_html=True)
     else:
+        subset = records[records["state"] == chosen]
+        tot = len(subset)
+        soonest = int(subset["days_left"].min()) if not subset.empty else 0
+        overdue = int((subset["days_left"] < 0).sum())
+        overrides = int(subset["edited"].sum())
+
+        st.markdown(f"""
+        <div class="state-ribbon">
+          <div class="state-kpi-card">
+            <div class="state-kpi-label">Portfolio Total</div>
+            <div class="state-kpi-val">{tot}</div>
+            <div class="state-kpi-hint">Tracked items in {chosen}</div>
+          </div>
+          <div class="state-kpi-card {'urgent' if soonest <= ui.CRITICAL_DAYS else 'warn' if soonest <= ui.WARNING_DAYS else 'good'}">
+            <div class="state-kpi-label">Soonest Expiry</div>
+            <div class="state-kpi-val">{ui.fmt_days(soonest)}</div>
+            <div class="state-kpi-hint">{ui.health_of(soonest)} status horizon</div>
+          </div>
+          <div class="state-kpi-card {'urgent' if overdue else 'good'}">
+            <div class="state-kpi-label">Lapsed & Overdue</div>
+            <div class="state-kpi-val">{overdue}</div>
+            <div class="state-kpi-hint">{'Action required immediately' if overdue else 'Zero lapsed accounts'}</div>
+          </div>
+          <div class="state-kpi-card">
+            <div class="state-kpi-label">Local Overrides</div>
+            <div class="state-kpi-val">{overrides}</div>
+            <div class="state-kpi-hint">{'Modified in SQLite' if overrides else '100% in sync with Excel'}</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         sub_overview, sub_manage = st.tabs(["Overview", "Manage"])
         with sub_overview:
             canvas("state", chosen, CANVAS_STATE)
@@ -728,3 +853,4 @@ with tab_matrix:
 
 with tab_governance:
     render_governance_center()
+

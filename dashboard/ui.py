@@ -476,6 +476,51 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   font-size:10.5px; color:var(--slate); margin-top:1px;
 }}
 
+.state-ribbon {{
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:8px;
+}}
+.state-kpi-card {{
+  background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--accent);
+  border-radius:6px; padding:6px 10px; box-shadow:0 1px 4px rgba(0,0,0,0.25);
+}}
+.state-kpi-card.urgent {{ border-left-color:var(--critical); }}
+.state-kpi-card.warn {{ border-left-color:var(--warning); }}
+.state-kpi-card.good {{ border-left-color:var(--healthy); }}
+.state-kpi-label {{
+  font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--mute);
+}}
+.state-kpi-val {{
+  font-family:var(--mono); font-size:16px; font-weight:700; color:var(--ink); margin-top:1px;
+}}
+.state-kpi-hint {{ font-size:10px; color:var(--slate); }}
+
+.env-tag {{
+  display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:600;
+  padding:1px 6px; border-radius:4px; background:rgba(56,189,248,0.12);
+  border:1px solid rgba(56,189,248,0.3); color:var(--accent);
+}}
+
+.matrix-table {{
+  width:100%; border-collapse:collapse; font-size:11.5px;
+}}
+.matrix-table th {{
+  font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:#94a3b8; padding:7px 8px; border-bottom:1px solid var(--rule); background:var(--card);
+}}
+.matrix-table td {{
+  padding:6px 8px; border-bottom:1px solid var(--rule-soft); color:#f8fafc;
+}}
+.matrix-cell-badge {{
+  display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:10.5px;
+  font-weight:600; padding:2px 6px; border-radius:4px;
+}}
+
+.code-box {{
+  background:var(--sunk); border:1px solid var(--rule); border-radius:6px;
+  padding:10px; font-family:var(--mono); font-size:11px; line-height:1.5;
+  color:#f8fafc; overflow-x:auto; max-height:220px;
+}}
+
 @media (prefers-reduced-motion:reduce) {{ * {{ transition:none !important; }} }}
 </style>
 """
