@@ -49,8 +49,7 @@ function loadEngine(file) {
     ";Object.assign(module.exports,{DATA,rows,counts,soonest,sorted,healthOf,worstBand," +
     "fmtDate,fmtDays,fmtDaysLong,renderTable,renderSummary,summaryRows,visibleCount," +
     "renderKpis,renderComps,renderHorizon,renderEnvs,renderCoverage,renderWhen," +
-    "renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
-    "trendDelta,storySteps,tableHint,whereLabel,focusHint,whenHint," +
+    "renderSlicers,renderCrumbs,renderPager,tableHint,whereLabel,focusHint,whenHint," +
     "quarters,qOrd,COLS,SUM_COLS,SORTS});",
     ctx, { filename: path.basename(file) }
   );
@@ -457,36 +456,7 @@ Object.keys(T.byEnv).forEach(env =>
 eq("environment counts are complete",
    [...envHtml.matchAll(/<span>(\d+) items?<\/span>/g)].reduce((a, m) => a + Number(m[1]), 0),
    T.total);
-// =========================================================================
-// 18. smart narrative headline generator
-// =========================================================================
-const narrativeAll = E.renderNarrative(base());
-ok("narrative renders headline for all items", narrativeAll.includes("Action Required") || narrativeAll.includes("Compliant"));
-const narrativeHealthy = E.renderNarrative(withS({ band: "Healthy" }));
-ok("healthy view shows compliant banner", narrativeHealthy.includes("Compliant"));
-const narrativeEmpty = E.renderNarrative(withS({ q: "nonexistent_query_xyz" }));
-ok("empty filter shows empty banner", narrativeEmpty.includes("Scope Empty"));
-
-// =========================================================================
-// 19. sparkline and trend deltas
-// =========================================================================
-const spark = E.sparklineSvg([4, 3, 2, 2, 2], "#38BDF8");
-ok("sparkline generates svg path", spark.includes("<svg") && spark.includes("<path"));
-const tGood = E.trendDelta(5, 3, false);
-ok("trend delta upward good", tGood.includes("good") && tGood.includes("+2"));
-const tBad = E.trendDelta(5, 3, true);
-ok("trend delta upward bad", tBad.includes("bad") && tBad.includes("+2"));
-const tFlat = E.trendDelta(3, 3, true);
-ok("trend delta flat", tFlat.includes("Stable"));
-
-// =========================================================================
-// 20. guided story mode steps
-// =========================================================================
-const steps = E.storySteps(base());
-eq("story mode returns 4 sequential steps", steps.length, 4);
-ok("step 1 targets KPIs", steps[0].target === "mKpis");
-ok("step 3 targets Focus panel", steps[2].target === "mFocus");
-ok("step 4 targets When panel", steps[3].target === "mWhen");
+ok("environment cards are labelled in plain language", envHtml.includes("Disaster recovery"));
 
 // =========================================================================
 // report

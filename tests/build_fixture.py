@@ -139,16 +139,8 @@ def main() -> int:
     (FIXTURE / "truth.json").write_text(json.dumps(truth, indent=1, default=str),
                                         encoding="utf-8")
 
-    sample_snapshots = [
-        {"captured_at": "2026-07-01T09:00:00Z", "tracked": 91, "expired": 4, "critical": 2, "warning": 6, "healthy": 79, "soonest_days": 12},
-        {"captured_at": "2026-07-15T09:00:00Z", "tracked": 91, "expired": 3, "critical": 2, "warning": 5, "healthy": 81, "soonest_days": 20},
-        {"captured_at": "2026-08-01T09:00:00Z", "tracked": 91, "expired": 2, "critical": 1, "warning": 4, "healthy": 84, "soonest_days": 45},
-        {"captured_at": "2026-08-15T09:00:00Z", "tracked": 91, "expired": 2, "critical": 0, "warning": 3, "healthy": 86, "soonest_days": 70},
-        {"captured_at": "2026-09-01T09:00:00Z", "tracked": 91, "expired": 2, "critical": 0, "warning": 2, "healthy": 87, "soonest_days": 88},
-    ]
-
     for mode, state in (("all", None), ("state", "AK")):
-        html = report.build(records, mode=mode, state=state, env_order=ENV_ORDER, snapshots=sample_snapshots)
+        html = report.build(records, mode=mode, state=state, env_order=ENV_ORDER)
         (FIXTURE / f"page_{mode}.html").write_text(html, encoding="utf-8")
         print(f"page_{mode}.html  {len(html):>7,} bytes")
 
