@@ -183,6 +183,36 @@ def search(df: pd.DataFrame, query: str) -> pd.DataFrame:
 # View 2: State Manage Editor
 # ==========================================================================
 def render_manage(state_records: pd.DataFrame, state: str) -> None:
+    tot = len(state_records)
+    soonest = int(state_records["days_left"].min()) if not state_records.empty else 0
+    overdue = int((state_records["days_left"] < 0).sum())
+    overrides = int(state_records["edited"].sum())
+
+    st.markdown(f"""
+    <div class="state-ribbon">
+      <div class="state-kpi-card">
+        <div class="state-kpi-label">Portfolio Total</div>
+        <div class="state-kpi-val">{tot}</div>
+        <div class="state-kpi-hint">Tracked items in {state}</div>
+      </div>
+      <div class="state-kpi-card {'urgent' if soonest <= ui.CRITICAL_DAYS else 'warn' if soonest <= ui.WARNING_DAYS else 'good'}">
+        <div class="state-kpi-label">Soonest Expiry</div>
+        <div class="state-kpi-val">{ui.fmt_days(soonest)}</div>
+        <div class="state-kpi-hint">{ui.health_of(soonest)} status horizon</div>
+      </div>
+      <div class="state-kpi-card {'urgent' if overdue else 'good'}">
+        <div class="state-kpi-label">Lapsed & Overdue</div>
+        <div class="state-kpi-val">{overdue}</div>
+        <div class="state-kpi-hint">{'Action required immediately' if overdue else 'Zero lapsed accounts'}</div>
+      </div>
+      <div class="state-kpi-card">
+        <div class="state-kpi-label">Local Overrides</div>
+        <div class="state-kpi-val">{overrides}</div>
+        <div class="state-kpi-hint">{'Modified in SQLite' if overrides else '100% in sync with Excel'}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown(ui.pick_line(
         f"Record a renewal for {state}",
         "change an expiry date in place — the workbook remains the system of record"),
@@ -819,37 +849,6 @@ with tab_state:
             "state — and a Manage view for recording renewals. The Overview tab already shows "
             "all three states together."), unsafe_allow_html=True)
     else:
-        subset = records[records["state"] == chosen]
-        tot = len(subset)
-        soonest = int(subset["days_left"].min()) if not subset.empty else 0
-        overdue = int((subset["days_left"] < 0).sum())
-        overrides = int(subset["edited"].sum())
-
-        st.markdown(f"""
-        <div class="state-ribbon">
-          <div class="state-kpi-card">
-            <div class="state-kpi-label">Portfolio Total</div>
-            <div class="state-kpi-val">{tot}</div>
-            <div class="state-kpi-hint">Tracked items in {chosen}</div>
-          </div>
-          <div class="state-kpi-card {'urgent' if soonest <= ui.CRITICAL_DAYS else 'warn' if soonest <= ui.WARNING_DAYS else 'good'}">
-            <div class="state-kpi-label">Soonest Expiry</div>
-            <div class="state-kpi-val">{ui.fmt_days(soonest)}</div>
-            <div class="state-kpi-hint">{ui.health_of(soonest)} status horizon</div>
-          </div>
-          <div class="state-kpi-card {'urgent' if overdue else 'good'}">
-            <div class="state-kpi-label">Lapsed & Overdue</div>
-            <div class="state-kpi-val">{overdue}</div>
-            <div class="state-kpi-hint">{'Action required immediately' if overdue else 'Zero lapsed accounts'}</div>
-          </div>
-          <div class="state-kpi-card">
-            <div class="state-kpi-label">Local Overrides</div>
-            <div class="state-kpi-val">{overrides}</div>
-            <div class="state-kpi-hint">{'Modified in SQLite' if overrides else '100% in sync with Excel'}</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
         sub_overview, sub_manage = st.tabs(["Overview", "Manage"])
         with sub_overview:
             canvas("state", chosen, CANVAS_STATE)

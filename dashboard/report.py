@@ -1557,22 +1557,7 @@ function put(key, html){
 }
 
 function animateNumbers(){
-  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  document.querySelectorAll(".kpi .v").forEach(el => {
-    const txt = el.textContent.trim();
-    const target = parseInt(txt, 10);
-    if (isNaN(target)) return;
-    const dur = 260;
-    const start = performance.now();
-    const tick = now => {
-      const p = Math.min(1, (now - start) / dur);
-      const ease = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(target * ease);
-      if (p < 1) requestAnimationFrame(tick);
-      else el.textContent = target;
-    };
-    requestAnimationFrame(tick);
-  });
+  // Numbers render instantaneously and cleanly without jitter or stripping duration suffixes
 }
 
 function apply(){
