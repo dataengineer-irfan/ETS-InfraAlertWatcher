@@ -211,22 +211,37 @@ body{
 
 .crumbs{
   display:flex; align-items:center; gap:5px; width:100%; min-width:0; overflow:hidden;
-  border-top:1px solid var(--rule-soft); padding-top:2px; margin-top:1px;
+  border-top:1px solid rgba(56,189,248,0.2); background:rgba(15,23,42,0.8);
+  border-radius:5px; padding:2px 6px; margin-top:2px;
 }
 .crumbs:has(.none){ display:none; }
-.crumbs .lead{ font-size:8.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
-               color:var(--mute); flex:none; }
+.crumbs .lead{
+  font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:#38bdf8; flex:none; margin-right:2px;
+}
 .crumbs .none{ font-size:9.5px; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cx{
   display:inline-flex; align-items:center; gap:4px; flex:none;
-  background:var(--accent-tint); border:1px solid var(--accent-line); color:var(--accent);
-  border-radius:4px; padding:1px 4px; font-size:9.5px; white-space:nowrap;
-  font:inherit; cursor:pointer;
+  background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.35); color:#38bdf8;
+  border-radius:4px; padding:1px 5px; font-size:9.5px; white-space:nowrap;
+  font:inherit; cursor:pointer; transition:all .12s ease;
 }
-.cx u{ text-decoration:none; color:var(--mute); font-size:8px; letter-spacing:.08em; text-transform:uppercase; }
-.cx b{ font-family:var(--mono); font-weight:500; }
-.cx s{ text-decoration:none; font-size:9.5px; line-height:1; color:var(--accent); opacity:.6; padding-left:1px; }
-.cx:hover s{ opacity:1; }
+.cx:hover{
+  background:rgba(239,68,68,0.22); border-color:rgba(239,68,68,0.5); color:#ef4444;
+}
+.cx u{ text-decoration:none; color:#94a3b8; font-size:8px; letter-spacing:.06em; text-transform:uppercase; }
+.cx b{ font-family:var(--mono); font-weight:600; color:#f8fafc; }
+.cx s{ text-decoration:none; font-size:11px; line-height:1; color:#38bdf8; font-weight:700; padding-left:2px; }
+.cx:hover s{ color:#ef4444; }
+.cx-clear-all, .crumbs button[data-act="reset"]{
+  font:inherit; font-family:var(--mono); font-size:8.5px; font-weight:700; color:#ef4444;
+  background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); border-radius:4px;
+  padding:1px 6px; cursor:pointer; margin-left:auto; white-space:nowrap;
+  transition:all .12s ease;
+}
+.cx-clear-all:hover, .crumbs button[data-act="reset"]:hover{
+  background:#ef4444; color:#fff;
+}
 
 .views{ display:flex; align-items:center; gap:3px; flex:none; }
 .views .lead{ font-size:8.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
@@ -254,7 +269,7 @@ body{
 
 /* ---- search & slicers ------------------------------------------------ */
 .search-bar{
-  display:inline-flex; align-items:center; gap:4px; flex:none;
+  display:inline-flex; align-items:center; gap:4px; flex:none; position:relative;
 }
 .sgroup{ display:flex; align-items:center; gap:3px; }
 .sgroup > label{ font-size:8.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
@@ -263,10 +278,6 @@ body{
 
 .filter-drawer-slot{ width:100%; min-width:0; }
 .filter-drawer-slot:empty{ display:none; }
-.filter-drawer{
-  display:flex; flex-wrap:wrap; align-items:center; gap:4px; width:100%;
-  border-top:1px solid var(--rule-soft); margin-top:2px; padding:3px 0 1px;
-}
 .filter-toggle{
   font:inherit; font-size:10px; font-weight:600; color:var(--slate);
   background:var(--sunk); border:1px solid transparent; border-radius:5px;
@@ -805,11 +816,11 @@ function renderCrumbs(S){
   if ((S.q || "").trim()) bits.push(["Search", clampStr(S.q.trim(), 14), "q"]);
 
   if (!bits.length)
-    return '<span class="lead">Filters</span><span class="none">Showing every tracked item</span>';
+    return '<span class="lead">Active</span><span class="none">Showing every tracked item</span>';
 
-  return '<span class="lead">Filters</span>' + bits.map(b =>
+  return '<span class="lead">Active:</span>' + bits.map(b =>
     '<button class="cx" type="button" data-act="drop" data-val="' + esc(b[2])
-    + '" data-tip="Remove this filter"><u>' + esc(b[0]) + '</u><b>' + esc(b[1])
+    + '" data-tip="Remove ' + esc(b[0]) + ' filter"><u>' + esc(b[0]) + '</u><b>' + esc(b[1])
     + "</b><s>&times;</s></button>").join("")
     + '<button class="chip" type="button" data-act="reset" data-tip="Clear all filters">Clear all</button>';
 }
