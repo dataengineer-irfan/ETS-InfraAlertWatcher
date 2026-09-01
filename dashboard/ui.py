@@ -372,7 +372,11 @@ button[data-baseweb="tab"][aria-selected="true"] span {{
 }}
 
 [data-testid="stDataFrame"], [data-testid="stDataEditor"] {{
-  border:1px solid var(--rule); border-radius:7px; overflow:hidden; background:var(--card);
+  border:1px solid var(--rule) !important; border-radius:8px !important; overflow:hidden !important;
+  background:var(--card) !important; box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;
+}}
+[data-testid="stDataEditor"] canvas {{
+  border-radius:6px !important;
 }}
 .stTextInput input, .stDateInput input, .stNumberInput input,
 div[data-baseweb="select"] > div {{

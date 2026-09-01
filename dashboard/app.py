@@ -188,7 +188,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
         "change an expiry date in place — the workbook remains the system of record"),
         unsafe_allow_html=True)
 
-    filters, _, panel = st.columns([2.2, 0.05, 1.3])
+    filters, _, panel = st.columns([2.8, 0.04, 1.1])
 
     with filters:
         c1, c2, c3 = st.columns([2.0, 1.8, 1.4])
@@ -222,22 +222,21 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                          "exp_dt", "band", "days_left"]].copy()
             view["exp_dt"] = view["exp_dt"].dt.date
             view["days_left"] = view["days_left"].apply(ui.fmt_days)
+            view["band"] = view["band"].apply(ui.health_text)
             ids = work["id"].tolist()
 
             edited = st.data_editor(
                 view, key="mg_editor", hide_index=True, use_container_width=True,
                 num_rows="fixed", height=EDITOR_HEIGHT,
                 column_config={
-                    "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="large"),
+                    "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                     "env_label": st.column_config.TextColumn("Environment", disabled=True, width="small"),
-                    "component": st.column_config.TextColumn(
-                        "Component", disabled=True, width="medium"),
+                    "component": st.column_config.TextColumn("Component", disabled=True, width="medium"),
                     "exp_dt": st.column_config.DateColumn(
-                        "Expiry Date", format="YYYY-MM-DD", required=True,
+                        "Expiry Date", format="YYYY-MM-DD", required=True, width="medium",
                         help="Type or pick a new date, then press Save changes."),
                     "band": st.column_config.TextColumn("Health Status", disabled=True, width="small"),
-                    "days_left": st.column_config.TextColumn(
-                        "Time Left", disabled=True, width="small"),
+                    "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="small"),
                 },
             )
 
@@ -282,9 +281,11 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
 
         if edits.empty:
             st.markdown(f"""
-            <div class="card" style="font-size:12px;line-height:1.6;color:#94a3b8;">
-              <div style="font-weight:700;color:#f8fafc;margin-bottom:4px;">No Local Overrides</div>
-              Every date shown for <b>{state}</b> matches its source Excel workbook. Edits you save in the editor will be logged here with 1-click rollback.
+            <div class="card" style="font-size:12px;line-height:1.5;color:#94a3b8;">
+              <div style="font-weight:700;color:#f8fafc;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                <span style="color:#10b981;">✓</span> 100% In Sync with Excel
+              </div>
+              All dates for <b>{state}</b> match the source workbooks. Changes saved in the editor on the left will appear here with 1-click rollback history.
             </div>
             """, unsafe_allow_html=True)
             return
