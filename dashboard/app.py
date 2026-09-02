@@ -417,39 +417,166 @@ def render_state_maintenance_windows(state: str | None = None) -> None:
 
 
 # ==========================================================================
-# View 3: Master-Detail Inspector Hub (Interactive Bi-Directional Binding)
+# View 2: Portfolio Matrix & Operations Hub (Unified Executive & Detail Hub)
 # ==========================================================================
-def render_master_detail(df: pd.DataFrame) -> None:
+def render_operations_hub(df: pd.DataFrame) -> None:
+    # 1. Unified Command Toolbar
+    f1, f2, f3, f4, f5, f6, f7 = st.columns([1.5, 0.85, 0.95, 1.1, 0.9, 1.15, 0.85])
+    q = f1.text_input("Filter", key="op_search", placeholder="Search schema, env...", label_visibility="collapsed")
+    state_filter = f2.selectbox("State", ["All States"] + STATES, key="op_state", label_visibility="collapsed")
+    team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key="op_team", label_visibility="collapsed")
+    comp_filter = f4.selectbox(
+        "Component",
+        ["All Components"] + COMPONENT_ORDER,
+        key="op_comp",
+        label_visibility="collapsed",
+        format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
+    )
+    health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key="op_health", label_visibility="collapsed")
+    dim_mode = f6.selectbox("Dimension", ["State × Component", "State × Team", "Team × Component"], key="op_dim", label_visibility="collapsed")
+
+    filtered = df.copy()
+    if q:
+        filtered = search(filtered, q)
+    if state_filter != "All States":
+        filtered = filtered[filtered["state"] == state_filter]
+    if team_filter != "All Teams":
+        filtered = filtered[filtered["team"] == team_filter]
+    if comp_filter != "All Components":
+        filtered = filtered[filtered["component"] == comp_filter]
+    if health_filter != "All Health":
+        filtered = filtered[filtered["band"] == health_filter]
+
+    filtered = filtered.sort_values("days_left")
+
+    csv_data = filtered.to_csv(index=False).encode("utf-8")
+    if hasattr(st, "download_button"):
+        f7.download_button(
+            label="CSV",
+            data=csv_data,
+            file_name=f"expiry_operations_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    # 2. Executive KPI Ribbon
+    tot_cnt = len(filtered)
+    exp_cnt = int((filtered["days_left"] < 0).sum())
+    crit_cnt = int((filtered["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+    warn_cnt = int((filtered["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+    hlth_cnt = int((filtered["days_left"] > ui.WARNING_DAYS).sum())
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:#38bdf8;">
+          <div class="kpi-label">Entities in View</div>
+          <div class="kpi-value">{tot_cnt}</div>
+          <div class="kpi-sub">Across active filters</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};">
+          <div class="kpi-label">Expired Items</div>
+          <div class="kpi-value">{exp_cnt}</div>
+          <div class="kpi-sub">{'Requires immediate renewal' if exp_cnt else 'Zero expired'}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};">
+          <div class="kpi-label">Critical & Warning</div>
+          <div class="kpi-value">{crit_cnt + warn_cnt}</div>
+          <div class="kpi-sub">{crit_cnt} critical · {warn_cnt} warning</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:#10b981;">
+          <div class="kpi-label">Healthy Entities</div>
+          <div class="kpi-value">{hlth_cnt}</div>
+          <div class="kpi-sub">{(hlth_cnt/tot_cnt*100) if tot_cnt else 0:.0f}% healthy fleet</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 3. Interactive 2D Matrix Heatmap Accordion
+    with st.expander("📊 Portfolio Matrix Heatmap & Cross-Tabs", expanded=True):
+        states_to_show = [s for s in STATES if s in filtered["state"].unique()] if state_filter == "All States" else ([state_filter] if state_filter in filtered["state"].unique() else [])
+        teams_to_show = [t for t in ui.TEAMS if t in filtered["team"].unique()] if team_filter == "All Teams" else ([team_filter] if team_filter in filtered["team"].unique() else [])
+        comps_to_show = COMPONENT_ORDER if comp_filter == "All Components" else [comp_filter]
+
+        if dim_mode == "State × Team":
+            row_entities = states_to_show
+            col_entities = teams_to_show
+            row_dim = "state"
+            col_dim = "team"
+            col_names = teams_to_show
+        elif dim_mode == "Team × Component":
+            row_entities = teams_to_show
+            col_entities = comps_to_show
+            row_dim = "team"
+            col_dim = "component"
+            col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
+        else:  # State × Component
+            row_entities = states_to_show
+            col_entities = comps_to_show
+            row_dim = "state"
+            col_dim = "component"
+            col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
+
+        header_cols = "".join(f"<th style='text-align:center;'>{c_name}</th>" for c_name in col_names)
+        row_title = "State" if row_dim == "state" else "Team"
+        matrix_head = f"<tr><th>{row_title}</th>{header_cols}<th class='r'>Total</th></tr>"
+
+        matrix_rows = []
+        for r_val in row_entities:
+            r_sub = filtered[filtered[row_dim] == r_val]
+            cell_tds = []
+            for c_val in col_entities:
+                cell_sub = r_sub[r_sub[col_dim] == c_val]
+                if cell_sub.empty:
+                    cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
+                else:
+                    c_cnt = len(cell_sub)
+                    worst_b = ui.worst_band(cell_sub["band"].tolist())
+                    meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
+                    cell_tds.append(
+                        f"<td class='c'>"
+                        f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;'>"
+                        f"<b>{meta['symbol']}</b> {c_cnt}"
+                        f"</span></td>"
+                    )
+            r_tot = len(r_sub)
+            matrix_rows.append(
+                f"<tr><td style='font-weight:700;font-family:var(--mono);'>{r_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{r_tot}</td></tr>"
+            )
+
+        if len(row_entities) > 1:
+            total_tds = []
+            for c_val in col_entities:
+                col_sub = filtered[filtered[col_dim] == c_val]
+                if col_sub.empty:
+                    total_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
+                else:
+                    worst_b = ui.worst_band(col_sub["band"].tolist())
+                    meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
+                    total_tds.append(
+                        f"<td class='c m' style='font-weight:700;color:{meta['color']};'>{len(col_sub)}</td>"
+                    )
+            matrix_rows.append(
+                f"<tr style='background:rgba(255,255,255,0.03);border-top:1px solid var(--rule);'>"
+                f"<td style='font-weight:800;color:var(--accent);'>TOTAL</td>{''.join(total_tds)}<td class='m r' style='font-weight:800;color:#f8fafc;'>{tot_cnt}</td></tr>"
+            )
+
+        st.markdown(f"<div style='border:1px solid var(--rule);border-radius:7px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+
+    # 4. Master-Detail Inspector & Operations Console
     left_col, _, right_col = st.columns([1.8, 0.04, 2.2])
 
     with left_col:
-        f1, f2, f3, f4, f5 = st.columns([1.4, 0.9, 1.0, 1.2, 0.9])
-        q = f1.text_input("Filter", key="md_search", placeholder="Search schema, env...", label_visibility="collapsed")
-        state_filter = f2.selectbox("State", ["All States"] + STATES, key="md_state", label_visibility="collapsed")
-        team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key="md_team", label_visibility="collapsed")
-        comp_filter = f4.selectbox(
-            "Component",
-            ["All Components"] + COMPONENT_ORDER,
-            key="md_comp",
-            label_visibility="collapsed",
-            format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
-        )
-        health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key="md_health", label_visibility="collapsed")
-
-        filtered = df.copy()
-        if q:
-            filtered = search(filtered, q)
-        if state_filter != "All States":
-            filtered = filtered[filtered["state"] == state_filter]
-        if team_filter != "All Teams":
-            filtered = filtered[filtered["team"] == team_filter]
-        if comp_filter != "All Components":
-            filtered = filtered[filtered["component"] == comp_filter]
-        if health_filter != "All Health":
-            filtered = filtered[filtered["band"] == health_filter]
-
-        filtered = filtered.sort_values("days_left")
-
         if filtered.empty:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
             selected_id = None
@@ -459,13 +586,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 for r in filtered.itertuples()
             }
             
-            # Retrieve currently active entity id from session state or default to first
-            cur_active_id = st.session_state.get("md_active_id")
+            cur_active_id = st.session_state.get("op_active_id")
             if cur_active_id not in filtered["id"].values:
                 cur_active_id = int(filtered.iloc[0]["id"])
-                st.session_state["md_active_id"] = cur_active_id
+                st.session_state["op_active_id"] = cur_active_id
 
-            # Find matching label for selectbox
             default_index = 0
             for idx, (lbl, rid) in enumerate(record_options.items()):
                 if rid == cur_active_id:
@@ -476,13 +601,12 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 "Active Entity Inspector Target",
                 list(record_options),
                 index=default_index,
-                key="md_select_record",
+                key="op_select_record",
                 label_visibility="collapsed",
             )
             selected_id = record_options[selected_label]
-            st.session_state["md_active_id"] = selected_id
+            st.session_state["op_active_id"] = selected_id
 
-            # High-contrast entity count status bar
             st.markdown(f"""
             <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 2px 6px;margin-top:2px;">
               <span style="font-size:12.5px;font-weight:600;color:#f8fafc;">
@@ -494,7 +618,6 @@ def render_master_detail(df: pd.DataFrame) -> None:
             </div>
             """, unsafe_allow_html=True)
 
-            # Interactive master list with instant row click buttons
             st.markdown("<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;margin-bottom:8px;'>", unsafe_allow_html=True)
             for r in filtered.head(25).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
@@ -517,8 +640,8 @@ def render_master_detail(df: pd.DataFrame) -> None:
                     </div>
                     """, unsafe_allow_html=True)
                 with c_row2:
-                    if st.button("Inspect", key=f"md_row_btn_{r.id}", type="primary" if is_active else "secondary", use_container_width=True):
-                        st.session_state["md_active_id"] = r.id
+                    if st.button("Inspect", key=f"op_row_btn_{r.id}", type="primary" if is_active else "secondary", use_container_width=True):
+                        st.session_state["op_active_id"] = r.id
                         rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -591,7 +714,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
 
             act_col1, act_col2 = st.columns(2)
             with act_col1:
-                with st.form(f"md_form_{rec['id']}"):
+                with st.form(f"op_form_{rec['id']}"):
                     new_dt = st.date_input("Update Expiry Date", value=rec["exp_dt"].date())
                     if st.form_submit_button("Commit Renewal to SQLite", type="primary", use_container_width=True):
                         apply_edits([(rec["id"], new_dt)])
@@ -602,12 +725,12 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 st.markdown("<div style='font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:6px;'>Quick Renewal Presets</div>", unsafe_allow_html=True)
                 p_c1, p_c2 = st.columns(2)
                 cur_dt = rec["exp_dt"].date()
-                if p_c1.button("+90 Days", key=f"preset_90_{rec['id']}", use_container_width=True):
+                if p_c1.button("+90 Days", key=f"op_p90_{rec['id']}", use_container_width=True):
                     target_dt = cur_dt + pd.Timedelta(days=90)
                     apply_edits([(rec["id"], target_dt)])
                     st.success(f"Extended +90 days to {target_dt}")
                     rerun()
-                if p_c2.button("+1 Year", key=f"preset_365_{rec['id']}", use_container_width=True):
+                if p_c2.button("+1 Year", key=f"op_p365_{rec['id']}", use_container_width=True):
                     target_dt = cur_dt + pd.Timedelta(days=365)
                     apply_edits([(rec["id"], target_dt)])
                     st.success(f"Extended +1 year to {target_dt}")
@@ -615,7 +738,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
 
                 if rec["edited"]:
                     st.warning(f"Locally modified from `{rec['source_exp_date']}`")
-                    if st.button("Revert to Workbook Date", key=f"revert_btn_{rec['id']}", use_container_width=True):
+                    if st.button("Revert to Workbook Date", key=f"op_rev_{rec['id']}", use_container_width=True):
                         conn = get_connection(DB_PATH)
                         revert_component_exp_date(conn, int(rec["id"]))
                         conn.close()
@@ -635,7 +758,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 b_view["band"] = b_view["band"].apply(ui.health_text)
 
                 b_edited = st.data_editor(
-                    b_view, key="md_batch_editor", hide_index=True, use_container_width=True,
+                    b_view, key="op_batch_editor", hide_index=True, use_container_width=True,
                     num_rows="fixed", height=280,
                     column_config={
                         "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
@@ -660,7 +783,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
                             b_changes.append((b_rec_id, b_after))
 
                 b_btn_col, b_note_col = st.columns([1, 2])
-                if b_btn_col.button("Save Batch Changes", type="primary", key="md_save_batch_btn", disabled=not b_changes, use_container_width=True):
+                if b_btn_col.button("Save Batch Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
                     apply_edits(b_changes)
                     st.success(f"Saved {len(b_changes)} batch updates!")
                     rerun()
@@ -681,204 +804,13 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 for er in active_edits.itertuples():
                     ec1, ec2 = st.columns([3, 1])
                     ec1.markdown(f"<b>{er.schema_name}</b> ({er.state} · {er.team}) — Modified to <code>{er.exp_date}</code> (Excel: <code>{er.source_exp_date}</code>)")
-                    if ec2.button("Revert", key=f"rev_ledger_{er.id}", use_container_width=True):
+                    if ec2.button("Revert", key=f"op_rev_ledger_{er.id}", use_container_width=True):
                         conn = get_connection(DB_PATH)
                         revert_component_exp_date(conn, int(er.id))
                         conn.close()
                         bust_cache()
                         st.success(f"Reverted {er.schema_name}")
                         rerun()
-
-
-# ==========================================================================
-# View 4: Hierarchical Matrix Cross-Tab (Prompt #3)
-# ==========================================================================
-def render_matrix_view(df: pd.DataFrame) -> None:
-    m_col1, m_col2, m_col3, m_col4, m_col5, m_col6 = st.columns([1.5, 0.9, 1.0, 1.2, 1.1, 0.9])
-    s_term = m_col1.text_input("Filter Matrix", key="mat_search", placeholder="Filter schema / env...", label_visibility="collapsed")
-    s_state = m_col2.selectbox("State Filter", ["All States"] + STATES, key="mat_state", label_visibility="collapsed")
-    s_team = m_col3.selectbox("Team Filter", ["All Teams"] + ui.TEAMS, key="mat_team", label_visibility="collapsed")
-    s_comp = m_col4.selectbox(
-        "Component Filter",
-        ["All Components"] + COMPONENT_ORDER,
-        key="mat_comp",
-        label_visibility="collapsed",
-        format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
-    )
-    s_mode = m_col5.selectbox("Dimension", ["State × Component", "State × Team", "Team × Component"], key="mat_dim", label_visibility="collapsed")
-
-    mat_df = df.copy()
-    if s_term:
-        mat_df = search(mat_df, s_term)
-    if s_state != "All States":
-        mat_df = mat_df[mat_df["state"] == s_state]
-    if s_team != "All Teams":
-        mat_df = mat_df[mat_df["team"] == s_team]
-    if s_comp != "All Components":
-        mat_df = mat_df[mat_df["component"] == s_comp]
-
-    csv_data = mat_df.to_csv(index=False).encode("utf-8")
-    if hasattr(st, "download_button"):
-        m_col6.download_button(
-            label="Download CSV",
-            data=csv_data,
-            file_name=f"expiry_matrix_{date.today().isoformat()}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-    # Top KPI summary strip
-    tot_cnt = len(mat_df)
-    exp_cnt = int((mat_df["days_left"] < 0).sum())
-    crit_cnt = int((mat_df["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-    warn_cnt = int((mat_df["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-    hlth_cnt = int((mat_df["days_left"] > ui.WARNING_DAYS).sum())
-
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#38bdf8;">
-          <div class="kpi-label">Entities in View</div>
-          <div class="kpi-value">{tot_cnt}</div>
-          <div class="kpi-sub">Across active filters</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};">
-          <div class="kpi-label">Expired Items</div>
-          <div class="kpi-value">{exp_cnt}</div>
-          <div class="kpi-sub">{'Requires immediate renewal' if exp_cnt else 'Zero expired'}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with k3:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};">
-          <div class="kpi-label">Critical & Warning</div>
-          <div class="kpi-value">{crit_cnt + warn_cnt}</div>
-          <div class="kpi-sub">{crit_cnt} critical · {warn_cnt} warning</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with k4:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#10b981;">
-          <div class="kpi-label">Healthy Entities</div>
-          <div class="kpi-value">{hlth_cnt}</div>
-          <div class="kpi-sub">{(hlth_cnt/tot_cnt*100):.0f}% healthy fleet</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
-
-    # Dynamic 2D Matrix Rendering
-    states_to_show = [s for s in STATES if s in mat_df["state"].unique()] if s_state == "All States" else ([s_state] if s_state in mat_df["state"].unique() else [])
-    teams_to_show = [t for t in ui.TEAMS if t in mat_df["team"].unique()] if s_team == "All Teams" else ([s_team] if s_team in mat_df["team"].unique() else [])
-    comps_to_show = COMPONENT_ORDER if s_comp == "All Components" else [s_comp]
-
-    if s_mode == "State × Team":
-        row_entities = states_to_show
-        col_entities = teams_to_show
-        row_dim = "state"
-        col_dim = "team"
-        col_names = teams_to_show
-    elif s_mode == "Team × Component":
-        row_entities = teams_to_show
-        col_entities = comps_to_show
-        row_dim = "team"
-        col_dim = "component"
-        col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
-    else:  # State × Component
-        row_entities = states_to_show
-        col_entities = comps_to_show
-        row_dim = "state"
-        col_dim = "component"
-        col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
-
-    header_cols = "".join(f"<th style='text-align:center;'>{c_name}</th>" for c_name in col_names)
-    row_title = "State" if row_dim == "state" else "Team"
-    matrix_head = f"<tr><th>{row_title}</th>{header_cols}<th class='r'>Total</th></tr>"
-
-    matrix_rows = []
-    for r_val in row_entities:
-        r_sub = mat_df[mat_df[row_dim] == r_val]
-        cell_tds = []
-        for c_val in col_entities:
-            cell_sub = r_sub[r_sub[col_dim] == c_val]
-            if cell_sub.empty:
-                cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
-            else:
-                c_cnt = len(cell_sub)
-                worst_b = ui.worst_band(cell_sub["band"].tolist())
-                meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
-                cell_tds.append(
-                    f"<td class='c'>"
-                    f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;'>"
-                    f"<b>{meta['symbol']}</b> {c_cnt}"
-                    f"</span></td>"
-                )
-        r_tot = len(r_sub)
-        matrix_rows.append(
-            f"<tr><td style='font-weight:700;font-family:var(--mono);'>{r_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{r_tot}</td></tr>"
-        )
-
-    # Fleet Total row
-    if len(row_entities) > 1:
-        total_tds = []
-        for c_val in col_entities:
-            col_sub = mat_df[mat_df[col_dim] == c_val]
-            if col_sub.empty:
-                total_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
-            else:
-                worst_b = ui.worst_band(col_sub["band"].tolist())
-                meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
-                total_tds.append(
-                    f"<td class='c m' style='font-weight:700;color:{meta['color']};'>{len(col_sub)}</td>"
-                )
-        matrix_rows.append(
-            f"<tr style='background:rgba(255,255,255,0.03);border-top:1px solid var(--rule);'>"
-            f"<td style='font-weight:800;color:var(--accent);'>TOTAL</td>{''.join(total_tds)}<td class='m r' style='font-weight:800;color:#f8fafc;'>{tot_cnt}</td></tr>"
-        )
-
-    st.markdown(f"<div style='margin-bottom:10px;border:1px solid var(--rule);border-radius:7px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
-
-    # Tabbed State / Team Drilldown Inspector
-    if not row_entities:
-        st.markdown(ui.empty("No records match filter", "Broaden your query or reset filters."), unsafe_allow_html=True)
-        return
-
-    def render_state_table(sub_df: pd.DataFrame) -> None:
-        display_df = sub_df[["schema_name", "team", "environment", "component", "exp_date", "days_left", "band"]].copy()
-        display_df = display_df.sort_values("days_left")
-
-        rows_html = []
-        for r in display_df.itertuples():
-            meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-            t_col = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
-            rows_html.append(
-                f"<tr>"
-                f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
-                f"<td class='m' style='font-weight:600;'>{r.schema_name}</td>"
-                f"<td class='m'><span class='env-tag' style='background:rgba(255,255,255,0.06);color:{t_col};border:1px solid {t_col}55;'>{r.team}</span></td>"
-                f"<td class='m'><span class='env-tag'>{r.environment}</span></td>"
-                f"<td>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
-                f"<td class='m'>{ui.fmt_date(r.exp_date)}</td>"
-                f"<td class='m c' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
-                f"<td class='c'>{ui.status_pill(r.band)}</td>"
-                f"</tr>"
-            )
-        head = "<tr><th></th><th>Schema Name</th><th>Team</th><th>Environment</th><th>Component</th><th>Expiry Date</th><th style='text-align:center;'>Time Left</th><th style='text-align:center;'>Status</th></tr>"
-        st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
-
-    if len(states_to_show) == 1:
-        st_code = states_to_show[0]
-        st_sub = mat_df[mat_df["state"] == st_code]
-        render_state_table(st_sub)
-    elif states_to_show:
-        state_tabs = st.tabs([f"📍 {st_code} ({len(mat_df[mat_df['state'] == st_code])})" for st_code in states_to_show])
-        for tab_el, st_code in zip(state_tabs, states_to_show):
-            with tab_el:
-                st_sub = mat_df[mat_df["state"] == st_code]
-                render_state_table(st_sub)
 
 
 # ==========================================================================
@@ -1058,23 +990,19 @@ def render_governance_center() -> None:
 
 
 # ==========================================================================
-# Primary Navigation (4 Streamlined Enterprise Workspaces)
+# Primary Navigation (3 Unified Enterprise Workspaces)
 # ==========================================================================
-tab_overview, tab_inspector, tab_matrix, tab_governance = st.tabs([
+tab_overview, tab_operations, tab_governance = st.tabs([
     "Executive Command Center",
-    "Entity Inspector & Renewal Hub",
-    "Hierarchical Matrix",
+    "Portfolio Matrix & Operations Hub",
     "Governance & Alerts",
 ])
 
 with tab_overview:
     canvas("all", None, CANVAS_OVERVIEW)
 
-with tab_inspector:
-    render_master_detail(records)
-
-with tab_matrix:
-    render_matrix_view(records)
+with tab_operations:
+    render_operations_hub(records)
 
 with tab_governance:
     render_governance_center()

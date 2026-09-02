@@ -94,10 +94,10 @@ def main() -> int:
     dups = [k for k, n in collections.Counter(r["keys"]).items() if n > 1]
     check("no duplicate widget keys", not dups, dups)
     check("one consolidated canvas mounted", len(r["mounts"]) == 1, f"{len(r['mounts'])} mounts")
-    check("main tabs include Executive Command Center and Inspector Hub",
-          any(e[0] == "tabs" and "Executive Command Center" in e[1] and "Entity Inspector & Renewal Hub" in e[1] for e in r["log"]))
-    check("all 4 enterprise workspaces present in navigation",
-          any(e[0] == "tabs" and len(e[1]) == 4 and "Hierarchical Matrix" in e[1] and "Governance & Alerts" in e[1] for e in r["log"]))
+    check("main tabs include Executive Command Center and Operations Hub",
+          any(e[0] == "tabs" and "Executive Command Center" in e[1] and "Portfolio Matrix & Operations Hub" in e[1] for e in r["log"]))
+    check("all 3 enterprise workspaces present in navigation",
+          any(e[0] == "tabs" and len(e[1]) == 3 and "Governance & Alerts" in e[1] for e in r["log"]))
 
     print("\n[2] canvas mounting and configuration")
     check("consolidated canvas covers all states",
