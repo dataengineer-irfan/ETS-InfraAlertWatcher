@@ -1653,9 +1653,11 @@ function renderEnvs(S){
   const groups = new Map();
   base.forEach(r => {
     if (!groups.has(r.environment))
-      groups.set(r.environment, { n: 0, nos: new Set(), bands: new Set(), min: Infinity, rank: r.envRank });
+      groups.set(r.environment, { n: 0, nos: new Set(), bands: new Set(), counts: { Expired: 0, Critical: 0, Warning: 0, Healthy: 0 }, min: Infinity, rank: r.envRank });
     const g = groups.get(r.environment);
-    g.n++; g.nos.add(r.envNo); g.bands.add(r.band); g.min = Math.min(g.min, r.days);
+    g.n++; g.nos.add(r.envNo); g.bands.add(r.band);
+    g.counts[r.band] = (g.counts[r.band] || 0) + 1;
+    g.min = Math.min(g.min, r.days);
   });
   if (!groups.size)
     return voidState("No envs", "Clear a filter to see environments.",
@@ -1664,14 +1666,24 @@ function renderEnvs(S){
   const items = [...groups.entries()].sort((a, b) => a[1].rank - b[1].rank);
   return '<div class="envs">' + items.map(([env, g]) => {
     const band = worstBand(g.bands), on = S.environment === env;
+    const expN = g.counts.Expired || 0, critN = g.counts.Critical || 0, warnN = g.counts.Warning || 0, hlthN = g.counts.Healthy || 0;
+    const expPct = (expN / g.n) * 100, critPct = (critN / g.n) * 100, warnPct = (warnN / g.n) * 100, hlthPct = (hlthN / g.n) * 100;
+
+    const bar = '<div class="env-health-bar" style="display:flex;height:4px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,0.06);margin:3px 0 2px;">'
+      + (expN ? '<div style="width:' + expPct + '%;background:' + META.Expired.color + '"></div>' : '')
+      + (critN ? '<div style="width:' + critPct + '%;background:' + META.Critical.color + '"></div>' : '')
+      + (warnN ? '<div style="width:' + warnPct + '%;background:' + META.Warning.color + '"></div>' : '')
+      + (hlthN ? '<div style="width:' + hlthPct + '%;background:' + META.Healthy.color + '"></div>' : '')
+      + '</div>';
+
     return '<button class="ec" type="button" data-act="environment" data-val="' + esc(env)
       + '" data-hl-env="' + esc(env) + '"'
-      + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
+      + ' aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc(env + " - " + (DATA.envBlurb[env] || env) + ". " + g.n
-      + " item(s), soonest " + fmtDaysLong(g.min) + ". "
+      + " item(s) [" + (expN ? expN + " Expired, " : "") + (warnN ? warnN + " Warning, " : "") + hlthN + " Healthy]. Soonest " + fmtDaysLong(g.min) + ". "
       + (on ? "Click again to clear." : "Click to focus environments."))
       + '"><div class="en">' + esc(env) + '</div><div class="eb">'
-      + esc(DATA.envBlurb[env] || "") + '</div><div class="er"><span>' + g.n + " item"
+      + esc(DATA.envBlurb[env] || "") + '</div>' + bar + '<div class="er"><span>' + g.n + " item"
       + (g.n === 1 ? "" : "s") + "</span><b>" + esc(fmtDays(g.min)) + "</b></div></button>";
   }).join("") + "</div>" + legend();
 }
@@ -1754,31 +1766,32 @@ function thead(cols, S){
 function renderTable(S){
   if (S.tview === "summary") return renderSummary(S);
 
-  const all = sorted(rows(S), S.sort);
-  if (!all.length)
-    return voidState("No items match these filters",
-      "Remove a filter chip in the header, or clear the search box, to bring rows back.",
+  const rs = rows(S);
+  if (!rs.length)
+    return voidState("No records match", "Try clearing search or filters.",
       '<button class="chip" type="button" data-act="reset">Clear all filters</button>');
 
   const per = Math.max(1, S.rows);
-  const pages = Math.max(1, Math.ceil(all.length / per));
+  const pages = Math.max(1, Math.ceil(rs.length / per));
   const page = Math.min(S.page, pages - 1);
-  const slice = all.slice(page * per, page * per + per);
+  const slice = rs.slice(page * per, page * per + per);
 
   const body = slice.map(r => {
+    const meta = META[r.band] || META.Healthy;
+    const isHot = r.band !== "Healthy";
     let barPct = 10;
     if (r.days < 0) barPct = 100;
     else if (r.days <= CRIT) barPct = Math.round(80 + (1 - r.days / CRIT) * 20);
     else if (r.days <= WARN) barPct = Math.round(45 + (1 - (r.days - CRIT) / (WARN - CRIT)) * 35);
     else barPct = Math.max(10, Math.round((1 - Math.min(r.days, 730) / 730) * 40));
 
-    return '<tr class="' + (r.band === "Healthy" ? "" : "hot") + '"'
+    return '<tr class="' + (isHot ? "hot" : "") + '"'
       + ' data-hl-comp="' + esc(r.component) + '"'
-      + ' data-hl-env="' + esc(r.environment) + '"'
-      + ' data-hl-quarter="' + esc(r.quarter) + '">'
-      + '<td><span class="env-pill" data-tip="' + esc(DATA.envBlurb[r.environment] || r.environment)
-      + '">' + esc(r.environment) + "</span></td>"
-      + '<td><span class="schema">' + esc(r.schema) + "</span>"
+      + ' data-hl-env="' + esc(r.environment) + '">'
+      + '<td><button class="env-pill" type="button" data-act="environment" data-val="'
+      + esc(r.environment) + '" data-tip="' + esc(r.environment + " - " + (DATA.envBlurb[r.environment] || ""))
+      + '">' + esc(r.environment) + "</button></td>"
+      + '<td><span class="schema">' + esc(r.schema) + '</span>'
       + (r.edited ? '<span class="tag" data-tip="Changed in Manage">EDITED</span>' : "")
       + ' <span class="sub">'
       + (DATA.mode === "all" ? esc(r.state) + " &middot; " : "")
@@ -1795,8 +1808,9 @@ function renderTable(S){
 }
 
 function summaryRows(S){
+  const rs = rows(S);
   const groups = new Map();
-  rows(S).forEach(r => {
+  rs.forEach(r => {
     const k = r.environment + "|" + CODE[r.component];
     if (!groups.has(k))
       groups.set(k, { environment: r.environment, component: r.component, n: 0,
@@ -1885,6 +1899,70 @@ function renderWhen(S){
       "Nothing matches the current filters, so there is no workload to plot.",
       '<button class="chip" type="button" data-act="reset">Clear all filters</button>');
 
+  const isAging = S.whenMode === "aging";
+
+  if (isAging){
+    // Alert Aging view: debt buckets of currently overdue / expired items
+    const overdue = rs.filter(r => r.days < 0);
+    const active = rs.filter(r => r.days >= 0);
+
+    const agingBuckets = [
+      { id: "0-15d", label: "0-15d", fullLabel: "0-15d overdue", count: 0, color: META.Critical.color },
+      { id: "16-30d", label: "16-30d", fullLabel: "16-30d overdue", count: 0, color: META.Critical.color },
+      { id: "31-60d", label: "31-60d", fullLabel: "31-60d overdue", count: 0, color: META.Expired.color },
+      { id: "<1yr", label: "<1yr", fullLabel: "61-365d overdue", count: 0, color: META.Expired.color },
+      { id: "1-5yr", label: "1-5yr", fullLabel: "1-5yr overdue", count: 0, color: META.Expired.color },
+      { id: "5yr+", label: "5yr+", fullLabel: "5yr+ overdue", count: 0, color: META.Expired.color },
+      { id: "active", label: "Active", fullLabel: "Active (not overdue)", count: active.length, color: META.Healthy.color }
+    ];
+
+    overdue.forEach(r => {
+      const d = Math.abs(r.days);
+      if (d <= 15) agingBuckets[0].count++;
+      else if (d <= 30) agingBuckets[1].count++;
+      else if (d <= 60) agingBuckets[2].count++;
+      else if (d <= 365) agingBuckets[3].count++;
+      else if (d <= 1825) agingBuckets[4].count++;
+      else agingBuckets[5].count++;
+    });
+
+    const W = 1000, H = 210, top = 18, base = 162;
+    const peak = Math.max(1, ...agingBuckets.map(b => b.count));
+    const slot = W / agingBuckets.length, bw = Math.min(slot * 0.58, 44);
+    const share = S.qty === "share";
+
+    const o = ['<svg class="chart" viewBox="0 0 ' + W + " " + H
+      + '" preserveAspectRatio="none" role="img" aria-label="Alert Aging Distribution">'];
+
+    o.push('<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base
+      + '" stroke="' + T.rule + '" stroke-width="1"/>');
+
+    agingBuckets.forEach((b, i) => {
+      const cx = slot * (i + 0.5), n = b.count;
+      if (n){
+        const h = (n / peak) * (base - top);
+        const label = share ? Math.round(n / rs.length * 100) + "%" : n;
+        o.push('<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + (base - h).toFixed(1) + '" width="'
+          + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="' + b.color
+          + '" fill-opacity=".88" data-tip="' + esc(b.fullLabel + ": " + n + " item" + (n === 1 ? "" : "s")
+          + " (" + Math.round(n / rs.length * 100) + "%)") + '"/>');
+        o.push('<text x="' + cx.toFixed(1) + '" y="' + (base - h - 5).toFixed(1)
+          + '" fill="' + T.ink + '" font-size="12" font-weight="600" text-anchor="middle">'
+          + esc(label) + "</text>");
+      }
+      o.push('<text x="' + cx.toFixed(1) + '" y="' + (base + 16) + '" fill="' + (b.id === 'active' ? T.mute : META.Expired.color)
+        + '" font-size="11" font-weight="' + (b.id === 'active' ? '400' : '600') + '" text-anchor="middle">' + esc(b.label) + "</text>");
+    });
+    o.push("</svg>");
+
+    const minDays = overdue.length ? Math.min(...overdue.map(r => r.days)) : 0;
+    return o.join("") + '<div class="legend"><span style="color:var(--slate)">'
+      + overdue.length + ' expired debt items aged across fleet &middot; Oldest overdue is '
+      + (overdue.length ? fmtDaysLong(minDays) : 'none')
+      + '.</span></div>';
+  }
+
+  // Landing view (future quarter histogram)
   const labels = quarters(12);
   const first = qOrd(labels[0]), last = qOrd(labels[labels.length - 1]);
   const byQ = {}, bandOf = {};
@@ -1940,6 +2018,10 @@ function renderWhen(S){
 
 function whenHint(S){
   const n = rows(S).length;
+  if (S.whenMode === "aging"){
+    const ov = rows(S).filter(r => r.days < 0).length;
+    return ov + " expired debt item" + (ov === 1 ? "" : "s") + " aged across fleet";
+  }
   return n + " item" + (n === 1 ? "" : "s") + " grouped by the quarter they expire in";
 }
 
@@ -1970,6 +2052,7 @@ const S = {
   team: null,
   component: null, environment: null, band: null, window: "all", q: "",
   focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all",
+  whenMode: "landing",
   showFilters: false,
   storyStep: null,
   storyTimer: null,
@@ -2024,7 +2107,10 @@ function apply(){
   put("mTable", renderTable(S));
   put("mPager", renderPager(S));
   put("mWhenHint", whenHint(S));
-  put("mWhenSeg", seg("qty", [
+  put("mWhenSeg", seg("whenMode", [
+    { id: "landing", label: "Landing", tip: "Future quarter distribution" },
+    { id: "aging", label: "Aging", tip: "Overdue debt aging distribution" }
+  ], S.whenMode) + " " + seg("qty", [
     { id: "count", label: "Count", tip: "Number of items" },
     { id: "share", label: "Share", tip: "Percentage of total" }
   ], S.qty));
@@ -2128,6 +2214,7 @@ function act(name, value){
     case "nextStory": nextStory(); return;
     case "prevStory": prevStory(); return;
     case "pauseStory": toggleStoryPause(); return;
+    case "whenMode": S.whenMode = value; break;
     case "state":
       toggle("state", value);
       S.component = null; S.environment = null;

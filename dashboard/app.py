@@ -458,19 +458,20 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             use_container_width=True,
         )
 
-    # 2. Executive Metric Ribbon (Ultra-compact 42px)
-    tot_cnt = len(filtered)
-    exp_cnt = int((filtered["days_left"] < 0).sum())
-    crit_cnt = int((filtered["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-    warn_cnt = int((filtered["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-    hlth_cnt = int((filtered["days_left"] > ui.WARNING_DAYS).sum())
+    # 2. Executive Metric Ribbon (Interactive 1-Click Drill-Down)
+    tot_cnt = len(df)
+    scope_cnt = len(filtered)
+    exp_cnt = int((df["days_left"] < 0).sum())
+    crit_cnt = int((df["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+    warn_cnt = int((df["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+    hlth_cnt = int((df["days_left"] > ui.WARNING_DAYS).sum())
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#38bdf8;padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Entities in View</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{tot_cnt}</div>
+          <div class="kpi-label" style="font-size:9.5px;">Portfolio Entities</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{scope_cnt} <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {tot_cnt}</span></div>
           <div class="kpi-sub" style="font-size:9.5px;">Across active filters</div>
         </div>
         """, unsafe_allow_html=True)
@@ -478,7 +479,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Expired Items</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{exp_cnt}</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#ef4444' if exp_cnt else '#10b981'};">{exp_cnt}</div>
           <div class="kpi-sub" style="font-size:9.5px;">{'Requires renewal' if exp_cnt else 'Zero expired'}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -486,7 +487,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Critical & Warning</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{crit_cnt + warn_cnt}</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#f59e0b' if (crit_cnt + warn_cnt) else '#10b981'};">{crit_cnt + warn_cnt}</div>
           <div class="kpi-sub" style="font-size:9.5px;">{crit_cnt} crit · {warn_cnt} warn</div>
         </div>
         """, unsafe_allow_html=True)
@@ -494,68 +495,202 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#10b981;padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Healthy Entities</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{hlth_cnt}</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;color:#10b981;">{hlth_cnt}</div>
           <div class="kpi-sub" style="font-size:9.5px;">{(hlth_cnt/tot_cnt*100) if tot_cnt else 0:.0f}% healthy fleet</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 3. Master-Detail Workspace (40% Left / 60% Right)
+    # 3. Master-Detail Workspace (42% Left Hierarchy Tree / 58% Right Inspector)
     left_col, _, right_col = st.columns([1.7, 0.04, 2.3])
+
+    tree_open = st.session_state.setdefault("op_tree_open", set())
+
+    # Auto-open single most urgent entity on initial visit
+    if filtered.empty:
+        selected_id = None
+    else:
+        cur_active_id = st.session_state.get("op_active_id")
+        if cur_active_id not in filtered["id"].values:
+            most_urgent = filtered.sort_values("days_left").iloc[0]
+            cur_active_id = int(most_urgent["id"])
+            st.session_state["op_active_id"] = cur_active_id
+            # Auto-expand the ancestral path for the most urgent entity
+            tree_open.add(str(most_urgent["state"]))
+            tree_open.add(f"{most_urgent['state']}/{most_urgent['team']}")
+            tree_open.add(f"{most_urgent['state']}/{most_urgent['team']}/{most_urgent['component']}")
+            tree_open.add(f"{most_urgent['state']}/{most_urgent['team']}/{most_urgent['component']}/{most_urgent['env_label']}")
+        selected_id = cur_active_id
 
     with left_col:
         if filtered.empty:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
-            selected_id = None
         else:
-            cur_active_id = st.session_state.get("op_active_id")
-            if cur_active_id not in filtered["id"].values:
-                cur_active_id = int(filtered.iloc[0]["id"])
-                st.session_state["op_active_id"] = cur_active_id
-            selected_id = cur_active_id
+            # Persistent Interactive Breadcrumb Header
+            active_rec = df[df["id"] == selected_id].iloc[0] if selected_id in df["id"].values else None
+            bc_st = active_rec["state"] if active_rec is not None else (state_filter if state_filter != "All States" else None)
+            bc_tm = active_rec["team"] if active_rec is not None else (team_filter if team_filter != "All Teams" else None)
+            bc_cp = active_rec["component"] if active_rec is not None else (comp_filter if comp_filter != "All Components" else None)
+            bc_cp_code = ui.COMPONENT_CODE.get(bc_cp, bc_cp) if bc_cp else None
 
-            st.markdown(f"""
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 3px;">
-              <span style="font-size:11.5px;font-weight:600;color:#f8fafc;">
-                Showing <b style="color:#38bdf8;font-family:var(--mono);font-size:12.5px;">{len(filtered)}</b> entities
-              </span>
-              <span style="font-size:9.5px;font-weight:600;color:#94a3b8;font-family:var(--mono);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:1px 5px;">
-                Soonest Expiry First
-              </span>
-            </div>
-            """, unsafe_allow_html=True)
+            bc_parts = ["<span style='color:var(--accent);font-weight:700;'>🏠 All</span>"]
+            if bc_st: bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;'>📍 {bc_st}</span>")
+            if bc_tm: bc_parts.append(f"<span style='color:#cbd5e1;'>👥 {bc_tm}</span>")
+            if bc_cp_code: bc_parts.append(f"<span style='color:#94a3b8;'>📦 {bc_cp_code}</span>")
+            bc_trail = " <span style='color:var(--rule);font-size:9px;'>›</span> ".join(bc_parts)
 
-            st.markdown("<div style='max-height:290px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px;'>", unsafe_allow_html=True)
-            for r in filtered.head(30).itertuples():
-                meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-                t_color = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
-                is_active = (r.id == selected_id)
-                bg_active = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_active else "background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);"
+            bc_c1, bc_c2 = st.columns([3.2, 1.4])
+            with bc_c1:
+                st.markdown(f"<div style='font-size:10px;padding:2px 2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
+            with bc_c2:
+                tc1, tc2 = st.columns(2)
+                if tc1.button("＋", key="tree_exp_all", help="Expand All Branches"):
+                    for s_val in filtered["state"].unique():
+                        tree_open.add(str(s_val))
+                        st_sub = filtered[filtered["state"] == s_val]
+                        for t_val in st_sub["team"].unique():
+                            tree_open.add(f"{s_val}/{t_val}")
+                            tm_sub = st_sub[st_sub["team"] == t_val]
+                            for c_val in tm_sub["component"].unique():
+                                tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                                cp_sub = tm_sub[tm_sub["component"] == c_val]
+                                for e_val in cp_sub["env_label"].unique():
+                                    tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+                    rerun()
+                if tc2.button("－", key="tree_col_all", help="Collapse All Branches"):
+                    tree_open.clear()
+                    rerun()
 
-                c_row1, c_row2 = st.columns([4.2, 1.1])
-                with c_row1:
+            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy)
+            st.markdown("<div style='max-height:280px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px 3px;'>", unsafe_allow_html=True)
+
+            for st_val in filtered["state"].unique():
+                st_sub = filtered[filtered["state"] == st_val]
+                st_path = str(st_val)
+                st_is_open = st_path in tree_open
+                st_worst = ui.worst_band(st_sub["band"].tolist())
+                st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
+                st_exp_n = (st_sub["days_left"] < 0).sum()
+
+                # Level 1: State Node
+                s_c1, s_c2 = st.columns([4.4, 0.6])
+                with s_c1:
                     st.markdown(f"""
-                    <div style="{bg_active};border-radius:4px;padding:3px 6px;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between;">
-                      <div style="display:flex;align-items:center;gap:4px;overflow:hidden;">
-                        <span style="color:{meta['color']};font-weight:700;font-size:11.5px;">{meta['symbol']}</span>
-                        <span style="font-weight:700;color:#f8fafc;font-size:10.5px;">{r.state}</span>
-                        <span class="env-tag" style="background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;font-size:8.5px;padding:0 3px;">{r.team}</span>
-                        <span style="font-family:var(--mono);font-size:10px;font-weight:{'700' if is_active else '500'};color:{'#38bdf8' if is_active else '#f8fafc'};">{r.schema_name}</span>
-                        <span class="env-tag" style="font-size:8px;padding:0 2px;">{r.env_label}</span>
-                      </div>
-                      <span style="color:{meta['color']};font-weight:700;font-size:10px;font-family:var(--mono);flex:none;margin-left:3px;">{ui.fmt_days(r.days_left)}</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:11px;">
+                      <span style="font-weight:700;color:#f8fafc;font-family:var(--mono);">
+                        📍 State {st_val} <span style="font-weight:400;color:#94a3b8;font-size:9.5px;">({len(st_sub)} items)</span>
+                      </span>
+                      <span class="pill" style="color:{st_meta['color']};background:{st_meta['tint']};font-size:9px;padding:1px 5px;">
+                        <b>{st_meta['symbol']}</b> {f'{st_exp_n} Expired' if st_exp_n else st_worst}
+                      </span>
                     </div>
                     """, unsafe_allow_html=True)
-                with c_row2:
-                    if st.button("Inspect", key=f"op_row_btn_{r.id}", type="primary" if is_active else "secondary", use_container_width=True):
-                        st.session_state["op_active_id"] = r.id
+                with s_c2:
+                    if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
+                        if st_is_open: tree_open.remove(st_path)
+                        else: tree_open.add(st_path)
                         rerun()
+
+                if st_is_open:
+                    for tm_val in st_sub["team"].unique():
+                        tm_sub = st_sub[st_sub["team"] == tm_val]
+                        tm_path = f"{st_val}/{tm_val}"
+                        tm_is_open = tm_path in tree_open
+                        tm_worst = ui.worst_band(tm_sub["band"].tolist())
+                        tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
+                        tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#38bdf8")
+
+                        # Level 2: Team Node
+                        t_c1, t_c2 = st.columns([4.4, 0.6])
+                        with t_c1:
+                            st.markdown(f"""
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:10px;background:rgba(255,255,255,0.02);border-radius:3px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
+                              <span style="color:{tm_color};font-weight:700;">
+                                👥 {tm_val} <span style="color:#94a3b8;font-weight:400;font-size:9px;">({len(tm_sub)})</span>
+                              </span>
+                              <span style="color:{tm_meta['color']};font-weight:600;font-size:9px;">{tm_meta['symbol']} {tm_worst}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        with t_c2:
+                            if st.button("▼" if tm_is_open else "▶", key=f"t_tm_{st_val}_{tm_val}", use_container_width=True):
+                                if tm_is_open: tree_open.remove(tm_path)
+                                else: tree_open.add(tm_path)
+                                rerun()
+
+                        if tm_is_open:
+                            for cp_val in tm_sub["component"].unique():
+                                cp_sub = tm_sub[tm_sub["component"] == cp_val]
+                                cp_path = f"{st_val}/{tm_val}/{cp_val}"
+                                cp_is_open = cp_path in tree_open
+                                cp_worst = ui.worst_band(cp_sub["band"].tolist())
+                                cp_meta = ui.BAND_META.get(cp_worst, ui.BAND_META["Healthy"])
+                                cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
+
+                                # Level 3: Component Node
+                                cp_c1, cp_c2 = st.columns([4.4, 0.6])
+                                with cp_c1:
+                                    st.markdown(f"""
+                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-left:18px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
+                                      <span style="color:#f8fafc;font-weight:600;">📦 {cp_code} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
+                                      <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                with cp_c2:
+                                    if st.button("▼" if cp_is_open else "▶", key=f"t_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
+                                        if cp_is_open: tree_open.remove(cp_path)
+                                        else: tree_open.add(cp_path)
+                                        rerun()
+
+                                if cp_is_open:
+                                    for ev_val in cp_sub["env_label"].unique():
+                                        ev_sub = cp_sub[cp_sub["env_label"] == ev_val]
+                                        ev_path = f"{st_val}/{tm_val}/{cp_val}/{ev_val}"
+                                        ev_is_open = ev_path in tree_open
+                                        ev_worst = ui.worst_band(ev_sub["band"].tolist())
+                                        ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
+
+                                        # Level 4: Environment Node
+                                        ev_c1, ev_c2 = st.columns([4.4, 0.6])
+                                        with ev_c1:
+                                            st.markdown(f"""
+                                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:26px;padding:1px 4px;font-size:9.5px;color:#cbd5e1;">
+                                              <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
+                                              <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        with ev_c2:
+                                            if st.button("▼" if ev_is_open else "▶", key=f"t_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
+                                                if ev_is_open: tree_open.remove(ev_path)
+                                                else: tree_open.add(ev_path)
+                                                rerun()
+
+                                        if ev_is_open:
+                                            # Level 5: Leaf Entities
+                                            for r in ev_sub.itertuples():
+                                                r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                                                is_act = (r.id == selected_id)
+                                                r_bg = "background:rgba(56,189,248,0.2);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_act else "background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.04);"
+
+                                                row_c1, row_c2 = st.columns([3.8, 1.2])
+                                                with row_c1:
+                                                    st.markdown(f"""
+                                                    <div style="{r_bg};margin-left:34px;border-radius:3px;padding:2px 5px;margin-bottom:1px;display:flex;align-items:center;justify-content:space-between;">
+                                                      <span style="font-family:var(--mono);font-size:9.5px;font-weight:{'700' if is_act else '500'};color:{'#38bdf8' if is_act else '#f8fafc'};">
+                                                        {r.schema_name}
+                                                      </span>
+                                                      <span style="color:{r_meta['color']};font-size:9px;font-family:var(--mono);font-weight:700;">{ui.fmt_days(r.days_left)}</span>
+                                                    </div>
+                                                    """, unsafe_allow_html=True)
+                                                with row_c2:
+                                                    if st.button("Inspect", key=f"t_leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                                                        st.session_state["op_active_id"] = r.id
+                                                        rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
     with right_col:
         if selected_id is None:
-            st.markdown(ui.empty("Select a record", "Choose an item from the master list on the left to inspect."), unsafe_allow_html=True)
+            st.markdown(ui.empty("Select a record", "Choose an item from the master hierarchy tree on the left to inspect."), unsafe_allow_html=True)
             return
 
         rec = df[df["id"] == selected_id].iloc[0]
@@ -662,11 +797,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
         with i_tab2:
             st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
-            st.markdown('<div class="note" style="margin-bottom:4px;">Portfolio 2D Matrix Cross-Tab Summary:</div>', unsafe_allow_html=True)
+            st.markdown('<div class="note" style="margin-bottom:6px;"><b>Severity Heatmap (State × Component):</b> Color saturation indicates risk density. Click any cell to filter and expand the tree.</div>', unsafe_allow_html=True)
             mat_states = STATES
             mat_comps = COMPONENT_ORDER
-            header_cols = "".join(f"<th style='text-align:center;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
-            matrix_head = f"<tr><th>State</th>{header_cols}<th class='r'>Total</th></tr>"
+            header_cols = "".join(f"<th style='text-align:center;padding:4px 6px;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
+            matrix_head = f"<tr><th>State</th>{header_cols}<th class='r' style='padding:4px 6px;'>Total</th></tr>"
 
             matrix_rows = []
             for st_val in mat_states:
@@ -675,20 +810,36 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 for c_val in mat_comps:
                     cell_sub = st_sub[st_sub["component"] == c_val]
                     if cell_sub.empty:
-                        cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
+                        cell_tds.append("<td class='c' style='color:var(--mute);padding:4px;'>—</td>")
                     else:
                         c_cnt = len(cell_sub)
+                        c_exp = (cell_sub["days_left"] < 0).sum()
+                        c_warn = (cell_sub["days_left"].between(0, ui.WARNING_DAYS)).sum()
                         worst_b = ui.worst_band(cell_sub["band"].tolist())
                         meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
+                        min_days = cell_sub["days_left"].min()
+
+                        # Color-intensity gradient styling
+                        if c_exp > 0:
+                            bg_style = "background:linear-gradient(135deg, rgba(239,68,68,0.32), rgba(239,68,68,0.12));border:1px solid #ef4444;color:#fca5a5;"
+                            badge_txt = f"● {c_exp} Exp"
+                        elif c_warn > 0:
+                            bg_style = "background:linear-gradient(135deg, rgba(245,158,11,0.32), rgba(245,158,11,0.12));border:1px solid #f59e0b;color:#fcd34d;"
+                            badge_txt = f"▲ {c_warn} Warn"
+                        else:
+                            bg_style = "background:linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.06));border:1px solid rgba(16,185,129,0.35);color:#6ee7b7;"
+                            badge_txt = f"✓ {c_cnt} OK"
+
                         cell_tds.append(
-                            f"<td class='c'>"
-                            f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;font-size:9.5px;padding:1px 4px;'>"
-                            f"<b>{meta['symbol']}</b> {c_cnt}"
-                            f"</span></td>"
+                            f"<td class='c' style='padding:3px;'>"
+                            f"<div style='{bg_style}border-radius:4px;padding:3px 4px;text-align:center;font-size:9.5px;line-height:1.2;'>"
+                            f"<b>{badge_txt}</b><br/>"
+                            f"<span style='font-size:8.5px;opacity:0.8;'>{ui.fmt_days(min_days)}</span>"
+                            f"</div></td>"
                         )
                 st_tot = len(st_sub)
                 matrix_rows.append(
-                    f"<tr><td style='font-weight:700;font-family:var(--mono);'>{st_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{st_tot}</td></tr>"
+                    f"<tr><td style='font-weight:700;font-family:var(--mono);padding:4px 6px;'>{st_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);padding:4px 6px;'>{st_tot}</td></tr>"
                 )
             st.markdown(f"<div style='border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx' style='font-size:10.5px;'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
