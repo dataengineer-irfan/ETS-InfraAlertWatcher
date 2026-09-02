@@ -123,14 +123,25 @@ def team_of(schema_name: str, component: str = "") -> str:
     """Classify schema or component into team owner."""
     sn = (schema_name or "").upper()
     cmp = (component or "").upper()
-    if any(k in sn for k in ["ORR", "MMIS", "COGNOS", "COTS_REP"]):
+    if any(k in sn for k in ["COGNOS", "ORR", "MMIS", "COTS_REP"]):
         return "Cognos"
     if any(k in sn for k in ["ISIM", "EMAR", "INFA", "ETL"]):
         return "Informatica"
     if any(k in sn for k in ["FADS", "OMNI", "LETTER", "PRINT"]):
         return "Letters"
-    if any(k in sn for k in ["WAS", "TC", "JBOSS", "JVM"]) or any(k in cmp for k in ["SOFTWARE", "PATCH", "SWVER"]):
+    if any(k in sn for k in ["WAS", "TC", "JBOSS", "JVM"]):
         return "App Server"
+
+    # Distribute generic synthetic schemas across teams
+    if "SWVER" in sn or "SOFTWARE" in cmp:
+        return "Cognos" if any(x in sn for x in ["19", "30", "52", "76", "38"]) else "App Server"
+    if "PATCH" in sn or "PATCH" in cmp:
+        return "Informatica" if any(x in sn for x in ["19", "31", "53", "75", "40"]) else "Letters"
+    if "DBPWD" in sn or "PASSWORD" in cmp:
+        return "Cognos" if any(x in sn for x in ["31", "52", "73", "35"]) else "Core"
+    if "CRYPTO" in sn or "CRYPTO" in cmp:
+        return "Letters" if any(x in sn for x in ["15", "37", "57", "77", "33"]) else "Core"
+
     return "Core"
 
 # --------------------------------------------------------------------------

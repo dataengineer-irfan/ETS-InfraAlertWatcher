@@ -328,31 +328,30 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
               All dates for <b>{state}</b> match the source workbooks. Changes saved in the editor on the left will appear here with 1-click rollback history.
             </div>
             """, unsafe_allow_html=True)
-            return
+        else:
+            edits["edited_dt"] = pd.to_datetime(edits["edited_at"], format="mixed", utc=True)
+            edits = edits.sort_values("edited_dt", ascending=False)
 
-        edits["edited_dt"] = pd.to_datetime(edits["edited_at"], format="mixed", utc=True)
-        edits = edits.sort_values("edited_dt", ascending=False)
+            st.markdown(ui.note(
+                f"<b>{len(edits)}</b> record(s) differ from the workbook. Reverting restores the "
+                "workbook date."), unsafe_allow_html=True)
+            st.markdown(ui.edits_table([
+                {"schema_name": r.schema_name, "environment": r.env_label,
+                 "source_exp_date": r.source_exp_date, "exp_date": r.exp_date,
+                 "edited_at": r.edited_dt.date()}
+                for r in edits.itertuples()
+            ]), unsafe_allow_html=True)
 
-        st.markdown(ui.note(
-            f"<b>{len(edits)}</b> record(s) differ from the workbook. Reverting restores the "
-            "workbook date."), unsafe_allow_html=True)
-        st.markdown(ui.edits_table([
-            {"schema_name": r.schema_name, "environment": r.env_label,
-             "source_exp_date": r.source_exp_date, "exp_date": r.exp_date,
-             "edited_at": r.edited_dt.date()}
-            for r in edits.itertuples()
-        ]), unsafe_allow_html=True)
-
-        revert_labels = {f"{r.schema_name} · {r.env_label} · now {r.exp_date}": r.id
-                         for r in edits.itertuples()}
-        pick = st.selectbox("Revert to workbook value", list(revert_labels),
-                            key="mg_revert", label_visibility="collapsed")
-        if st.button("Revert selected", key="mg_revert_go", use_container_width=True):
-            conn = get_connection(DB_PATH)
-            revert_component_exp_date(conn, int(revert_labels[pick]))
-            conn.close()
-            bust_cache()
-            rerun()
+            revert_labels = {f"{r.schema_name} · {r.env_label} · now {r.exp_date}": r.id
+                             for r in edits.itertuples()}
+            pick = st.selectbox("Revert to workbook value", list(revert_labels),
+                                key="mg_revert", label_visibility="collapsed")
+            if st.button("Revert selected", key="mg_revert_go", use_container_width=True):
+                conn = get_connection(DB_PATH)
+                revert_component_exp_date(conn, int(revert_labels[pick]))
+                conn.close()
+                bust_cache()
+                rerun()
 
     # ---- Operational Maintenance Schedule Manager ----
     st.markdown("<hr style='border:0;border-top:1px solid #1E293B;margin:18px 0 14px;'>", unsafe_allow_html=True)

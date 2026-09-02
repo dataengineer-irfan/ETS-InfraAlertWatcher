@@ -672,7 +672,8 @@ _BODY = r"""
   <div class="head">
     <div class="head-row">
       <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
-      <div class="narrative-strip" id="mNarrative" data-tip="Executive narrative summary reacting to active filters"></div>
+      <div class="cascade-bar" id="mCascades"></div>
+      <div class="intel-strip" id="mAlertBanner"></div>
       <div class="search-bar" id="mSearch"></div>
       <div class="views" id="mViews"></div>
       <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
