@@ -653,9 +653,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 "band": rec["band"],
                 "edited_at": str(rec["edited_at"]),
             }
-            if hasattr(st, "code"):
-                st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
-                st.code(json.dumps(payload, indent=2), language="json")
+            with st.expander("View raw data / query", expanded=False):
+                if hasattr(st, "code"):
+                    st.caption("Technical Diagnostics & Database Query")
+                    st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
+                    st.code(json.dumps(payload, indent=2), language="json")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab2:
@@ -808,37 +810,12 @@ def render_governance_center() -> None:
         """, unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
+    
+    # Primary Business View: Multi-Team Alert Routing & Email Dispatch Simulator
     g_col1, _, g_col2 = st.columns([1.8, 0.04, 2.2])
 
     with g_col1:
-        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:4px;">SQLite Database Lineage & Ingestion</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="card" style="margin-bottom:8px;padding:6px 10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:11.5px;font-weight:700;color:#f8fafc;">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
-            <span style="font-size:10px;color:#10b981;font-weight:700;">● ZERO-MOCK ACTIVE</span>
-          </div>
-          <table class="tblx" style="font-size:11px;">
-            <tr><th>Table Name</th><th class="r">Rows</th><th>Lineage Role</th><th class="r">Status</th></tr>
-            <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
-            <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
-            <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">✓ Synced</span></td></tr>
-            <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">3 States</span></td></tr>
-            <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.15)">Audit Ready</span></td></tr>
-          </table>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if st.button("Trigger Immediate Re-ingest (AST Parser)", key="gov_reingest", type="primary", use_container_width=True):
-            t_start = datetime.now()
-            with st.spinner("Executing workbook parser..."):
-                res = run_ingest(WORKBOOK_DIR, DB_PATH)
-            duration_ms = (datetime.now() - t_start).total_seconds() * 1000
-            bust_cache()
-            st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
-            rerun()
-
-        st.markdown('<div class="eyebrow" style="margin-top:8px;margin-bottom:4px;">Multi-Team Alert Routing Directory</div>', unsafe_allow_html=True)
+        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:4px;">Multi-Team Alert Routing Directory</div>', unsafe_allow_html=True)
         team_routes = [
             ("Cognos", "BI & Analytics", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)"),
             ("Informatica", "ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays"),
@@ -854,7 +831,7 @@ def render_governance_center() -> None:
             for team, lead, email, color, cadence in team_routes
         )
         st.markdown(f"""
-        <div class="card" style="padding:6px 10px;">
+        <div class="card" style="padding:6px 10px;margin-bottom:8px;">
           <table class="tblx" style="font-size:11px;">
             <tr><th>Team</th><th>Lead</th><th>Recipient</th><th>Cadence</th></tr>
             {route_rows}
@@ -920,10 +897,41 @@ def render_governance_center() -> None:
 
             email_html = render_email(sim_mock)
             st.markdown(f"""
-            <div style="border:1px solid var(--rule);border-radius:7px;overflow-y:auto;max-height:300px;background:#ffffff;padding:0;">
+            <div style="border:1px solid var(--rule);border-radius:7px;overflow-y:auto;max-height:260px;background:#ffffff;padding:0;">
               {email_html}
             </div>
             """, unsafe_allow_html=True)
+
+    # Technical Diagnostics Disclosure (Demoted / Collapsed by default)
+    with st.expander("System Diagnostics", expanded=False):
+        d_c1, d_c2 = st.columns([2.5, 1.5])
+        with d_c1:
+            st.markdown(f"""
+            <div class="card" style="padding:6px 10px;margin-bottom:6px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <span style="font-size:11.5px;font-weight:700;color:#f8fafc;">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
+                <span style="font-size:10px;color:#10b981;font-weight:700;">● ZERO-MOCK ACTIVE</span>
+              </div>
+              <table class="tblx" style="font-size:11px;">
+                <tr><th>Table Name</th><th class="r">Rows</th><th>Lineage Role</th><th class="r">Status</th></tr>
+                <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
+                <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
+                <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">✓ Synced</span></td></tr>
+                <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">3 States</span></td></tr>
+                <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.15)">Audit Ready</span></td></tr>
+              </table>
+            </div>
+            """, unsafe_allow_html=True)
+        with d_c2:
+            st.markdown("<div style='font-size:11.5px;color:#94a3b8;margin-bottom:6px;'>AST Parser & Excel Sync:</div>", unsafe_allow_html=True)
+            if st.button("Trigger Immediate Re-ingest (AST Parser)", key="gov_reingest", type="primary", use_container_width=True):
+                t_start = datetime.now()
+                with st.spinner("Executing workbook parser..."):
+                    res = run_ingest(WORKBOOK_DIR, DB_PATH)
+                duration_ms = (datetime.now() - t_start).total_seconds() * 1000
+                bust_cache()
+                st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
+                rerun()
 
 
 # ==========================================================================

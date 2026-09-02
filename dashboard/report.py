@@ -1362,7 +1362,132 @@ function renderFocus(S){
   return renderHorizon(S);
 }
 
-// The signature visual: Area gradient timeline with Today anchor & reference guides
+// --------------------------------------------------------------------------
+// Generic Collision-Aware Annotation Placement Engine
+// --------------------------------------------------------------------------
+function layoutTimelineAnnotations(items, bounds){
+  // 1. Consolidate tight adjacent overflow annotations (< 22px apart) into clean summaries
+  const guides = items.filter(i => i.type !== 'overflow');
+  const overflows = items.filter(i => i.type === 'overflow').sort((a, b) => a.anchorX - b.anchorX);
+
+  const consolidatedOverflows = [];
+  let currentCluster = [];
+
+  for (const ov of overflows){
+    if (!currentCluster.length){
+      currentCluster.push(ov);
+    } else {
+      const prev = currentCluster[currentCluster.length - 1];
+      if (Math.abs(ov.anchorX - prev.anchorX) <= 22){
+        currentCluster.push(ov);
+      } else {
+        consolidatedOverflows.push(mergeCluster(currentCluster));
+        currentCluster = [ov];
+      }
+    }
+  }
+  if (currentCluster.length){
+    consolidatedOverflows.push(mergeCluster(currentCluster));
+  }
+
+  function mergeCluster(cluster){
+    if (cluster.length === 1) return cluster[0];
+    const totalExtra = cluster.reduce((sum, c) => sum + (c.count || parseInt(c.text.replace('+', ''), 10) || 0), 0);
+    const avgX = cluster.reduce((sum, c) => sum + c.anchorX, 0) / cluster.length;
+    const avgY = cluster.reduce((sum, c) => sum + c.anchorY, 0) / cluster.length;
+    return {
+      id: "cluster_" + Math.round(avgX),
+      anchorX: avgX,
+      anchorY: avgY,
+      text: "+" + totalExtra,
+      clr: T.slate,
+      size: 10,
+      weight: "700",
+      opacity: "1",
+      priority: 6,
+      type: "overflow",
+      tip: totalExtra + " more in this dense window (" + cluster.length + " buckets)",
+      candidateYs: [avgY, bounds.top - 4, avgY + 12, bounds.top - 12]
+    };
+  }
+
+  const allItems = guides.concat(consolidatedOverflows);
+
+  // 2. Generic Collision Resolution with Vertical Offset and Leader Lines
+  const placed = [];
+  const queue = allItems.slice().sort((a, b) => (b.priority || 0) - (a.priority || 0) || a.anchorX - b.anchorX);
+  const results = [];
+
+  for (const item of queue){
+    const w = item.width || (item.text.length * (item.size * 0.62) + 8);
+    const h = item.height || (item.size + 4);
+    const candidateYs = item.candidateYs || [
+      item.anchorY,
+      item.anchorY - 12,
+      item.anchorY + 12,
+      item.anchorY - 20,
+      item.anchorY + 20
+    ];
+    const candidateXOffsets = [0, -6, 6, -12, 12, -20, 20];
+
+    let bestX = item.anchorX;
+    let bestY = item.anchorY;
+    let bestOverlap = Infinity;
+    let foundSlot = false;
+
+    for (const dy of candidateYs){
+      if (dy < bounds.minY || dy > bounds.maxY) continue;
+      for (const dx of candidateXOffsets){
+        const testX = Math.max(bounds.minX + w / 2, Math.min(bounds.maxX - w / 2, item.anchorX + dx));
+        const testY = dy;
+        const box = {
+          x1: testX - w / 2 - 2,
+          x2: testX + w / 2 + 2,
+          y1: testY - h / 2 - 1,
+          y2: testY + h / 2 + 1
+        };
+
+        let overlapArea = 0;
+        for (const p of placed){
+          const ox = Math.max(0, Math.min(box.x2, p.x2) - Math.max(box.x1, p.x1));
+          const oy = Math.max(0, Math.min(box.y2, p.y2) - Math.max(box.y1, p.y1));
+          if (ox > 0 && oy > 0){
+            overlapArea += ox * oy;
+          }
+        }
+
+        if (overlapArea === 0){
+          bestX = testX;
+          bestY = testY;
+          bestOverlap = 0;
+          foundSlot = true;
+          break;
+        } else if (overlapArea < bestOverlap){
+          bestOverlap = overlapArea;
+          bestX = testX;
+          bestY = testY;
+        }
+      }
+      if (foundSlot) break;
+    }
+
+    const finalBox = {
+      x1: bestX - w / 2 - 2,
+      x2: bestX + w / 2 + 2,
+      y1: bestY - h / 2 - 1,
+      y2: bestY + h / 2 + 1
+    };
+    placed.push(finalBox);
+
+    results.push(Object.assign({}, item, {
+      x: bestX,
+      y: bestY,
+      displaced: Math.abs(bestX - item.anchorX) > 4 || Math.abs(bestY - item.anchorY) > 4
+    }));
+  }
+  return results;
+}
+
 const GRID = [[30, "30d"], [90, "90d"], [180, "6mo"], [365, "1yr"],
               [730, "2yr"], [1095, "3yr"], [1460, "4yr"], [1825, "5yr"]];
 
@@ -1408,18 +1533,31 @@ function renderHorizon(S){
   o.push('<line x1="' + (gut - 21) + '" y1="' + base + '" x2="' + x1 + '" y2="' + base
     + '" stroke="' + T.rule + '" stroke-width="1"/>');
 
+  // Guideline vertical reference lines
   const guideLines = [
     [30, "30d Warning", META.Warning.color],
     [90, "90d Quarter", T.accent],
     [365, "1yr Horizon", T.slate]
   ];
+  const annotationsToPlace = [];
+
   guideLines.forEach(([d, lbl, clr]) => {
     if (d <= horizon * 0.95){
       const gx = px(d);
       o.push('<line x1="' + gx.toFixed(1) + '" y1="' + (top + 2) + '" x2="' + gx.toFixed(1)
         + '" y2="' + base + '" stroke="' + clr + '" stroke-opacity="0.38" stroke-width="1" stroke-dasharray="2 3"/>');
-      o.push('<text x="' + gx.toFixed(1) + '" y="' + (top + 10) + '" fill="' + clr + '" font-size="9"'
-        + ' font-weight="600" text-anchor="middle" opacity="0.8">' + esc(lbl) + "</text>");
+      annotationsToPlace.push({
+        id: "guide_" + d,
+        anchorX: gx,
+        anchorY: top + 10,
+        text: lbl,
+        clr: clr,
+        size: 9,
+        weight: "600",
+        opacity: "0.85",
+        priority: 10,
+        candidateYs: [top + 10, top - 4, top + 22, top - 12]
+      });
     }
   });
 
@@ -1460,10 +1598,45 @@ function renderHorizon(S){
         + ' data-tip="' + esc(r.schema + " &middot; " + r.environment + " &middot; " + r.component
         + " &middot; " + fmtDate(r.exp) + " (" + fmtDaysLong(r.days) + ")") + '"/>');
     });
-    if (bucket.length > room)
-      o.push('<text x="' + cx.toFixed(1) + '" y="' + (ceiling - 2) + '" fill="' + T.slate + '"'
-        + ' font-size="10" text-anchor="middle" data-tip="' + (bucket.length - room)
-        + ' more in this window">+' + (bucket.length - room) + "</text>");
+    if (bucket.length > room){
+      const extra = bucket.length - room;
+      annotationsToPlace.push({
+        id: "overflow_" + k,
+        anchorX: cx,
+        anchorY: ceiling - 2,
+        text: "+" + extra,
+        clr: T.slate,
+        size: 10,
+        weight: "600",
+        opacity: "1",
+        priority: 5,
+        tip: extra + " more in this window",
+        candidateYs: [ceiling - 2, top - 4, ceiling + 10, top - 12]
+      });
+    }
+  });
+
+  // Run generic collision resolution across all timeline annotations
+  const placedAnnotations = layoutTimelineAnnotations(annotationsToPlace, {
+    minX: x0,
+    maxX: x1,
+    minY: 4,
+    maxY: base - 10,
+    top: top,
+    base: base
+  });
+
+  placedAnnotations.forEach(ann => {
+    if (ann.displaced){
+      o.push('<line x1="' + ann.anchorX.toFixed(1) + '" y1="' + ann.anchorY.toFixed(1)
+        + '" x2="' + ann.x.toFixed(1) + '" y2="' + (ann.y + (ann.y < ann.anchorY ? 4 : -4)).toFixed(1)
+        + '" stroke="' + ann.clr + '" stroke-opacity="0.35" stroke-width="0.8" stroke-dasharray="1 2"/>');
+    }
+    const tipAttr = ann.tip ? ' data-tip="' + esc(ann.tip) + '"' : '';
+    const opAttr = ann.opacity ? ' opacity="' + ann.opacity + '"' : '';
+    o.push('<text x="' + ann.x.toFixed(1) + '" y="' + ann.y.toFixed(1) + '" fill="' + ann.clr + '" font-size="'
+      + ann.size + '" font-weight="' + ann.weight + '" text-anchor="middle"' + opAttr + tipAttr + '>'
+      + esc(ann.text) + '</text>');
   });
 
   if (past.length)
