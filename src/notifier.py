@@ -56,8 +56,12 @@ def smtp_config_from_env() -> dict:
 
 
 def subject_for(record: dict) -> str:
-    urgency = "EXPIRED" if record["days_left"] < 0 else f"{record['days_left']}d left"
-    return f"[{urgency}] {record['state']} account {record['username']} needs renewal"
+    team = record.get("team") or "Cognos"
+    component = record.get("component") or "Database Passwords"
+    state = record.get("state") or "AK"
+    env = record.get("env") or record.get("environment") or "DEV"
+    days = record.get("days_left", 0)
+    return f"Action Required: {team} {component} Expiring in {days} Days ({state} {env})"
 
 
 def run(db_path: str, threshold_days: int, dry_run: bool = False) -> int:

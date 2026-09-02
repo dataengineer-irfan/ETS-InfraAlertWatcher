@@ -928,7 +928,7 @@ def render_governance_center() -> None:
 
             with st.expander("Preview Rendered Jinja2 HTML Email Template", expanded=False):
                 email_html = render_email(sample)
-                st.markdown(f"<div style='background:#070D1E;padding:10px;border-radius:6px;border:1px solid #1E293B;max-height:220px;overflow-y:auto;'>{email_html}</div>", unsafe_allow_html=True)
+                st.markdown(email_html, unsafe_allow_html=True)
 
             if st.button("Run Dry-Run Notification Cycle", key="gov_dry_run", use_container_width=True):
                 st.info(f"Dry-run executed. {len(due_alerts)} notification(s) evaluated successfully with zero transport errors.")
@@ -945,13 +945,19 @@ def render_governance_center() -> None:
 
             with st.expander("Preview Standard Alert Email Template", expanded=False):
                 mock_record = {
-                    "state": "AK", "env": "DEV", "username": "AKCGAU30E2",
-                    "schema_name": "ENV30_COTS_CGNS", "exp_date": "2026-09-18",
-                    "days_left": 12, "owner_name": "Alaska DB Team",
-                    "owner_email": "alaska-dba@example.com", "is_first_reminder": True
+                    "state": "AK", "env": "DEV", "team": "Cognos",
+                    "component": "Database Passwords", "username": "AKCGAU30E2",
+                    "schema_name": "ENV31_DBPWD", "exp_date": "2026-09-18",
+                    "days_left": 16, "owner_name": "Cognos Team",
+                    "owner_email": "cognos-dba@example.com", "is_first_reminder": True
                 }
+                st.markdown(f"""
+                <div style="font-size:12px;color:#f8fafc;margin-bottom:8px;">
+                  <b>Subject:</b> <code style="color:#38bdf8;">{subject_for(mock_record)}</code>
+                </div>
+                """, unsafe_allow_html=True)
                 email_html = render_email(mock_record)
-                st.markdown(f"<div style='background:#070D1E;padding:10px;border-radius:6px;border:1px solid #1E293B;max-height:220px;overflow-y:auto;'>{email_html}</div>", unsafe_allow_html=True)
+                st.markdown(email_html, unsafe_allow_html=True)
 
 
 # ==========================================================================

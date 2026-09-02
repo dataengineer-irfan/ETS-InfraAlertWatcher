@@ -1,37 +1,28 @@
-<!DOCTYPE html>
-<html>
-<body style="font-family: Arial, sans-serif; color: #2C2C2A; line-height: 1.5;">
-  <p>Hi {{ owner_name or "team" }},</p>
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.6; background-color: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+  
+  <p style="font-size: 15px; margin-top: 0; color: #0f172a;">Hi <strong>{{ owner_name or team or "Team" }}</strong>,</p>
 
-  <p>
-    The following database account is
-    {% if days_left < 0 %}
-      <strong style="color:#A32D2D;">already expired</strong> (expired {{ -days_left }} day{{ 's' if -days_left != 1 else '' }} ago)
-    {% else %}
-      expiring in <strong>{{ days_left }} day{{ 's' if days_left != 1 else '' }}</strong>
-    {% endif %}
-    and needs attention.
+  <p style="font-size: 14px; color: #334155;">
+    Please be informed that <strong>{{ state }} {{ team or "Cognos" }}</strong> in <strong>{{ state }} {{ env }}</strong> (Schema: <code>{{ schema_name }}</code>) will expire within <strong>{{ days_left }} days ({{ exp_date }})</strong>. To avoid any potential job or report failures, please take the necessary actions to refresh the password.
   </p>
 
-  <table cellpadding="6" cellspacing="0" style="border-collapse: collapse; margin: 16px 0;">
-    <tr><td style="color:#5F5E5A;">State</td><td style="border:1px solid #D3D1C7;"><strong>{{ state }}</strong></td></tr>
-    <tr><td style="color:#5F5E5A;">Environment</td><td style="border:1px solid #D3D1C7;">{{ env }}</td></tr>
-    <tr><td style="color:#5F5E5A;">Username</td><td style="border:1px solid #D3D1C7;">{{ username }}</td></tr>
-    <tr><td style="color:#5F5E5A;">Schema</td><td style="border:1px solid #D3D1C7;">{{ schema_name }}</td></tr>
-    <tr><td style="color:#5F5E5A;">Expiry date</td><td style="border:1px solid #D3D1C7;">{{ exp_date }}</td></tr>
+  <p style="font-size: 14px; color: #334155;">
+    Additionally, to ensure uninterrupted execution of <strong>{{ team or "Cognos" }}</strong> jobs, kindly update the <strong>{{ team or "Cognos" }} {{ component or "Database Passwords" }}</strong> password and inform the Dev Team of the new expiration date so that the N-1 parameter can be updated accordingly.
+  </p>
+
+  <table cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 12.5px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+    <tr><td style="color:#64748b; width: 35%; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;">State / Environment</td><td style="color:#0f172a; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;"><strong>{{ state }} · {{ env }}</strong></td></tr>
+    <tr><td style="color:#64748b; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;">Functional Team</td><td style="color:#0f172a; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;"><strong>{{ team or "Cognos" }}</strong></td></tr>
+    <tr><td style="color:#64748b; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;">Component</td><td style="color:#0f172a; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;">{{ component or "Database Passwords" }}</td></tr>
+    <tr><td style="color:#64748b; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;">Target Schema</td><td style="color:#0f172a; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;"><code>{{ schema_name }}</code></td></tr>
+    <tr><td style="color:#64748b; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;">Account Username</td><td style="color:#0f172a; padding: 7px 10px; border-bottom: 1px solid #e2e8f0;"><code>{{ username }}</code></td></tr>
+    <tr><td style="color:#64748b; padding: 7px 10px;">Expiration Horizon</td><td style="color:#dc2626; font-weight: bold; padding: 7px 10px;">{{ exp_date }} ({{ days_left }} days remaining)</td></tr>
   </table>
 
-  <p>
-    {% if is_first_reminder %}
-      This is the first reminder for this expiry date.
-    {% else %}
-      This is a repeat reminder - it will keep arriving daily until the expiry date is updated in the source file.
-    {% endif %}
-  </p>
+  <p style="font-size: 14px; color: #334155; margin-bottom: 0;">Thank you.</p>
 
-  <p style="color:#888780; font-size: 13px;">
-    Sent automatically by the expiry alert system. To stop these reminders, renew or update this account's
-    expiry date in the source spreadsheet.
+  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 16px 0 10px;">
+  <p style="color: #94a3b8; font-size: 11px; margin: 0;">
+    Sent automatically by Expiry Watchtower Enterprise Governance. To update expiration dates, record renewals in the dashboard or update the master Excel workbook.
   </p>
-</body>
-</html>
+</div>
