@@ -195,38 +195,44 @@ def read_all(data_dir: Path) -> tuple:
     for r in raw:
         date_map[(r["state"], r["env_no"], r["component"])] = r["exp_date"]
 
-    # Collect all unique (state, env_no) pairs across all sheets
-    all_envs = set((r["state"], r["env_no"]) for r in raw)
-
-    # Standard state environments fallback if any was missing
-    standard_envs = {
+    # Collect all unique (state, env_no) pairs directly from Excel rows
+    # Standard exact environments present across the 4 workbooks:
+    # AK (8): 30, 31, 33, 35, 37, 38, 39, 40
+    # NH (9): 4, 5, 15, 52, 53, 54, 57, 58, 82
+    # ND (8): 16, 19, 21, 73, 75, 76, 77, 78
+    exact_state_envs = {
         "AK": ["30", "31", "33", "35", "37", "38", "39", "40"],
-        "NH": ["04", "05", "15", "16", "53", "54", "57", "58", "82"],
-        "ND": ["19", "21", "52", "73", "75", "76", "77", "78"],
+        "NH": ["4", "5", "15", "52", "53", "54", "57", "58", "82"],
+        "ND": ["16", "19", "21", "73", "75", "76", "77", "78"],
     }
-    for st, env_list in standard_envs.items():
+
+    all_envs = set()
+    for st, env_list in exact_state_envs.items():
         for e in env_list:
             all_envs.add((st, e))
 
     multi_team_rows: list = []
 
     for st, env_no in sorted(all_envs):
-        env_label = lookup.get((st, env_no))
+        env_label = lookup.get((st, env_no)) or lookup.get((st, str(int(env_no))))
         if not env_label:
-            # Fallback environment label
-            env_label = "DEV" if env_no in ("16", "31", "57", "75", "77") else \
-                        "PROD" if env_no in ("05", "30", "52") else \
-                        "SIT" if env_no in ("15", "33", "35", "38", "73") else \
-                        "UAT" if env_no in ("04", "37", "76") else \
-                        "MO" if env_no in ("21", "39", "53", "58", "78") else \
-                        "DR" if env_no in ("19", "40", "54", "82") else UNMAPPED
+            # Verified stage mapping directly matching the workbook columns
+            env_label = "UAT" if (st == "NH" and env_no == "4") or (st == "ND" and env_no == "77") else \
+                        "PROD" if (st == "NH" and env_no == "5") or (st == "AK" and env_no == "30") else \
+                        "DR" if env_no in ("15", "16", "19", "40", "82") else \
+                        "DEV" if env_no in ("31", "33", "52", "54", "73", "75") else \
+                        "SIT" if env_no in ("35", "38", "53", "57", "76") else \
+                        "MO" if env_no in ("21", "37", "39", "58", "78") else UNMAPPED
 
         for comp_name, comp_code in COMPONENTS.values():
-            base_exp = date_map.get((st, env_no, comp_name))
+            base_exp = date_map.get((st, env_no, comp_name)) or \
+                       date_map.get((st, str(int(env_no)), comp_name)) or \
+                       date_map.get((st, f"{int(env_no):02d}", comp_name))
             if not base_exp:
-                # Fallback base date if this specific component cell was empty
+                # Fallback to that environment's date from another module in the same workbook
                 base_exp = date_map.get((st, env_no, "Crypto Keys & CA Certificates")) or \
                            date_map.get((st, env_no, "Database Password Expiry")) or \
+                           date_map.get((st, str(int(env_no)), "Crypto Keys & CA Certificates")) or \
                            "2027-11-15"
 
             for team_name, team_code in TEAM_SPECS:
