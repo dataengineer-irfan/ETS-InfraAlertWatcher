@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS reminder_log (
 CREATE TABLE IF NOT EXISTS component_records (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     state TEXT NOT NULL,
+    team TEXT NOT NULL DEFAULT 'Core',
     component TEXT NOT NULL,
     env_no TEXT NOT NULL,
     environment TEXT,
@@ -85,11 +86,11 @@ CREATE TABLE IF NOT EXISTS component_records (
     edited_at TEXT,
     first_seen_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
-    UNIQUE(state, component, env_no)
+    UNIQUE(state, team, component, env_no)
 );
 
 CREATE INDEX IF NOT EXISTS idx_component_records_scope
-    ON component_records (state, component, environment);
+    ON component_records (state, team, component, environment);
 
 CREATE TABLE IF NOT EXISTS metric_snapshot (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,6 +132,13 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.executescript(SCHEMA)
+
+    # Migrate table if team column missing from an older schema version
+    cols = [col[1] for col in conn.execute("PRAGMA table_info(component_records)").fetchall()]
+    if "team" not in cols:
+        conn.execute("ALTER TABLE component_records ADD COLUMN team TEXT NOT NULL DEFAULT 'Core';")
+        conn.commit()
+
     conn.commit()
     return conn
 
@@ -166,7 +174,7 @@ def upsert_component_records(conn: sqlite3.Connection, rows: list) -> dict:
     """
     Upsert component rows read from the four component workbooks.
 
-    Each row is a dict with keys: state, component, env_no, environment,
+    Each row is a dict with keys: state, team, component, env_no, environment,
     module, schema_name, exp_date.
 
     The spreadsheet is the system of record. On every run source_exp_date is
@@ -180,10 +188,11 @@ def upsert_component_records(conn: sqlite3.Connection, rows: list) -> dict:
     new_count = renewed_count = unchanged_count = 0
 
     for row in rows:
+        team = row.get("team") or "Core"
         existing = conn.execute(
             """SELECT source_exp_date, edited_at FROM component_records
-               WHERE state = ? AND component = ? AND env_no = ?""",
-            (row["state"], row["component"], row["env_no"]),
+               WHERE state = ? AND team = ? AND component = ? AND env_no = ?""",
+            (row["state"], team, row["component"], row["env_no"]),
         ).fetchone()
 
         if existing is None:
@@ -202,19 +211,19 @@ def upsert_component_records(conn: sqlite3.Connection, rows: list) -> dict:
             conn.execute(
                 """UPDATE component_records
                    SET environment = ?, module = ?, schema_name = ?, last_seen_at = ?
-                   WHERE state = ? AND component = ? AND env_no = ?""",
+                   WHERE state = ? AND team = ? AND component = ? AND env_no = ?""",
                 (row["environment"], row["module"], row["schema_name"], now,
-                 row["state"], row["component"], row["env_no"]),
+                 row["state"], team, row["component"], row["env_no"]),
             )
             continue
 
         conn.execute(
             """
             INSERT INTO component_records
-                (state, component, env_no, environment, module, schema_name,
+                (state, team, component, env_no, environment, module, schema_name,
                  exp_date, source_exp_date, edited_at, first_seen_at, last_seen_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
-            ON CONFLICT(state, component, env_no) DO UPDATE SET
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+            ON CONFLICT(state, team, component, env_no) DO UPDATE SET
                 environment     = excluded.environment,
                 module          = excluded.module,
                 schema_name     = excluded.schema_name,
@@ -223,7 +232,7 @@ def upsert_component_records(conn: sqlite3.Connection, rows: list) -> dict:
                 edited_at       = NULL,
                 last_seen_at    = excluded.last_seen_at
             """,
-            (row["state"], row["component"], row["env_no"], row["environment"],
+            (row["state"], team, row["component"], row["env_no"], row["environment"],
              row["module"], row["schema_name"], row["exp_date"], row["exp_date"],
              now, now),
         )

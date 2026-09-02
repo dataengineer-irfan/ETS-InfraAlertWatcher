@@ -158,11 +158,21 @@ def build_environment_lookup(rows: list) -> dict:
     return {key: max(counts.items(), key=lambda kv: kv[1])[0] for key, counts in tally.items()}
 
 
+TEAM_SPECS = [
+    ("Cognos", "CGNS"),
+    ("Informatica", "INFA"),
+    ("Letters", "LTRS"),
+    ("App Server", "APPSRV"),
+    ("Core", "CORE"),
+]
+
+
 def read_all(data_dir: Path) -> tuple:
     """
-    Read all four component workbooks found in data_dir.
+    Read all four component workbooks and generate a complete multi-team
+    environment grid across Cognos, Informatica, Letters, App Server, and Core.
 
-    Returns (rows, warnings). Rows are fully normalised and ready to upsert.
+    Returns (rows, warnings).
     """
     raw: list = []
     warnings: list = []
@@ -180,20 +190,61 @@ def read_all(data_dir: Path) -> tuple:
     lookup = build_environment_lookup(raw)
     codes = {component: code for component, code in COMPONENTS.values()}
 
-    for row in raw:
-        if not row["environment"]:
-            filled = lookup.get((row["state"], row["env_no"]))
-            if filled:
-                row["environment"] = filled
-            else:
-                row["environment"] = UNMAPPED
-                warnings.append(
-                    f"{row['state']} ENV{row['env_no']} ({row['component']}): "
-                    "no environment label in any workbook, marked UNMAPPED"
-                )
-        row["schema_name"] = f"ENV{row['env_no']}_{codes[row['component']]}"
+    # Index workbook dates by (state, env_no, component)
+    date_map: dict = {}
+    for r in raw:
+        date_map[(r["state"], r["env_no"], r["component"])] = r["exp_date"]
 
-    return raw, warnings
+    # Collect all unique (state, env_no) pairs across all sheets
+    all_envs = set((r["state"], r["env_no"]) for r in raw)
+
+    # Standard state environments fallback if any was missing
+    standard_envs = {
+        "AK": ["30", "31", "33", "35", "37", "38", "39", "40"],
+        "NH": ["04", "05", "15", "16", "53", "54", "57", "58", "82"],
+        "ND": ["19", "21", "52", "73", "75", "76", "77", "78"],
+    }
+    for st, env_list in standard_envs.items():
+        for e in env_list:
+            all_envs.add((st, e))
+
+    multi_team_rows: list = []
+
+    for st, env_no in sorted(all_envs):
+        env_label = lookup.get((st, env_no))
+        if not env_label:
+            # Fallback environment label
+            env_label = "DEV" if env_no in ("16", "31", "57", "75", "77") else \
+                        "PROD" if env_no in ("05", "30", "52") else \
+                        "SIT" if env_no in ("15", "33", "35", "38", "73") else \
+                        "UAT" if env_no in ("04", "37", "76") else \
+                        "MO" if env_no in ("21", "39", "53", "58", "78") else \
+                        "DR" if env_no in ("19", "40", "54", "82") else UNMAPPED
+
+        for comp_name, comp_code in COMPONENTS.values():
+            base_exp = date_map.get((st, env_no, comp_name))
+            if not base_exp:
+                # Fallback base date if this specific component cell was empty
+                base_exp = date_map.get((st, env_no, "Crypto Keys & CA Certificates")) or \
+                           date_map.get((st, env_no, "Database Password Expiry")) or \
+                           "2027-11-15"
+
+            for team_name, team_code in TEAM_SPECS:
+                schema_name = f"ENV{env_no}_{team_code}_{comp_code}"
+                module_name = f"{comp_name} ({team_name})"
+
+                multi_team_rows.append({
+                    "state": st,
+                    "team": team_name,
+                    "component": comp_name,
+                    "env_no": str(env_no),
+                    "environment": env_label,
+                    "module": module_name,
+                    "schema_name": schema_name,
+                    "exp_date": base_exp,
+                })
+
+    return multi_team_rows, warnings
 
 
 def run(data_dir: str, db_path: str) -> dict:

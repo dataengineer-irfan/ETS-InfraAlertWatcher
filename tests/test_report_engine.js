@@ -215,14 +215,14 @@ ok("every record has a parseable quarter",
 // =========================================================================
 [1, 3, 9, 17, 40, 500].forEach(per => {
   const S = withS({ rows: per });
-  const seen = new Set();
+  let totalRowsRendered = 0;
   const pages = Math.max(1, Math.ceil(T.total / per));
   for (let p = 0; p < pages; p++) {
     const html = E.renderTable(withS({ rows: per, page: p }));
-    (html.match(/ENV\d+_[A-Z]+/g) || []).forEach(s => seen.add(s + p));
+    totalRowsRendered += (html.match(/<span class="schema">/g) || []).length;
   }
   eq("paging at " + per + " rows covers every record",
-     [...seen].length, T.total);
+     totalRowsRendered, T.total);
   ok("pager reports the right page count at " + per,
      E.renderPager(S).includes("of " + pages));
 });

@@ -119,28 +119,21 @@ TEAM_META = {
 }
 
 
-def team_of(schema_name: str, component: str = "", env_no: str | int = "") -> str:
-    """Classify schema/environment into team owner so every team has all 4 components."""
+def team_of(schema_name: str, component: str = "", env_no: str | int = "", team: str | None = None) -> str:
+    """Classify schema/environment into team owner with direct team resolution."""
+    if team and str(team).strip() in TEAMS:
+        return str(team).strip()
     sn = (schema_name or "").upper()
-    if any(k in sn for k in ["COGNOS", "ORR", "MMIS", "COTS_REP"]):
+    if any(k in sn for k in ["CGNS", "COGNOS", "ORR", "MMIS", "COTS_REP", "COTS_CGNS"]):
         return "Cognos"
-    if any(k in sn for k in ["ISIM", "EMAR", "INFA", "ETL"]):
+    if any(k in sn for k in ["INFA", "ISIM", "EMAR", "ETL"]):
         return "Informatica"
-    if any(k in sn for k in ["FADS", "OMNI", "LETTER", "PRINT"]):
+    if any(k in sn for k in ["LTRS", "FADS", "OMNI", "LETTER", "PRINT"]):
         return "Letters"
-    if any(k in sn for k in ["WAS", "TC", "JBOSS", "JVM"]):
+    if any(k in sn for k in ["APPSRV", "WAS", "TC", "JBOSS", "JVM", "APPSERVER"]):
         return "App Server"
-
-    # Environment-based team ownership (ensuring all 4 components exist across all 5 teams)
-    env_str = str(env_no) if env_no else "".join(c for c in sn.split("_")[0] if c.isdigit())
-    if env_str in ["30", "31", "52", "73", "76"]:
-        return "Cognos"
-    if env_str in ["33", "53", "75", "19", "4"]:
-        return "Informatica"
-    if env_str in ["35", "54", "77", "15", "5"]:
-        return "Letters"
-    if env_str in ["37", "38", "57", "78", "21", "82"]:
-        return "App Server"
+    if any(k in sn for k in ["CORE", "DBA", "INFRA", "ORACLE"]):
+        return "Core"
     return "Core"
 
 # --------------------------------------------------------------------------
