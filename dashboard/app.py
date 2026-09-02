@@ -361,52 +361,59 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                 bust_cache()
                 rerun()
 
-    # ---- Operational Maintenance Schedule Manager ----
-    st.markdown("<hr style='border:0;border-top:1px solid #1E293B;margin:18px 0 14px;'>", unsafe_allow_html=True)
-    st.markdown(ui.pick_line(
-        f"Operational Maintenance Windows for {state}",
-        "Manage team recurrence cadences, scheduled days, planned dates, and operational notes"),
-        unsafe_allow_html=True)
 
+def render_state_maintenance_windows(state: str | None = None) -> None:
+    """Renders high-contrast operational maintenance windows synchronized with live team data."""
     conn = get_connection(DB_PATH)
     load_maintenance_schedules_csv(conn, str(ROOT / "config" / "maintenance_schedules.csv"))
     all_schedules = get_maintenance_schedules(conn)
     conn.close()
 
-    state_scheds = [s for s in all_schedules if s.get("state") == state]
-    if state_scheds:
-        sched_df = pd.DataFrame(state_scheds)[["team", "cadence", "days_of_week", "time_window", "frequency_blurb", "next_run_date", "notes"]]
-        sched_editor = st.data_editor(
-            sched_df,
-            key="maint_editor",
-            hide_index=True,
-            use_container_width=True,
-            num_rows="fixed",
-            column_config={
-                "team": st.column_config.TextColumn("Team", disabled=True),
-                "cadence": st.column_config.TextColumn("Cadence", disabled=True),
-                "days_of_week": st.column_config.TextColumn("Maintenance Days (e.g. Sunday,Tuesday,Friday)"),
-                "time_window": st.column_config.TextColumn("Window (UTC)"),
-                "frequency_blurb": st.column_config.TextColumn("Recurrence Pattern"),
-                "next_run_date": st.column_config.TextColumn("Next Planned Date (YYYY-MM-DD)"),
-                "notes": st.column_config.TextColumn("Operational Notes"),
-            }
+    schedules = [s for s in all_schedules if s.get("state") == state] if state else all_schedules
+    if not schedules:
+        return
+
+    today_name = datetime.now().strftime("%A").lower()
+    today_dt = date.today().isoformat()
+
+    title = f"🛠️ Operational Maintenance Windows for {state}" if state else "🛠️ Fleet-Wide Operational Maintenance Windows"
+    subtitle = "Live operational cadences, scheduled days, maintenance hours, and team playbooks."
+
+    rows_html = []
+    for s in schedules:
+        st_code = s.get("state", "")
+        team_name = s.get("team", "")
+        t_meta = ui.TEAM_META.get(team_name, ui.TEAM_META["Core"])
+        days_str = str(s.get("days_of_week", "")).lower()
+        is_today = today_name in days_str or (s.get("next_run_date") == today_dt)
+
+        status_badge = (
+            '<span style="background:rgba(16,185,129,0.2);color:#10b981;border:1px solid rgba(16,185,129,0.5);border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;">🟢 ACTIVE TODAY</span>'
+            if is_today else
+            f'<span style="background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600;">Upcoming ({s.get("next_run_date", "Sun")})</span>'
         )
-        if st.button("💾 Save Maintenance Schedule Changes", key="btn_save_maint", type="primary"):
-            conn = get_connection(DB_PATH)
-            for _, row in sched_editor.iterrows():
-                update_maintenance_schedule(
-                    conn,
-                    state=state,
-                    team=row["team"],
-                    days_of_week=str(row["days_of_week"]),
-                    next_run_date=str(row["next_run_date"]),
-                    notes=str(row.get("notes", "") or "")
-                )
-            conn.close()
-            bust_cache()
-            st.success(f"✓ Operational maintenance schedule for {state} saved successfully.")
-            rerun()
+
+        state_cell = f"<td class='m' style='font-weight:700;'>{st_code}</td>" if not state else ""
+
+        rows_html.append(
+            f"<tr style='{'background:rgba(16,185,129,0.06);' if is_today else ''}'>"
+            f"{state_cell}"
+            f"<td class='m' style='color:{t_meta['color']};font-weight:700;'>{team_name}</td>"
+            f"<td style='color:#f8fafc;font-size:11.5px;'>{s.get('frequency_blurb', '')}</td>"
+            f"<td class='m' style='font-size:11px;'>{s.get('days_of_week', '')}</td>"
+            f"<td class='m' style='color:var(--slate);font-size:11px;'><code>{s.get('time_window', '')}</code></td>"
+            f"<td class='m' style='font-size:11px;'>{s.get('next_run_date', '')}</td>"
+            f"<td>{status_badge}</td>"
+            f"<td style='font-size:11px;color:#94a3b8;max-width:300px;'>{s.get('notes', '')}</td>"
+            f"</tr>"
+        )
+
+    state_th = "<th>State</th>" if not state else ""
+    head = f"<tr>{state_th}<th>Team</th><th>Recurrence Cadence</th><th>Maintenance Days</th><th>Window (UTC)</th><th>Next Planned Date</th><th>Status</th><th>Operational Notes</th></tr>"
+
+    with st.expander(f"{title} ({len(schedules)} Schedules)", expanded=(state is not None)):
+        st.markdown(f"<div style='font-size:11.5px;color:#94a3b8;margin-bottom:8px;'>{subtitle}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='border:1px solid var(--rule);border-radius:7px;overflow:hidden;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
 
 
 # ==========================================================================
@@ -970,7 +977,7 @@ with tab_state:
                       type="primary" if chosen == state else "secondary",
                       use_container_width=True):
             st.session_state["st_state"] = None if chosen == state else state
-            for key in ("mg_q", "mg_team", "mg_comp", "mg_health", "mg_window", "mg_editor", "mg_revert", "maint_editor", "btn_save_maint"):
+            for key in ("mg_q", "mg_team", "mg_comp", "mg_health", "mg_window", "mg_editor", "mg_revert"):
                 st.session_state.pop(key, None)
             rerun()
 

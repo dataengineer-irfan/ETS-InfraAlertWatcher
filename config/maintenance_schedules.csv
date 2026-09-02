@@ -11,3 +11,6 @@ ND,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Java contai
 AK,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,FADS template cache reindex and queue drainage
 NH,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,Print spooler maintenance and font library sync
 ND,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,Monthly batch correspondence engine cold restart
+AK,Core,monthly,1st Sunday,00:00-04:00,Monthly (1st Sunday),2026-09-06,Oracle database archive log compression and cold backup
+NH,Core,quarterly,1st Sunday,00:00-06:00,Quarterly on Sundays,2026-10-04,Enterprise storage firmware update and database index reorg
+ND,Core,monthly,1st Sunday,00:00-04:00,Monthly (1st Sunday),2026-09-06,Core database parameter tuning and tablespace defrag

@@ -53,7 +53,7 @@ def load() -> pd.DataFrame:
     df["quarter"] = ("Q" + df["exp_dt"].dt.quarter.astype(str)
                      + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
-    df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", "")), axis=1)
+    df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", ""), r.get("env_no", "")), axis=1)
     return df
 
 
