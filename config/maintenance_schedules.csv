@@ -1,16 +1,126 @@
-state,team,cadence,days_of_week,time_window,frequency_blurb,next_run_date,notes
-AK,Cognos,thrice_weekly,"Sunday,Tuesday,Friday",22:00-02:00,Thrice a week (Sun / Tue / Fri),2026-09-06,Automated dispatcher restart & report content store cache cleanup
-NH,Cognos,monthly,1st Sunday,20:00-04:00,Monthly (1st Sunday),2026-09-06,Monthly OS patching and reporting service health check
-ND,Cognos,bi_weekly,Sunday,22:00-02:00,Bi-weekly on Sundays,2026-09-13,Bi-weekly Cognos query server bounce and log rotation
-AK,Informatica,weekly,Sunday,01:00-05:00,Weekly on Sundays,2026-09-06,PowerCenter node restart & staging table index optimize
-NH,Informatica,bi_weekly,Sunday,01:00-05:00,Bi-weekly on Sundays,2026-09-13,ETL repository cleanup and session log archive
-ND,Informatica,monthly,1st Sunday,01:00-05:00,Monthly on Sundays,2026-09-06,Monthly data pipeline cold restart and integrity audit
-AK,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Java heap dump flush & container rolling bounce
-NH,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Tomcat / WebSphere container recycling & JVM health audit
-ND,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Java container maintenance and SSL keystore reload
-AK,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,FADS template cache reindex and queue drainage
-NH,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,Print spooler maintenance and font library sync
-ND,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,Monthly batch correspondence engine cold restart
-AK,Core,monthly,1st Sunday,00:00-04:00,Monthly (1st Sunday),2026-09-06,Oracle database archive log compression and cold backup
-NH,Core,quarterly,1st Sunday,00:00-06:00,Quarterly on Sundays,2026-10-04,Enterprise storage firmware update and database index reorg
-ND,Core,monthly,1st Sunday,00:00-04:00,Monthly (1st Sunday),2026-09-06,Core database parameter tuning and tablespace defrag
+state,env_no,environment,team,cadence,days_of_week,time_window,frequency_blurb,next_run_date,notes
+AK,30,PROD,Cognos,monthly,Sunday,01:00-05:00,Monthly (1st Sun),2026-09-06,Production Cognos reporting services bounce & cache purge
+AK,30,PROD,Informatica,monthly,Sunday,01:00-05:00,Monthly (1st Sun),2026-09-06,Production PowerCenter cold restart & ETL integrity audit
+AK,30,PROD,Letters,monthly,Sunday,02:00-05:00,Monthly (1st Sun),2026-09-06,Production correspondence template cache sync
+AK,30,PROD,App Server,monthly,Sunday,02:00-06:00,Monthly (1st Sun),2026-09-06,Production JVM heap dump audit and rolling container bounce
+AK,30,PROD,Core,monthly,Sunday,00:00-04:00,Monthly (1st Sun),2026-09-06,Production database parameter tuning and archive log compression
+AK,31,DEV,Cognos,weekly,"Sunday,Tuesday,Friday",18:00-22:00,Thrice a week (Sun/Tue/Fri),2026-09-06,Dev dispatcher recycle and catalog refresh
+AK,31,DEV,Informatica,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,Dev workflow staging refresh
+AK,31,DEV,Letters,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,Dev letter formatting sandbox sync
+AK,31,DEV,App Server,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,Dev Java container recycling
+AK,31,DEV,Core,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,Dev database schema snapshot & cleanup
+AK,33,DEV,Cognos,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,Secondary dev instance maintenance
+AK,33,DEV,Informatica,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,ETL repository session cache flush
+AK,33,DEV,Letters,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,Print spooler dev sandbox reload
+AK,33,DEV,App Server,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,Tomcat JVM thread pool reset
+AK,33,DEV,Core,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,Database table analyze and index stats
+AK,35,SIT,Cognos,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,Test environment content store verification
+AK,35,SIT,Informatica,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,Integration test workflow pipeline sync
+AK,35,SIT,Letters,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,FADS batch letter engine test cycle
+AK,35,SIT,App Server,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,Integration test JVM rolling bounce
+AK,35,SIT,Core,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,SIT database table index reorganization
+AK,37,MO,Cognos,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,Model office pre-release report validation
+AK,37,MO,Informatica,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,Model office data pipeline certification
+AK,37,MO,Letters,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,Model office correspondence drainage test
+AK,37,MO,App Server,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,Model office application container sync
+AK,37,MO,Core,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,Model office database baseline clone
+AK,38,SIT,Cognos,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,System test reporting node bounce
+AK,38,SIT,Informatica,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,SIT ETL batch engine validation
+AK,38,SIT,Letters,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,SIT letter spooler drainage
+AK,38,SIT,App Server,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,SIT WebSphere container restart
+AK,38,SIT,Core,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,SIT tablespace expansion & log flush
+AK,39,DR,Cognos,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR standby Cognos dispatcher sync
+AK,39,DR,Informatica,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR standby ETL replication check
+AK,39,DR,Letters,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR template mirror verification
+AK,39,DR,App Server,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR standby application container health check
+AK,39,DR,Core,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR DataGuard standby database sync
+AK,40,DR,Cognos,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,Secondary DR node heartbeat check
+AK,40,DR,Informatica,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,Secondary DR pipeline failover test
+AK,40,DR,Letters,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,Secondary DR letter queue drainage
+AK,40,DR,App Server,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,Secondary DR container cold restart
+AK,40,DR,Core,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,Secondary DR database backup validation
+NH,4,UAT,Cognos,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,UAT Cognos release validation bounce
+NH,4,UAT,Informatica,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,UAT ETL batch run & audit
+NH,4,UAT,Letters,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,UAT user correspondence sign-off cycle
+NH,4,UAT,App Server,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,UAT Tomcat/JVM restart
+NH,4,UAT,Core,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,UAT database snapshot reload
+NH,5,PROD,Cognos,monthly,Sunday,01:00-05:00,Monthly (1st Sun),2026-09-06,Production Cognos high-availability cluster restart
+NH,5,PROD,Informatica,monthly,Sunday,01:00-05:00,Monthly (1st Sun),2026-09-06,Production Informatica PowerCenter maintenance
+NH,5,PROD,Letters,monthly,Sunday,03:00-06:00,Monthly (1st Sun),2026-09-06,Production correspondence queue purge
+NH,5,PROD,App Server,monthly,Sunday,02:00-06:00,Monthly (1st Sun),2026-09-06,Production Java cluster rolling bounce
+NH,5,PROD,Core,quarterly,Sunday,00:00-06:00,Quarterly (1st Sun),2026-10-04,Production enterprise storage firmware & DB reorg
+NH,15,DR,Cognos,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR reporting failover drill
+NH,15,DR,Informatica,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR ETL pipeline standby verification
+NH,15,DR,Letters,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR letter queue replication sync
+NH,15,DR,App Server,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR JVM health verification
+NH,15,DR,Core,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,DR Oracle DataGuard replication check
+NH,52,DEV,Cognos,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,NH Dev Cognos dispatcher recycling
+NH,52,DEV,Informatica,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,NH Dev ETL workflow staging reset
+NH,52,DEV,Letters,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,NH Dev letter templates sync
+NH,52,DEV,App Server,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,NH Dev Java container recycling
+NH,52,DEV,Core,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,NH Dev database clean-up
+NH,53,SIT,Cognos,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,NH SIT Cognos report testing bounce
+NH,53,SIT,Informatica,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,NH SIT ETL batch execution verification
+NH,53,SIT,Letters,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,NH SIT print spooler sync
+NH,53,SIT,App Server,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,NH SIT container rolling restart
+NH,53,SIT,Core,bi_weekly,Thursday,19:00-23:00,Bi-weekly on Thu,2026-09-10,NH SIT index rebuilding
+NH,54,DEV,Cognos,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,NH Dev sprint release bounce
+NH,54,DEV,Informatica,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,NH Dev data pipeline test run
+NH,54,DEV,Letters,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,NH Dev correspondence engine reload
+NH,54,DEV,App Server,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,NH Dev JVM thread reset
+NH,54,DEV,Core,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,NH Dev table analyze and stats
+NH,57,SIT,Cognos,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,NH SIT secondary report service bounce
+NH,57,SIT,Informatica,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,NH SIT data warehouse refresh
+NH,57,SIT,Letters,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,NH SIT template repository sync
+NH,57,SIT,App Server,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,NH SIT Tomcat container bounce
+NH,57,SIT,Core,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,NH SIT schema index optimization
+NH,58,MO,Cognos,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,NH MO pre-production reporting audit
+NH,58,MO,Informatica,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,NH MO staging ETL validation
+NH,58,MO,Letters,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,NH MO letter queue drain
+NH,58,MO,App Server,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,NH MO Java heap dump check
+NH,58,MO,Core,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,NH MO database consistency check
+NH,82,DR,Cognos,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,NH DR standby dispatcher bounce
+NH,82,DR,Informatica,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,NH DR ETL synchronization check
+NH,82,Letters,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,NH DR letter template backup sync
+NH,82,App Server,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,NH DR JVM container test restart
+NH,82,Core,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,NH DR standby DB parameter sync
+ND,16,DR,Cognos,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,ND DR Cognos failover test
+ND,16,DR,Informatica,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,ND DR ETL standby heartbeat
+ND,16,DR,Letters,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,ND DR print queue sync
+ND,16,DR,App Server,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,ND DR container cold bounce
+ND,16,DR,Core,monthly,Saturday,22:00-02:00,Monthly (1st Sat),2026-09-05,ND DR DataGuard standby sync
+ND,19,DR,Cognos,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,ND secondary DR reporting test
+ND,19,DR,Informatica,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,ND secondary DR pipeline validation
+ND,19,DR,Letters,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,ND secondary DR letter queue drainage
+ND,19,DR,App Server,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,ND secondary DR application container sync
+ND,19,DR,Core,monthly,Saturday,00:00-04:00,Monthly (1st Sat),2026-09-05,ND secondary DR database clone check
+ND,21,MO,Cognos,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,ND MO reporting performance audit
+ND,21,MO,Informatica,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,ND MO data staging pipeline verification
+ND,21,MO,Letters,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,ND MO letter batch certification
+ND,21,MO,App Server,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,ND MO container rolling bounce
+ND,21,MO,Core,monthly,Friday,21:00-01:00,Monthly (1st Fri),2026-09-04,ND MO database parameter tune
+ND,73,DEV,Cognos,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,ND Dev Cognos dispatcher recycle
+ND,73,DEV,Informatica,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,ND Dev ETL session cache clear
+ND,73,DEV,Letters,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,ND Dev letter engine reload
+ND,73,DEV,App Server,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,ND Dev Tomcat thread reset
+ND,73,DEV,Core,weekly,Monday,18:00-22:00,Weekly on Mon,2026-09-07,ND Dev database vacuum & reindex
+ND,75,DEV,Cognos,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,ND Dev secondary instance bounce
+ND,75,DEV,Informatica,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,ND Dev pipeline regression test
+ND,75,DEV,Letters,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,ND Dev template sandbox sync
+ND,75,DEV,App Server,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,ND Dev JVM memory flush
+ND,75,DEV,Core,weekly,Tuesday,18:00-22:00,Weekly on Tue,2026-09-08,ND Dev database backup snapshot
+ND,76,SIT,Cognos,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,ND SIT reporting validation
+ND,76,SIT,Informatica,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,ND SIT data flow check
+ND,76,SIT,Letters,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,ND SIT correspondence batch sync
+ND,76,SIT,App Server,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,ND SIT WebSphere container bounce
+ND,76,SIT,Core,bi_weekly,Wednesday,19:00-23:00,Bi-weekly on Wed,2026-09-09,ND SIT table index reorg
+ND,77,UAT,Cognos,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,ND UAT release test bounce
+ND,77,UAT,Informatica,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,ND UAT ETL batch verification
+ND,77,UAT,Letters,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,ND UAT letter format sign-off
+ND,77,UAT,App Server,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,ND UAT application cluster restart
+ND,77,UAT,Core,monthly,Thursday,20:00-00:00,Monthly (1st Thu),2026-09-03,ND UAT database refresh
+ND,78,MO,Cognos,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,ND MO pre-prod report verification
+ND,78,MO,Informatica,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,ND MO ETL staging pipeline test
+ND,78,MO,Letters,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,ND MO print queue drain
+ND,78,MO,App Server,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,ND MO JVM thread pool reset
+ND,78,MO,Core,monthly,Friday,20:00-00:00,Monthly (1st Fri),2026-09-04,ND MO database stats analyze

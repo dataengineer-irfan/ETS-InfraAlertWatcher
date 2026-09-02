@@ -111,6 +111,8 @@ CREATE INDEX IF NOT EXISTS idx_metric_snapshot_scope
 CREATE TABLE IF NOT EXISTS maintenance_schedules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     state TEXT NOT NULL,
+    env_no TEXT NOT NULL DEFAULT '',
+    environment TEXT NOT NULL DEFAULT '',
     team TEXT NOT NULL,
     cadence TEXT NOT NULL,
     days_of_week TEXT NOT NULL,
@@ -120,7 +122,7 @@ CREATE TABLE IF NOT EXISTS maintenance_schedules (
     notes TEXT,
     last_run_at TEXT,
     updated_at TEXT,
-    UNIQUE(state, team)
+    UNIQUE(state, env_no, team)
 );
 """
 
@@ -137,6 +139,13 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     cols = [col[1] for col in conn.execute("PRAGMA table_info(component_records)").fetchall()]
     if "team" not in cols:
         conn.execute("ALTER TABLE component_records ADD COLUMN team TEXT NOT NULL DEFAULT 'Core';")
+        conn.commit()
+
+    # Migrate maintenance_schedules table if env_no column missing
+    m_cols = [col[1] for col in conn.execute("PRAGMA table_info(maintenance_schedules)").fetchall()]
+    if "env_no" not in m_cols:
+        conn.execute("DROP TABLE IF EXISTS maintenance_schedules;")
+        conn.executescript(SCHEMA)
         conn.commit()
 
     conn.commit()
@@ -395,11 +404,14 @@ def load_maintenance_schedules_csv(conn: sqlite3.Connection, csv_path: str) -> i
         rows = list(csv.DictReader(f))
     now = datetime.now(timezone.utc).isoformat()
     for r in rows:
+        env_no = str(r.get("env_no", "")).strip()
+        env_lbl = str(r.get("environment", "")).strip()
         conn.execute(
             """
-            INSERT INTO maintenance_schedules (state, team, cadence, days_of_week, time_window, frequency_blurb, next_run_date, notes, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(state, team) DO UPDATE SET
+            INSERT INTO maintenance_schedules (state, env_no, environment, team, cadence, days_of_week, time_window, frequency_blurb, next_run_date, notes, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(state, env_no, team) DO UPDATE SET
+                environment = excluded.environment,
                 cadence = excluded.cadence,
                 days_of_week = excluded.days_of_week,
                 time_window = excluded.time_window,
@@ -408,7 +420,7 @@ def load_maintenance_schedules_csv(conn: sqlite3.Connection, csv_path: str) -> i
                 notes = coalesce(maintenance_schedules.notes, excluded.notes),
                 updated_at = excluded.updated_at;
             """,
-            (r["state"], r["team"], r["cadence"], r["days_of_week"], r["time_window"], r["frequency_blurb"], r.get("next_run_date"), r.get("notes"), now)
+            (r["state"], env_no, env_lbl, r["team"], r["cadence"], r["days_of_week"], r["time_window"], r["frequency_blurb"], r.get("next_run_date"), r.get("notes"), now)
         )
     conn.commit()
     return len(rows)
@@ -416,20 +428,20 @@ def load_maintenance_schedules_csv(conn: sqlite3.Connection, csv_path: str) -> i
 
 def get_maintenance_schedules(conn: sqlite3.Connection) -> list[dict]:
     """Fetch all configured maintenance schedules as dictionaries."""
-    rows = conn.execute("SELECT * FROM maintenance_schedules ORDER BY state, team").fetchall()
+    rows = conn.execute("SELECT * FROM maintenance_schedules ORDER BY state, CAST(env_no AS INTEGER), team").fetchall()
     return [dict(r) for r in rows]
 
 
-def update_maintenance_schedule(conn: sqlite3.Connection, state: str, team: str, days_of_week: str, next_run_date: str, notes: str) -> bool:
+def update_maintenance_schedule(conn: sqlite3.Connection, state: str, env_no: str, team: str, days_of_week: str, next_run_date: str, notes: str) -> bool:
     """Update operator-managed maintenance schedule fields."""
     now = datetime.now(timezone.utc).isoformat()
     cursor = conn.execute(
         """
         UPDATE maintenance_schedules
         SET days_of_week = ?, next_run_date = ?, notes = ?, updated_at = ?
-        WHERE state = ? AND team = ?;
+        WHERE state = ? AND env_no = ? AND team = ?;
         """,
-        (days_of_week, next_run_date, notes, now, state, team)
+        (days_of_week, next_run_date, notes, now, state, env_no, team)
     )
     conn.commit()
     return cursor.rowcount > 0
