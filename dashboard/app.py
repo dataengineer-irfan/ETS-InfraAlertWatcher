@@ -370,7 +370,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
         sched_df = pd.DataFrame(state_scheds)[["team", "cadence", "days_of_week", "time_window", "frequency_blurb", "next_run_date", "notes"]]
         sched_editor = st.data_editor(
             sched_df,
-            key=f"maint_editor_{state}",
+            key="maint_editor",
             hide_index=True,
             use_container_width=True,
             num_rows="fixed",
@@ -384,7 +384,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                 "notes": st.column_config.TextColumn("Operational Notes"),
             }
         )
-        if st.button("💾 Save Maintenance Schedule Changes", key=f"btn_save_maint_{state}", type="primary"):
+        if st.button("💾 Save Maintenance Schedule Changes", key="btn_save_maint", type="primary"):
             conn = get_connection(DB_PATH)
             for _, row in sched_editor.iterrows():
                 update_maintenance_schedule(
@@ -900,7 +900,7 @@ with tab_state:
                       type="primary" if chosen == state else "secondary",
                       use_container_width=True):
             st.session_state["st_state"] = None if chosen == state else state
-            for key in ("mg_q", "mg_comp", "mg_editor", "mg_revert"):
+            for key in ("mg_q", "mg_comp", "mg_editor", "mg_revert", "maint_editor", "btn_save_maint"):
                 st.session_state.pop(key, None)
             rerun()
 

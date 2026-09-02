@@ -165,30 +165,36 @@ body{
 
 /* ---- header / unified command bar ----------------------------------- */
 .head{
-  display:flex; flex-direction:column; gap:2px; flex:none;
+  display:flex; flex-direction:column; gap:3px; flex:none;
   background:var(--card); border-radius:7px; box-shadow:var(--shadow);
-  padding:4px 8px; min-width:0; overflow:hidden;
+  padding:3px 8px; min-width:0; overflow:hidden;
 }
 .head-row{
-  display:flex; align-items:center; gap:6px; width:100%; min-width:0; overflow:hidden;
+  display:flex; align-items:center; gap:6px; width:100%; min-width:0;
+}
+.head-top{
+  justify-content:space-between;
+}
+.head-bottom{
+  align-items:center;
 }
 .brand{ display:flex; align-items:baseline; gap:5px; flex:none; }
-.brand h1{ margin:0; font-size:12.5px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; }
+.brand h1{ margin:0; font-size:12px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; }
 .brand .where{
-  font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.04em;
+  font-family:var(--mono); font-size:8.5px; font-weight:600; letter-spacing:.04em;
   text-transform:uppercase; color:var(--accent); background:var(--accent-tint);
   border:1px solid var(--accent-line); border-radius:4px; padding:1px 4px; white-space:nowrap;
 }
 
-/* ---- Cascading Filter Bar & Intelligence Strip (2026 Edition) -------- */
+/* Cascading Filter Bar & Intelligence Strip (2026 Edition) */
 .cascade-bar{
   display:inline-flex; align-items:center; gap:4px; flex:none;
 }
 .cascade-pill{
   position:relative; display:inline-flex; align-items:center;
-  background:var(--sunk); border:1px solid var(--rule); border-radius:5px;
-  padding:1px 6px 1px 6px; font-size:9.5px; font-weight:600; color:var(--slate);
-  transition:all .12s ease; cursor:pointer;
+  background:var(--sunk); border:1px solid var(--rule); border-radius:4px;
+  padding:1px 5px; font-size:9px; font-weight:600; color:var(--slate);
+  transition:all .12s ease; cursor:pointer; line-height:1.2;
 }
 .cascade-pill:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
 .cascade-pill.active{
@@ -196,8 +202,8 @@ body{
 }
 .cascade-pill select{
   appearance:none; -webkit-appearance:none; background:transparent; border:none;
-  color:inherit; font:inherit; font-size:9.5px; font-weight:600; cursor:pointer;
-  outline:none; padding-right:10px; margin:0;
+  color:inherit; font:inherit; font-size:9px; font-weight:600; cursor:pointer;
+  outline:none; padding-right:8px; margin:0;
 }
 .cascade-pill select option{
   background:#0F172A; color:#F8FAFC; font-family:var(--ui);
@@ -209,8 +215,8 @@ body{
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .intel-chip{
-  display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px;
-  font-size:9.5px; line-height:1.2; white-space:nowrap; flex:none;
+  display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:4px;
+  font-size:9px; line-height:1.2; white-space:nowrap; flex:none;
   transition:all .15s ease;
 }
 .intel-chip.maint{
@@ -226,10 +232,10 @@ body{
   background:rgba(16,185,129,0.14); color:#10B981; border:1px solid rgba(16,185,129,0.3);
 }
 .intel-chip b{ font-weight:700; color:inherit; }
-.intel-chip .sub{ color:var(--slate); font-size:8.5px; font-family:var(--mono); margin-left:3px; }
+.intel-chip .sub{ color:var(--slate); font-size:8px; font-family:var(--mono); margin-left:2px; }
 
 .pulse-dot{
-  width:6px; height:6px; border-radius:50%; background:#38BDF8; display:inline-block;
+  width:5px; height:5px; border-radius:50%; background:#38BDF8; display:inline-block;
   box-shadow:0 0 0 rgba(56,189,248, 0.7); animation:pulse 1.8s infinite; flex:none;
 }
 .pulse-dot.red{ background:#EF4444; box-shadow:0 0 0 rgba(239,68,68,0.7); }
@@ -237,50 +243,49 @@ body{
 .pulse-dot.green{ background:#10B981; box-shadow:0 0 0 rgba(16,185,129,0.7); }
 @keyframes pulse{
   0%{ box-shadow:0 0 0 0 rgba(56,189,248,0.7); }
-  70%{ box-shadow:0 0 0 6px rgba(56,189,248,0); }
+  70%{ box-shadow:0 0 0 5px rgba(56,189,248,0); }
   100%{ box-shadow:0 0 0 0 rgba(56,189,248,0); }
 }
 
 .story-btn{
-  font:inherit; font-size:9.5px; font-weight:600; color:var(--accent);
-  background:var(--accent-tint); border:1px solid var(--accent-line); border-radius:5px;
-  padding:2px 7px; cursor:pointer; white-space:nowrap; flex:none;
-  transition:all .12s ease; display:inline-flex; align-items:center; gap:3px;
+  font:inherit; font-size:9px; font-weight:600; color:var(--accent);
+  background:var(--accent-tint); border:1px solid var(--accent-line); border-radius:4px;
+  padding:1px 6px; cursor:pointer; white-space:nowrap; flex:none;
+  transition:all .12s ease; display:inline-flex; align-items:center; gap:3px; line-height:1.2;
 }
 .story-btn:hover{ background:var(--accent); color:#000; }
 
-.asof{ font-family:var(--mono); font-size:8.5px; color:var(--slate); text-align:right;
+.asof{ font-family:var(--mono); font-size:8px; color:var(--slate); text-align:right;
        line-height:1.2; flex:none; white-space:nowrap; }
 .asof b{ color:var(--ink); font-weight:600; }
 
 .crumbs{
-  display:flex; align-items:center; gap:5px; width:100%; min-width:0; overflow:hidden;
-  border-top:1px solid rgba(56,189,248,0.2); background:rgba(15,23,42,0.8);
-  border-radius:5px; padding:2px 6px; margin-top:2px;
+  display:inline-flex; align-items:center; gap:4px; flex:1 1 auto; min-width:0;
+  overflow:hidden; white-space:nowrap;
 }
 .crumbs:has(.none){ display:none; }
 .crumbs .lead{
-  font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  font-family:var(--mono); font-size:8px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
   color:#38bdf8; flex:none; margin-right:2px;
 }
-.crumbs .none{ font-size:9.5px; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.crumbs .none{ font-size:8.5px; color:var(--slate); }
 .cx{
-  display:inline-flex; align-items:center; gap:4px; flex:none;
+  display:inline-flex; align-items:center; gap:3px; flex:none;
   background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.35); color:#38bdf8;
-  border-radius:4px; padding:1px 5px; font-size:9.5px; white-space:nowrap;
-  font:inherit; cursor:pointer; transition:all .12s ease;
+  border-radius:4px; padding:0 4px; font-size:8.5px; white-space:nowrap;
+  font:inherit; cursor:pointer; transition:all .12s ease; line-height:1.2;
 }
 .cx:hover{
   background:rgba(239,68,68,0.22); border-color:rgba(239,68,68,0.5); color:#ef4444;
 }
-.cx u{ text-decoration:none; color:#94a3b8; font-size:8px; letter-spacing:.06em; text-transform:uppercase; }
+.cx u{ text-decoration:none; color:#94a3b8; font-size:7.5px; letter-spacing:.06em; text-transform:uppercase; }
 .cx b{ font-family:var(--mono); font-weight:600; color:#f8fafc; }
-.cx s{ text-decoration:none; font-size:11px; line-height:1; color:#38bdf8; font-weight:700; padding-left:2px; }
+.cx s{ text-decoration:none; font-size:10px; line-height:1; color:#38bdf8; font-weight:700; padding-left:1px; }
 .cx:hover s{ color:#ef4444; }
 .cx-clear-all, .crumbs button[data-act="reset"]{
-  font:inherit; font-family:var(--mono); font-size:8.5px; font-weight:700; color:#ef4444;
+  font:inherit; font-family:var(--mono); font-size:8px; font-weight:700; color:#ef4444;
   background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); border-radius:4px;
-  padding:1px 6px; cursor:pointer; margin-left:auto; white-space:nowrap;
+  padding:0 5px; cursor:pointer; margin-left:auto; white-space:nowrap; line-height:1.2;
   transition:all .12s ease;
 }
 .cx-clear-all:hover, .crumbs button[data-act="reset"]:hover{
@@ -288,7 +293,7 @@ body{
 }
 
 .views{ display:flex; align-items:center; gap:3px; flex:none; }
-.views .lead{ font-size:8.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+.views .lead{ font-size:8px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
               color:var(--mute); margin-right:1px; }
 
 /* Maintenance Cadence Visualizer */
@@ -670,16 +675,18 @@ body{
 _BODY = r"""
 <div class="shell" id="mShell">
   <div class="head">
-    <div class="head-row">
+    <div class="head-row head-top">
       <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
-      <div class="cascade-bar" id="mCascades"></div>
       <div class="intel-strip" id="mAlertBanner"></div>
-      <div class="search-bar" id="mSearch"></div>
       <div class="views" id="mViews"></div>
       <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
       <div class="asof" id="mAsOf"></div>
     </div>
-    <div class="crumbs" id="mCrumbs"></div>
+    <div class="head-row head-bottom">
+      <div class="cascade-bar" id="mCascades"></div>
+      <div class="search-bar" id="mSearch"></div>
+      <div class="crumbs" id="mCrumbs"></div>
+    </div>
   </div>
 
   <div class="kpis" id="mKpis"></div>
