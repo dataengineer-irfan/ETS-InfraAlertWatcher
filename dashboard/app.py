@@ -417,7 +417,7 @@ def render_state_maintenance_windows(state: str | None = None) -> None:
 
 
 # ==========================================================================
-# View 3: Master-Detail Inspector Hub (Prompt #2)
+# View 3: Master-Detail Inspector Hub (Interactive Bi-Directional Binding)
 # ==========================================================================
 def render_master_detail(df: pd.DataFrame) -> None:
     left_col, _, right_col = st.columns([1.8, 0.04, 2.2])
@@ -458,13 +458,29 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 f"#{r.id} · {r.state} · {r.team} · {r.schema_name} ({r.env_label}) · {ui.fmt_date(r.exp_date)} [{r.band}]": r.id
                 for r in filtered.itertuples()
             }
+            
+            # Retrieve currently active entity id from session state or default to first
+            cur_active_id = st.session_state.get("md_active_id")
+            if cur_active_id not in filtered["id"].values:
+                cur_active_id = int(filtered.iloc[0]["id"])
+                st.session_state["md_active_id"] = cur_active_id
+
+            # Find matching label for selectbox
+            default_index = 0
+            for idx, (lbl, rid) in enumerate(record_options.items()):
+                if rid == cur_active_id:
+                    default_index = idx
+                    break
+
             selected_label = st.selectbox(
                 "Active Entity Inspector Target",
                 list(record_options),
+                index=default_index,
                 key="md_select_record",
                 label_visibility="collapsed",
             )
             selected_id = record_options[selected_label]
+            st.session_state["md_active_id"] = selected_id
 
             # High-contrast entity count status bar
             st.markdown(f"""
@@ -478,25 +494,33 @@ def render_master_detail(df: pd.DataFrame) -> None:
             </div>
             """, unsafe_allow_html=True)
 
-            table_rows = []
-            for r in filtered.head(20).itertuples():
+            # Interactive master list with instant row click buttons
+            st.markdown("<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;margin-bottom:8px;'>", unsafe_allow_html=True)
+            for r in filtered.head(25).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
                 t_color = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
                 is_active = (r.id == selected_id)
-                bg_active = "background:rgba(56,189,248,0.14);box-shadow:inset 2px 0 0 #38bdf8;" if is_active else ""
-                table_rows.append(
-                    f"<tr style='{bg_active}'>"
-                    f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
-                    f"<td class='m' style='font-weight:600;'>{r.state}</td>"
-                    f"<td class='m'><span class='env-tag' style='background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;'>{r.team}</span></td>"
-                    f"<td class='m' style='font-weight:{'700' if is_active else '400'};'>{r.schema_name}</td>"
-                    f"<td class='m'><span class='env-tag'>{r.env_label}</span></td>"
-                    f"<td class='m'>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
-                    f"<td class='m r' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
-                    f"</tr>"
-                )
-            head = "<tr><th></th><th>State</th><th>Team</th><th>Schema Name</th><th>Env</th><th>Comp</th><th class='r'>Remaining</th></tr>"
-            st.markdown(f"<div style='max-height:400px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;'><table class='tblx'>{head}{''.join(table_rows)}</table></div>", unsafe_allow_html=True)
+                bg_active = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;" if is_active else "background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);"
+                
+                c_row1, c_row2 = st.columns([4, 1])
+                with c_row1:
+                    st.markdown(f"""
+                    <div style="{bg_active};border-radius:5px;padding:5px 8px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+                      <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
+                        <span style="color:{meta['color']};font-weight:700;">{meta['symbol']}</span>
+                        <span style="font-weight:700;color:#f8fafc;font-size:11.5px;">{r.state}</span>
+                        <span class="env-tag" style="background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;font-size:9.5px;">{r.team}</span>
+                        <span style="font-family:var(--mono);font-size:11px;font-weight:{'700' if is_active else '500'};color:{'#38bdf8' if is_active else '#f8fafc'};">{r.schema_name}</span>
+                        <span class="env-tag" style="font-size:9px;">{r.env_label}</span>
+                      </div>
+                      <span style="color:{meta['color']};font-weight:700;font-size:11px;font-family:var(--mono);flex:none;margin-left:6px;">{ui.fmt_days(r.days_left)}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with c_row2:
+                    if st.button("Inspect", key=f"md_row_btn_{r.id}", type="primary" if is_active else "secondary", use_container_width=True):
+                        st.session_state["md_active_id"] = r.id
+                        rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with right_col:
         if selected_id is None:
@@ -947,80 +971,90 @@ def render_governance_center() -> None:
             rerun()
 
     with g_col2:
-        st.markdown('<div class="eyebrow" style="margin-top:0;">Multi-Team Alert Routing Directory</div>', unsafe_allow_html=True)
-        team_routes = [
-            ("Cognos", "Cognos BI Operations", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)"),
-            ("Informatica", "Informatica ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays"),
-            ("Letters", "Letters Correspondence", "letters-ops@example.com", "#34D399", "Monthly (1st Sun)"),
-            ("App Server", "Java Containers & JVM", "appserver-admin@example.com", "#FBBF24", "Weekly on Sundays"),
-            ("Core", "Core DB & Infrastructure", "core-dba@example.com", "#38BDF8", "Quarterly Maintenance"),
-        ]
-        route_rows = "".join(
-            f"<tr><td class='m' style='color:{color};font-weight:700;'>{team}</td>"
-            f"<td style='color:#f8fafc;font-size:11.5px;'>{lead}</td>"
-            f"<td class='m' style='font-size:11px;'><code>{email}</code></td>"
-            f"<td style='font-size:10.5px;color:var(--slate);'>{cadence}</td></tr>"
-            for team, lead, email, color, cadence in team_routes
-        )
-        st.markdown(f"""
-        <div class="card" style="margin-bottom:12px;">
-          <table class="tblx">
-            <tr><th>Team</th><th>Functional Lead</th><th>Notification Recipient</th><th>Cadence</th></tr>
-            {route_rows}
-          </table>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="eyebrow" style="margin-top:0;">Interactive Email Alert Simulator</div>', unsafe_allow_html=True)
+        st.markdown('<div class="note">Dynamically preview alert notifications for any state, team, and environment:</div>', unsafe_allow_html=True)
 
-        st.markdown('<div class="eyebrow">Email Alert Engine & Dispatch Simulator</div>', unsafe_allow_html=True)
+        sim_c1, sim_c2 = st.columns(2)
+        sim_st = sim_c1.selectbox("Simulate State", STATES, key="sim_state", label_visibility="collapsed")
+        sim_tm = sim_c2.selectbox("Simulate Team", ui.TEAMS, key="sim_team", label_visibility="collapsed")
+
+        # Query matching live records
         conn = get_connection(DB_PATH)
-        due_alerts = get_due_reminders(conn, threshold_days=ui.CRITICAL_DAYS)
+        cur_sim = conn.execute(
+            "SELECT * FROM component_records WHERE state = ? AND team = ? ORDER BY CAST(env_no AS INTEGER)",
+            (sim_st, sim_tm)
+        ).fetchall()
+        sim_recs = [dict(r) for r in cur_sim]
         conn.close()
 
-        if due_alerts:
-            st.markdown(ui.note(
-                f"<b>{len(due_alerts)}</b> account(s) due for daily email reminder (<= {ui.CRITICAL_DAYS} days)."),
-                unsafe_allow_html=True)
+        if sim_recs:
+            sim_opts = {f"{r['schema_name']} ({r['environment']}) · {r['component']}": r for r in sim_recs}
+            sim_pick_lbl = st.selectbox("Target Entity Target", list(sim_opts), key="sim_entity_pick", label_visibility="collapsed")
+            sim_chosen = sim_opts[sim_pick_lbl]
 
-            sample = due_alerts[0]
+            exp_dt = pd.to_datetime(sim_chosen["exp_date"]).date()
+            days_left = (exp_dt - date.today()).days
+            team_meta = ui.TEAM_META.get(sim_tm, ui.TEAM_META["Core"])
+
+            team_email = {
+                "Cognos": "cognos-dba@example.com",
+                "Informatica": "infa-etl@example.com",
+                "Letters": "letters-ops@example.com",
+                "App Server": "appserver-admin@example.com",
+                "Core": "core-dba@example.com"
+            }.get(sim_tm, "ops-team@example.com")
+
+            sim_mock = {
+                "state": sim_chosen["state"],
+                "env": sim_chosen["environment"],
+                "team": sim_chosen["team"],
+                "component": sim_chosen["component"],
+                "username": f"{sim_chosen['state']}{sim_chosen['team'][:3].upper()}USR",
+                "schema_name": sim_chosen["schema_name"],
+                "exp_date": sim_chosen["exp_date"],
+                "days_left": days_left if days_left > 0 else 16,
+                "owner_name": f"{sim_chosen['team']} Operations",
+                "owner_email": team_email,
+                "is_first_reminder": True
+            }
+
             st.markdown(f"""
-            <div class="card" style="margin-bottom:8px;">
-              <div style="font-size:11.5px;color:#f8fafc;"><b>Simulated Recipient:</b> <code>{sample['owner_email']}</code> ({sample['owner_name']})</div>
-              <div style="font-size:11.5px;color:#94a3b8;margin-top:2px;"><b>Subject:</b> <code>{subject_for(sample)}</code></div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            with st.expander("Preview Rendered Jinja2 HTML Email Template", expanded=False):
-                email_html = render_email(sample)
-                st.markdown(email_html, unsafe_allow_html=True)
-
-            if st.button("Run Dry-Run Notification Cycle", key="gov_dry_run", use_container_width=True):
-                st.info(f"Dry-run executed. {len(due_alerts)} notification(s) evaluated successfully with zero transport errors.")
-        else:
-            st.markdown(f"""
-            <div class="card" style="text-align:center;padding:20px 16px;margin-bottom:10px;">
-              <div style="font-size:22px;color:#10b981;margin-bottom:4px;">✓</div>
-              <div style="font-size:13.5px;font-weight:700;color:#f8fafc;">No Pending Email Alerts</div>
-              <div style="font-size:11.5px;color:#94a3b8;margin-top:4px;max-width:40ch;margin-left:auto;margin-right:auto;">
-                All tracked database accounts and components currently have more than {ui.CRITICAL_DAYS} days of life remaining.
+            <div class="card" style="margin-bottom:8px;padding:8px 12px;">
+              <div style="font-size:11px;color:#94a3b8;"><b>Recipient:</b> <code style="color:#f8fafc;">{sim_mock['owner_email']}</code> ({team_meta['lead']})</div>
+              <div style="font-size:11.5px;color:#f8fafc;margin-top:3px;">
+                <b>Subject:</b> <code style="color:#38bdf8;">{subject_for(sim_mock)}</code>
               </div>
             </div>
             """, unsafe_allow_html=True)
 
-            with st.expander("Preview Standard Alert Email Template", expanded=False):
-                mock_record = {
-                    "state": "AK", "env": "DEV", "team": "Cognos",
-                    "component": "Database Passwords", "username": "AKCGAU30E2",
-                    "schema_name": "ENV31_DBPWD", "exp_date": "2026-09-18",
-                    "days_left": 16, "owner_name": "Cognos Team",
-                    "owner_email": "cognos-dba@example.com", "is_first_reminder": True
-                }
-                st.markdown(f"""
-                <div style="font-size:12px;color:#f8fafc;margin-bottom:8px;">
-                  <b>Subject:</b> <code style="color:#38bdf8;">{subject_for(mock_record)}</code>
-                </div>
-                """, unsafe_allow_html=True)
-                email_html = render_email(mock_record)
+            with st.expander("Preview Dynamic Rendered HTML Email", expanded=True):
+                email_html = render_email(sim_mock)
                 st.markdown(email_html, unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="eyebrow">Multi-Team Alert Routing & Escalation Directory</div>', unsafe_allow_html=True)
+    team_routes = [
+        ("Cognos", "Cognos BI Operations", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)"),
+        ("Informatica", "Informatica ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays"),
+        ("Letters", "Letters Correspondence", "letters-ops@example.com", "#34D399", "Monthly (1st Sun)"),
+        ("App Server", "Java Containers & JVM", "appserver-admin@example.com", "#FBBF24", "Weekly on Sundays"),
+        ("Core", "Core DB & Infrastructure", "core-dba@example.com", "#38BDF8", "Quarterly Maintenance"),
+    ]
+    route_rows = "".join(
+        f"<tr><td class='m' style='color:{color};font-weight:700;'>{team}</td>"
+        f"<td style='color:#f8fafc;font-size:11.5px;'>{lead}</td>"
+        f"<td class='m' style='font-size:11px;'><code>{email}</code></td>"
+        f"<td style='font-size:10.5px;color:var(--slate);'>{cadence}</td></tr>"
+        for team, lead, email, color, cadence in team_routes
+    )
+    st.markdown(f"""
+    <div class="card" style="margin-bottom:12px;">
+      <table class="tblx">
+        <tr><th>Team</th><th>Functional Lead</th><th>Notification Recipient</th><th>Cadence</th></tr>
+        {route_rows}
+      </table>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ==========================================================================
