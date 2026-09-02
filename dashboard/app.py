@@ -417,11 +417,11 @@ def render_state_maintenance_windows(state: str | None = None) -> None:
 
 
 # ==========================================================================
-# View 2: Portfolio Matrix & Operations Hub (Unified Executive & Detail Hub)
+# View 2: Portfolio Matrix & Operations Hub (Power BI Master-Detail Workspace)
 # ==========================================================================
 def render_operations_hub(df: pd.DataFrame) -> None:
-    # 1. Unified Command Toolbar
-    f1, f2, f3, f4, f5, f6, f7 = st.columns([1.5, 0.85, 0.95, 1.1, 0.9, 1.15, 0.85])
+    # 1. Top Slicer Command Bar
+    f1, f2, f3, f4, f5, f6 = st.columns([1.6, 0.9, 1.0, 1.15, 0.95, 0.8])
     q = f1.text_input("Filter", key="op_search", placeholder="Search schema, env...", label_visibility="collapsed")
     state_filter = f2.selectbox("State", ["All States"] + STATES, key="op_state", label_visibility="collapsed")
     team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key="op_team", label_visibility="collapsed")
@@ -433,7 +433,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
     )
     health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key="op_health", label_visibility="collapsed")
-    dim_mode = f6.selectbox("Dimension", ["State × Component", "State × Team", "Team × Component"], key="op_dim", label_visibility="collapsed")
 
     filtered = df.copy()
     if q:
@@ -451,15 +450,15 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     csv_data = filtered.to_csv(index=False).encode("utf-8")
     if hasattr(st, "download_button"):
-        f7.download_button(
-            label="CSV",
+        f6.download_button(
+            label="📥 CSV",
             data=csv_data,
             file_name=f"expiry_operations_{date.today().isoformat()}.csv",
             mime="text/csv",
             use_container_width=True,
         )
 
-    # 2. Executive KPI Ribbon
+    # 2. Executive Metric Ribbon (Ultra-compact 48px)
     tot_cnt = len(filtered)
     exp_cnt = int((filtered["days_left"] < 0).sum())
     crit_cnt = int((filtered["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
@@ -469,174 +468,83 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#38bdf8;">
+        <div class="top-glow-kpi" style="--glow:#38bdf8;padding:6px 12px;">
           <div class="kpi-label">Entities in View</div>
-          <div class="kpi-value">{tot_cnt}</div>
+          <div class="kpi-value" style="font-size:20px;">{tot_cnt}</div>
           <div class="kpi-sub">Across active filters</div>
         </div>
         """, unsafe_allow_html=True)
     with k2:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};">
+        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:6px 12px;">
           <div class="kpi-label">Expired Items</div>
-          <div class="kpi-value">{exp_cnt}</div>
+          <div class="kpi-value" style="font-size:20px;">{exp_cnt}</div>
           <div class="kpi-sub">{'Requires immediate renewal' if exp_cnt else 'Zero expired'}</div>
         </div>
         """, unsafe_allow_html=True)
     with k3:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};">
+        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:6px 12px;">
           <div class="kpi-label">Critical & Warning</div>
-          <div class="kpi-value">{crit_cnt + warn_cnt}</div>
+          <div class="kpi-value" style="font-size:20px;">{crit_cnt + warn_cnt}</div>
           <div class="kpi-sub">{crit_cnt} critical · {warn_cnt} warning</div>
         </div>
         """, unsafe_allow_html=True)
     with k4:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#10b981;">
+        <div class="top-glow-kpi" style="--glow:#10b981;padding:6px 12px;">
           <div class="kpi-label">Healthy Entities</div>
-          <div class="kpi-value">{hlth_cnt}</div>
+          <div class="kpi-value" style="font-size:20px;">{hlth_cnt}</div>
           <div class="kpi-sub">{(hlth_cnt/tot_cnt*100) if tot_cnt else 0:.0f}% healthy fleet</div>
         </div>
         """, unsafe_allow_html=True)
 
-    # 3. Interactive 2D Matrix Heatmap Accordion
-    with st.expander("📊 Portfolio Matrix Heatmap & Cross-Tabs", expanded=True):
-        states_to_show = [s for s in STATES if s in filtered["state"].unique()] if state_filter == "All States" else ([state_filter] if state_filter in filtered["state"].unique() else [])
-        teams_to_show = [t for t in ui.TEAMS if t in filtered["team"].unique()] if team_filter == "All Teams" else ([team_filter] if team_filter in filtered["team"].unique() else [])
-        comps_to_show = COMPONENT_ORDER if comp_filter == "All Components" else [comp_filter]
+    st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
 
-        if dim_mode == "State × Team":
-            row_entities = states_to_show
-            col_entities = teams_to_show
-            row_dim = "state"
-            col_dim = "team"
-            col_names = teams_to_show
-        elif dim_mode == "Team × Component":
-            row_entities = teams_to_show
-            col_entities = comps_to_show
-            row_dim = "team"
-            col_dim = "component"
-            col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
-        else:  # State × Component
-            row_entities = states_to_show
-            col_entities = comps_to_show
-            row_dim = "state"
-            col_dim = "component"
-            col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
-
-        header_cols = "".join(f"<th style='text-align:center;'>{c_name}</th>" for c_name in col_names)
-        row_title = "State" if row_dim == "state" else "Team"
-        matrix_head = f"<tr><th>{row_title}</th>{header_cols}<th class='r'>Total</th></tr>"
-
-        matrix_rows = []
-        for r_val in row_entities:
-            r_sub = filtered[filtered[row_dim] == r_val]
-            cell_tds = []
-            for c_val in col_entities:
-                cell_sub = r_sub[r_sub[col_dim] == c_val]
-                if cell_sub.empty:
-                    cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
-                else:
-                    c_cnt = len(cell_sub)
-                    worst_b = ui.worst_band(cell_sub["band"].tolist())
-                    meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
-                    cell_tds.append(
-                        f"<td class='c'>"
-                        f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;'>"
-                        f"<b>{meta['symbol']}</b> {c_cnt}"
-                        f"</span></td>"
-                    )
-            r_tot = len(r_sub)
-            matrix_rows.append(
-                f"<tr><td style='font-weight:700;font-family:var(--mono);'>{r_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{r_tot}</td></tr>"
-            )
-
-        if len(row_entities) > 1:
-            total_tds = []
-            for c_val in col_entities:
-                col_sub = filtered[filtered[col_dim] == c_val]
-                if col_sub.empty:
-                    total_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
-                else:
-                    worst_b = ui.worst_band(col_sub["band"].tolist())
-                    meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
-                    total_tds.append(
-                        f"<td class='c m' style='font-weight:700;color:{meta['color']};'>{len(col_sub)}</td>"
-                    )
-            matrix_rows.append(
-                f"<tr style='background:rgba(255,255,255,0.03);border-top:1px solid var(--rule);'>"
-                f"<td style='font-weight:800;color:var(--accent);'>TOTAL</td>{''.join(total_tds)}<td class='m r' style='font-weight:800;color:#f8fafc;'>{tot_cnt}</td></tr>"
-            )
-
-        st.markdown(f"<div style='border:1px solid var(--rule);border-radius:7px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
-
-    st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-
-    # 4. Master-Detail Inspector & Operations Console
-    left_col, _, right_col = st.columns([1.8, 0.04, 2.2])
+    # 3. Master-Detail Workspace (40% Left / 60% Right)
+    left_col, _, right_col = st.columns([1.7, 0.04, 2.3])
 
     with left_col:
         if filtered.empty:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
             selected_id = None
         else:
-            record_options = {
-                f"#{r.id} · {r.state} · {r.team} · {r.schema_name} ({r.env_label}) · {ui.fmt_date(r.exp_date)} [{r.band}]": r.id
-                for r in filtered.itertuples()
-            }
-            
             cur_active_id = st.session_state.get("op_active_id")
             if cur_active_id not in filtered["id"].values:
                 cur_active_id = int(filtered.iloc[0]["id"])
                 st.session_state["op_active_id"] = cur_active_id
-
-            default_index = 0
-            for idx, (lbl, rid) in enumerate(record_options.items()):
-                if rid == cur_active_id:
-                    default_index = idx
-                    break
-
-            selected_label = st.selectbox(
-                "Active Entity Inspector Target",
-                list(record_options),
-                index=default_index,
-                key="op_select_record",
-                label_visibility="collapsed",
-            )
-            selected_id = record_options[selected_label]
-            st.session_state["op_active_id"] = selected_id
+            selected_id = cur_active_id
 
             st.markdown(f"""
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 2px 6px;margin-top:2px;">
-              <span style="font-size:12.5px;font-weight:600;color:#f8fafc;">
-                Showing <b style="color:#38bdf8;font-family:var(--mono);font-size:13.5px;">{len(filtered)}</b> matching entities
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px 5px;">
+              <span style="font-size:12px;font-weight:600;color:#f8fafc;">
+                Showing <b style="color:#38bdf8;font-family:var(--mono);font-size:13px;">{len(filtered)}</b> entities
               </span>
-              <span style="font-size:10.5px;font-weight:600;color:#94a3b8;font-family:var(--mono);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:2px 7px;">
+              <span style="font-size:10px;font-weight:600;color:#94a3b8;font-family:var(--mono);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:2px 6px;">
                 Soonest Expiry First
               </span>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown("<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;margin-bottom:8px;'>", unsafe_allow_html=True)
-            for r in filtered.head(25).itertuples():
+            st.markdown("<div style='max-height:410px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;padding:2px;'>", unsafe_allow_html=True)
+            for r in filtered.head(30).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
                 t_color = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
                 is_active = (r.id == selected_id)
-                bg_active = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;" if is_active else "background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);"
-                
-                c_row1, c_row2 = st.columns([4, 1])
+                bg_active = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_active else "background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);"
+
+                c_row1, c_row2 = st.columns([4.2, 1.1])
                 with c_row1:
                     st.markdown(f"""
-                    <div style="{bg_active};border-radius:5px;padding:5px 8px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
-                      <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
-                        <span style="color:{meta['color']};font-weight:700;">{meta['symbol']}</span>
-                        <span style="font-weight:700;color:#f8fafc;font-size:11.5px;">{r.state}</span>
-                        <span class="env-tag" style="background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;font-size:9.5px;">{r.team}</span>
-                        <span style="font-family:var(--mono);font-size:11px;font-weight:{'700' if is_active else '500'};color:{'#38bdf8' if is_active else '#f8fafc'};">{r.schema_name}</span>
-                        <span class="env-tag" style="font-size:9px;">{r.env_label}</span>
+                    <div style="{bg_active};border-radius:5px;padding:4px 7px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+                      <div style="display:flex;align-items:center;gap:5px;overflow:hidden;">
+                        <span style="color:{meta['color']};font-weight:700;font-size:12px;">{meta['symbol']}</span>
+                        <span style="font-weight:700;color:#f8fafc;font-size:11px;">{r.state}</span>
+                        <span class="env-tag" style="background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;font-size:9px;padding:1px 4px;">{r.team}</span>
+                        <span style="font-family:var(--mono);font-size:10.5px;font-weight:{'700' if is_active else '500'};color:{'#38bdf8' if is_active else '#f8fafc'};">{r.schema_name}</span>
+                        <span class="env-tag" style="font-size:8.5px;padding:1px 3px;">{r.env_label}</span>
                       </div>
-                      <span style="color:{meta['color']};font-weight:700;font-size:11px;font-family:var(--mono);flex:none;margin-left:6px;">{ui.fmt_days(r.days_left)}</span>
+                      <span style="color:{meta['color']};font-weight:700;font-size:10.5px;font-family:var(--mono);flex:none;margin-left:4px;">{ui.fmt_days(r.days_left)}</span>
                     </div>
                     """, unsafe_allow_html=True)
                 with c_row2:
@@ -654,35 +562,76 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
         team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
 
+        # Top Inspector Header & Quick Renewal Bar
         st.markdown(f"""
-        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:10px;">
+        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:6px;padding:8px 12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {rec['component']}</span>
-              <div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:2px;">{rec['schema_name']}</div>
+              <span style="font-size:9.5px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {rec['component']}</span>
+              <div style="font-size:15px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:1px;">{rec['schema_name']} <span class="env-tag" style="font-size:10px;">{rec['env_label']}</span></div>
             </div>
             {ui.status_pill(rec['band'])}
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-        i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Action & Renewal Console", "Batch Grid Editor", "Rollback Ledger"])
+        # Instant Action & Renewal Bar
+        act_b1, act_b2, act_b3, act_b4 = st.columns([1, 1, 1.6, 1.2])
+        cur_dt = rec["exp_dt"].date()
+        if act_b1.button("+90 Days", key=f"op_top_p90_{rec['id']}", use_container_width=True):
+            target_dt = cur_dt + pd.Timedelta(days=90)
+            apply_edits([(rec["id"], target_dt)])
+            st.success(f"Extended +90 days to {target_dt}")
+            rerun()
+        if act_b2.button("+1 Year", key=f"op_top_p365_{rec['id']}", use_container_width=True):
+            target_dt = cur_dt + pd.Timedelta(days=365)
+            apply_edits([(rec["id"], target_dt)])
+            st.success(f"Extended +1 year to {target_dt}")
+            rerun()
+
+        with act_b3:
+            if hasattr(st, "popover"):
+                with st.popover("📅 Custom Date"):
+                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+                    if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+                        apply_edits([(rec["id"], c_date)])
+                        st.success(f"Updated to {c_date}")
+                        rerun()
+            else:
+                with st.expander("📅 Custom Date"):
+                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+                    if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+                        apply_edits([(rec["id"], c_date)])
+                        st.success(f"Updated to {c_date}")
+                        rerun()
+
+        if rec["edited"]:
+            with act_b4:
+                if st.button("↩ Revert", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True):
+                    conn = get_connection(DB_PATH)
+                    revert_component_exp_date(conn, int(rec["id"]))
+                    conn.close()
+                    bust_cache()
+                    st.success("Reverted to source workbook.")
+                    rerun()
+
+        i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
             c_a, c_b = st.columns(2)
             with c_a:
                 st.markdown(f"""
-                <div class="card" style="font-size:12px;line-height:1.6;">
-                  <div><b>Team Owner:</b> <span style="color:{team_meta['color']};font-weight:700;">{rec['team']}</span> <span style="color:#94a3b8;font-size:11px;">({team_meta['lead']})</span></div>
+                <div class="card" style="font-size:11.5px;line-height:1.5;padding:6px 10px;">
+                  <div><b>Team Owner:</b> <span style="color:{team_meta['color']};font-weight:700;">{rec['team']}</span> <span style="color:#94a3b8;font-size:10px;">({team_meta['lead']})</span></div>
                   <div><b>Component:</b> {rec['component']}</div>
-                  <div style="color:#94a3b8;font-size:10.5px;margin-bottom:6px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
+                  <div style="color:#94a3b8;font-size:10px;margin-bottom:4px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
                   <div><b>Environment:</b> <span class="env-tag">{rec['env_label']}</span> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
                   <div><b>Module Code:</b> <code>{rec['module'] or 'N/A'}</code></div>
                 </div>
                 """, unsafe_allow_html=True)
             with c_b:
                 st.markdown(f"""
-                <div class="card" style="font-size:12px;line-height:1.6;">
+                <div class="card" style="font-size:11.5px;line-height:1.5;padding:6px 10px;">
                   <div><b>Current Expiry:</b> <code style="font-weight:700;color:{meta['color']}">{rec['exp_date']}</code></div>
                   <div><b>Workbook Source:</b> <code>{rec['source_exp_date']}</code></div>
                   <div><b>Life Remaining:</b> <b>{ui.fmt_days(rec['days_left'])}</b> ({rec['days_left']} days)</div>
@@ -690,7 +639,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
             payload = {
                 "id": int(rec["id"]),
                 "state": rec["state"],
@@ -705,48 +653,39 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 "edited_at": str(rec["edited_at"]),
             }
             if hasattr(st, "code"):
-                st.markdown("<div class='eyebrow'>SQLite Lineage Query</div>", unsafe_allow_html=True)
                 st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
                 st.code(json.dumps(payload, indent=2), language="json")
 
         with i_tab2:
-            st.markdown(ui.note("Extend expiry date or revert back to Excel workbook value:"), unsafe_allow_html=True)
+            st.markdown('<div class="note">Portfolio 2D Matrix Cross-Tab Summary:</div>', unsafe_allow_html=True)
+            mat_states = STATES
+            mat_comps = COMPONENT_ORDER
+            header_cols = "".join(f"<th style='text-align:center;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
+            matrix_head = f"<tr><th>State</th>{header_cols}<th class='r'>Total</th></tr>"
 
-            act_col1, act_col2 = st.columns(2)
-            with act_col1:
-                with st.form(f"op_form_{rec['id']}"):
-                    new_dt = st.date_input("Update Expiry Date", value=rec["exp_dt"].date())
-                    if st.form_submit_button("Commit Renewal to SQLite", type="primary", use_container_width=True):
-                        apply_edits([(rec["id"], new_dt)])
-                        st.success(f"Updated {rec['schema_name']} to {new_dt}")
-                        rerun()
-
-            with act_col2:
-                st.markdown("<div style='font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:6px;'>Quick Renewal Presets</div>", unsafe_allow_html=True)
-                p_c1, p_c2 = st.columns(2)
-                cur_dt = rec["exp_dt"].date()
-                if p_c1.button("+90 Days", key=f"op_p90_{rec['id']}", use_container_width=True):
-                    target_dt = cur_dt + pd.Timedelta(days=90)
-                    apply_edits([(rec["id"], target_dt)])
-                    st.success(f"Extended +90 days to {target_dt}")
-                    rerun()
-                if p_c2.button("+1 Year", key=f"op_p365_{rec['id']}", use_container_width=True):
-                    target_dt = cur_dt + pd.Timedelta(days=365)
-                    apply_edits([(rec["id"], target_dt)])
-                    st.success(f"Extended +1 year to {target_dt}")
-                    rerun()
-
-                if rec["edited"]:
-                    st.warning(f"Locally modified from `{rec['source_exp_date']}`")
-                    if st.button("Revert to Workbook Date", key=f"op_rev_{rec['id']}", use_container_width=True):
-                        conn = get_connection(DB_PATH)
-                        revert_component_exp_date(conn, int(rec["id"]))
-                        conn.close()
-                        bust_cache()
-                        st.success("Reverted to source workbook.")
-                        rerun()
-                else:
-                    st.info("Record is in sync with Excel workbook.")
+            matrix_rows = []
+            for st_val in mat_states:
+                st_sub = df[df["state"] == st_val]
+                cell_tds = []
+                for c_val in mat_comps:
+                    cell_sub = st_sub[st_sub["component"] == c_val]
+                    if cell_sub.empty:
+                        cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
+                    else:
+                        c_cnt = len(cell_sub)
+                        worst_b = ui.worst_band(cell_sub["band"].tolist())
+                        meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
+                        cell_tds.append(
+                            f"<td class='c'>"
+                            f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;font-size:10px;padding:2px 5px;'>"
+                            f"<b>{meta['symbol']}</b> {c_cnt}"
+                            f"</span></td>"
+                        )
+                st_tot = len(st_sub)
+                matrix_rows.append(
+                    f"<tr><td style='font-weight:700;font-family:var(--mono);'>{st_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{st_tot}</td></tr>"
+                )
+            st.markdown(f"<div style='border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx' style='font-size:11px;'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
 
         with i_tab3:
             st.markdown(ui.note("Bulk renewal grid for all matching entities in the active filter:"), unsafe_allow_html=True)
@@ -759,7 +698,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
                 b_edited = st.data_editor(
                     b_view, key="op_batch_editor", hide_index=True, use_container_width=True,
-                    num_rows="fixed", height=280,
+                    num_rows="fixed", height=240,
                     column_config={
                         "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                         "state": st.column_config.TextColumn("State", disabled=True, width="small"),
