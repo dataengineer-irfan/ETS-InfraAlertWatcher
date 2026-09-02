@@ -119,10 +119,9 @@ TEAM_META = {
 }
 
 
-def team_of(schema_name: str, component: str = "") -> str:
-    """Classify schema or component into team owner."""
+def team_of(schema_name: str, component: str = "", env_no: str | int = "") -> str:
+    """Classify schema/environment into team owner so every team has all 4 components."""
     sn = (schema_name or "").upper()
-    cmp = (component or "").upper()
     if any(k in sn for k in ["COGNOS", "ORR", "MMIS", "COTS_REP"]):
         return "Cognos"
     if any(k in sn for k in ["ISIM", "EMAR", "INFA", "ETL"]):
@@ -132,16 +131,16 @@ def team_of(schema_name: str, component: str = "") -> str:
     if any(k in sn for k in ["WAS", "TC", "JBOSS", "JVM"]):
         return "App Server"
 
-    # Distribute generic synthetic schemas across teams
-    if "SWVER" in sn or "SOFTWARE" in cmp:
-        return "Cognos" if any(x in sn for x in ["19", "30", "52", "76", "38"]) else "App Server"
-    if "PATCH" in sn or "PATCH" in cmp:
-        return "Informatica" if any(x in sn for x in ["19", "31", "53", "75", "40"]) else "Letters"
-    if "DBPWD" in sn or "PASSWORD" in cmp:
-        return "Cognos" if any(x in sn for x in ["31", "52", "73", "35"]) else "Core"
-    if "CRYPTO" in sn or "CRYPTO" in cmp:
-        return "Letters" if any(x in sn for x in ["15", "37", "57", "77", "33"]) else "Core"
-
+    # Environment-based team ownership (ensuring all 4 components exist across all 5 teams)
+    env_str = str(env_no) if env_no else "".join(c for c in sn.split("_")[0] if c.isdigit())
+    if env_str in ["30", "31", "52", "73", "76"]:
+        return "Cognos"
+    if env_str in ["33", "53", "75", "19", "4"]:
+        return "Informatica"
+    if env_str in ["35", "54", "77", "15", "5"]:
+        return "Letters"
+    if env_str in ["37", "38", "57", "78", "21", "82"]:
+        return "App Server"
     return "Core"
 
 # --------------------------------------------------------------------------

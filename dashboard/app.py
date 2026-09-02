@@ -88,7 +88,7 @@ def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
     df["quarter"] = ("Q" + df["exp_dt"].dt.quarter.astype(str)
                      + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
-    df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", "")), axis=1)
+    df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", ""), r.get("env_no", "")), axis=1)
     return df
 
 
@@ -231,20 +231,27 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
     filters, _, panel = st.columns([2.8, 0.04, 1.1])
 
     with filters:
-        c1, c2, c3 = st.columns([2.0, 1.8, 1.4])
+        c1, c2, c3, c4, c5 = st.columns([1.5, 1.0, 1.2, 1.0, 1.1])
         query = c1.text_input("Search", key="mg_q",
-                              placeholder="Search schema, env, component...",
+                              placeholder="Search schema, env...",
                               label_visibility="collapsed")
-        comp_pick = c2.multiselect("Component", COMPONENT_ORDER, key="mg_comp",
-                                   placeholder="All components",
-                                   label_visibility="collapsed",
-                                   format_func=lambda c: ui.COMPONENT_CODE[c])
-        window = c3.selectbox("Window", list(MANAGE_WINDOWS), key="mg_window",
+        team_pick = c2.selectbox("Team", ["All Teams"] + ui.TEAMS, key="mg_team",
+                                 label_visibility="collapsed")
+        comp_pick = c3.selectbox("Component", ["All Components"] + COMPONENT_ORDER, key="mg_comp",
+                                 label_visibility="collapsed",
+                                 format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components")
+        health_pick = c4.selectbox("Health", ["All Health"] + ui.BANDS, key="mg_health",
+                                   label_visibility="collapsed")
+        window = c5.selectbox("Window", list(MANAGE_WINDOWS), key="mg_window",
                               label_visibility="collapsed")
 
         work = search(state_records, query)
-        if comp_pick:
-            work = work[work["component"].isin(comp_pick)]
+        if team_pick != "All Teams":
+            work = work[work["team"] == team_pick]
+        if comp_pick != "All Components":
+            work = work[work["component"] == comp_pick]
+        if health_pick != "All Health":
+            work = work[work["band"] == health_pick]
         work = MANAGE_WINDOWS[window](work).sort_values("days_left")
 
         counts = work["band"].value_counts().to_dict()
@@ -258,7 +265,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                                  "Widen the window or clear the search to see records again."),
                         unsafe_allow_html=True)
         elif hasattr(st, "data_editor") and hasattr(st, "column_config"):
-            view = work[["schema_name", "env_label", "component",
+            view = work[["schema_name", "env_label", "team", "component",
                          "exp_dt", "band", "days_left"]].copy()
             view["exp_dt"] = view["exp_dt"].dt.date
             view["days_left"] = view["days_left"].apply(ui.fmt_days)
@@ -270,6 +277,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                 column_config={
                     "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                     "env_label": st.column_config.TextColumn("Environment", disabled=True, width="small"),
+                    "team": st.column_config.TextColumn("Team", disabled=True, width="small"),
                     "component": st.column_config.TextColumn("Component", disabled=True, width="medium"),
                     "exp_dt": st.column_config.DateColumn(
                         "Expiry Date", format="YYYY-MM-DD", required=True, width="medium",
@@ -408,23 +416,26 @@ def render_master_detail(df: pd.DataFrame) -> None:
     left_col, _, right_col = st.columns([1.8, 0.04, 2.2])
 
     with left_col:
-        f1, f2, f3, f4 = st.columns([1.6, 1.0, 1.3, 1.1])
+        f1, f2, f3, f4, f5 = st.columns([1.4, 0.9, 1.0, 1.2, 0.9])
         q = f1.text_input("Filter", key="md_search", placeholder="Search schema, env...", label_visibility="collapsed")
         state_filter = f2.selectbox("State", ["All States"] + STATES, key="md_state", label_visibility="collapsed")
-        comp_filter = f3.selectbox(
+        team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key="md_team", label_visibility="collapsed")
+        comp_filter = f4.selectbox(
             "Component",
             ["All Components"] + COMPONENT_ORDER,
             key="md_comp",
             label_visibility="collapsed",
             format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
         )
-        health_filter = f4.selectbox("Health", ["All Health"] + ui.BANDS, key="md_health", label_visibility="collapsed")
+        health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key="md_health", label_visibility="collapsed")
 
         filtered = df.copy()
         if q:
             filtered = search(filtered, q)
         if state_filter != "All States":
             filtered = filtered[filtered["state"] == state_filter]
+        if team_filter != "All Teams":
+            filtered = filtered[filtered["team"] == team_filter]
         if comp_filter != "All Components":
             filtered = filtered[filtered["component"] == comp_filter]
         if health_filter != "All Health":
@@ -437,7 +448,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
             selected_id = None
         else:
             record_options = {
-                f"#{r.id} · {r.state} · {r.schema_name} ({r.env_label}) · {ui.fmt_date(r.exp_date)} [{r.band}]": r.id
+                f"#{r.id} · {r.state} · {r.team} · {r.schema_name} ({r.env_label}) · {ui.fmt_date(r.exp_date)} [{r.band}]": r.id
                 for r in filtered.itertuples()
             }
             selected_label = st.selectbox(
@@ -463,19 +474,21 @@ def render_master_detail(df: pd.DataFrame) -> None:
             table_rows = []
             for r in filtered.head(20).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                t_color = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
                 is_active = (r.id == selected_id)
                 bg_active = "background:rgba(56,189,248,0.14);box-shadow:inset 2px 0 0 #38bdf8;" if is_active else ""
                 table_rows.append(
                     f"<tr style='{bg_active}'>"
                     f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
                     f"<td class='m' style='font-weight:600;'>{r.state}</td>"
+                    f"<td class='m'><span class='env-tag' style='background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;'>{r.team}</span></td>"
                     f"<td class='m' style='font-weight:{'700' if is_active else '400'};'>{r.schema_name}</td>"
                     f"<td class='m'><span class='env-tag'>{r.env_label}</span></td>"
                     f"<td class='m'>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
                     f"<td class='m r' style='color:{meta['color']};font-weight:700;'>{ui.fmt_days(r.days_left)}</td>"
                     f"</tr>"
                 )
-            head = "<tr><th></th><th>State</th><th>Schema Name</th><th>Env</th><th>Comp</th><th class='r'>Remaining</th></tr>"
+            head = "<tr><th></th><th>State</th><th>Team</th><th>Schema Name</th><th>Env</th><th>Comp</th><th class='r'>Remaining</th></tr>"
             st.markdown(f"<div style='max-height:400px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;'><table class='tblx'>{head}{''.join(table_rows)}</table></div>", unsafe_allow_html=True)
 
     with right_col:
@@ -485,12 +498,13 @@ def render_master_detail(df: pd.DataFrame) -> None:
 
         rec = df[df["id"] == selected_id].iloc[0]
         meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
+        team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
 
         st.markdown(f"""
         <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · {rec['component']}</span>
+              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {rec['component']}</span>
               <div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:2px;">{rec['schema_name']}</div>
             </div>
             {ui.status_pill(rec['band'])}
@@ -505,6 +519,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
             with c_a:
                 st.markdown(f"""
                 <div class="card" style="font-size:12px;line-height:1.6;">
+                  <div><b>Team Owner:</b> <span style="color:{team_meta['color']};font-weight:700;">{rec['team']}</span> <span style="color:#94a3b8;font-size:11px;">({team_meta['lead']})</span></div>
                   <div><b>Component:</b> {rec['component']}</div>
                   <div style="color:#94a3b8;font-size:10.5px;margin-bottom:6px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
                   <div><b>Environment:</b> <span class="env-tag">{rec['env_label']}</span> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
@@ -585,28 +600,32 @@ def render_master_detail(df: pd.DataFrame) -> None:
 # View 4: Hierarchical Matrix Cross-Tab (Prompt #3)
 # ==========================================================================
 def render_matrix_view(df: pd.DataFrame) -> None:
-    m_col1, m_col2, m_col3, m_col4 = st.columns([1.8, 1.2, 1.4, 1.0])
-    s_term = m_col1.text_input("Filter Matrix", key="mat_search", placeholder="Filter schema / env / component...", label_visibility="collapsed")
+    m_col1, m_col2, m_col3, m_col4, m_col5, m_col6 = st.columns([1.5, 0.9, 1.0, 1.2, 1.1, 0.9])
+    s_term = m_col1.text_input("Filter Matrix", key="mat_search", placeholder="Filter schema / env...", label_visibility="collapsed")
     s_state = m_col2.selectbox("State Filter", ["All States"] + STATES, key="mat_state", label_visibility="collapsed")
-    s_comp = m_col3.selectbox(
+    s_team = m_col3.selectbox("Team Filter", ["All Teams"] + ui.TEAMS, key="mat_team", label_visibility="collapsed")
+    s_comp = m_col4.selectbox(
         "Component Filter",
         ["All Components"] + COMPONENT_ORDER,
         key="mat_comp",
         label_visibility="collapsed",
         format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
     )
+    s_mode = m_col5.selectbox("Dimension", ["State × Component", "State × Team", "Team × Component"], key="mat_dim", label_visibility="collapsed")
 
     mat_df = df.copy()
     if s_term:
         mat_df = search(mat_df, s_term)
     if s_state != "All States":
         mat_df = mat_df[mat_df["state"] == s_state]
+    if s_team != "All Teams":
+        mat_df = mat_df[mat_df["team"] == s_team]
     if s_comp != "All Components":
         mat_df = mat_df[mat_df["component"] == s_comp]
 
     csv_data = mat_df.to_csv(index=False).encode("utf-8")
     if hasattr(st, "download_button"):
-        m_col4.download_button(
+        m_col6.download_button(
             label="Download CSV",
             data=csv_data,
             file_name=f"expiry_matrix_{date.today().isoformat()}.csv",
@@ -657,19 +676,40 @@ def render_matrix_view(df: pd.DataFrame) -> None:
 
     st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
 
-    # 2D Cross-Tab Heat Matrix with Totals
+    # Dynamic 2D Matrix Rendering
     states_to_show = [s for s in STATES if s in mat_df["state"].unique()] if s_state == "All States" else ([s_state] if s_state in mat_df["state"].unique() else [])
+    teams_to_show = [t for t in ui.TEAMS if t in mat_df["team"].unique()] if s_team == "All Teams" else ([s_team] if s_team in mat_df["team"].unique() else [])
     comps_to_show = COMPONENT_ORDER if s_comp == "All Components" else [s_comp]
 
-    header_cols = "".join(f"<th style='text-align:center;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in comps_to_show)
-    matrix_head = f"<tr><th>State</th>{header_cols}<th class='r'>Total</th></tr>"
+    if s_mode == "State × Team":
+        row_entities = states_to_show
+        col_entities = teams_to_show
+        row_dim = "state"
+        col_dim = "team"
+        col_names = teams_to_show
+    elif s_mode == "Team × Component":
+        row_entities = teams_to_show
+        col_entities = comps_to_show
+        row_dim = "team"
+        col_dim = "component"
+        col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
+    else:  # State × Component
+        row_entities = states_to_show
+        col_entities = comps_to_show
+        row_dim = "state"
+        col_dim = "component"
+        col_names = [ui.COMPONENT_CODE.get(c, c) for c in comps_to_show]
+
+    header_cols = "".join(f"<th style='text-align:center;'>{c_name}</th>" for c_name in col_names)
+    row_title = "State" if row_dim == "state" else "Team"
+    matrix_head = f"<tr><th>{row_title}</th>{header_cols}<th class='r'>Total</th></tr>"
 
     matrix_rows = []
-    for st_code in states_to_show:
-        st_sub = mat_df[mat_df["state"] == st_code]
+    for r_val in row_entities:
+        r_sub = mat_df[mat_df[row_dim] == r_val]
         cell_tds = []
-        for comp_name in comps_to_show:
-            cell_sub = st_sub[st_sub["component"] == comp_name]
+        for c_val in col_entities:
+            cell_sub = r_sub[r_sub[col_dim] == c_val]
             if cell_sub.empty:
                 cell_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
             else:
@@ -682,23 +722,23 @@ def render_matrix_view(df: pd.DataFrame) -> None:
                     f"<b>{meta['symbol']}</b> {c_cnt}"
                     f"</span></td>"
                 )
-        st_tot = len(st_sub)
+        r_tot = len(r_sub)
         matrix_rows.append(
-            f"<tr><td style='font-weight:700;font-family:var(--mono);'>{st_code}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{st_tot}</td></tr>"
+            f"<tr><td style='font-weight:700;font-family:var(--mono);'>{r_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{r_tot}</td></tr>"
         )
 
-    # Add Fleet Total row if viewing all states
-    if len(states_to_show) > 1:
+    # Fleet Total row
+    if len(row_entities) > 1:
         total_tds = []
-        for comp_name in comps_to_show:
-            comp_sub = mat_df[mat_df["component"] == comp_name]
-            if comp_sub.empty:
+        for c_val in col_entities:
+            col_sub = mat_df[mat_df[col_dim] == c_val]
+            if col_sub.empty:
                 total_tds.append("<td class='c' style='color:var(--mute);'>—</td>")
             else:
-                worst_b = ui.worst_band(comp_sub["band"].tolist())
+                worst_b = ui.worst_band(col_sub["band"].tolist())
                 meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
                 total_tds.append(
-                    f"<td class='c m' style='font-weight:700;color:{meta['color']};'>{len(comp_sub)}</td>"
+                    f"<td class='c m' style='font-weight:700;color:{meta['color']};'>{len(col_sub)}</td>"
                 )
         matrix_rows.append(
             f"<tr style='background:rgba(255,255,255,0.03);border-top:1px solid var(--rule);'>"
@@ -707,22 +747,24 @@ def render_matrix_view(df: pd.DataFrame) -> None:
 
     st.markdown(f"<div style='margin-bottom:10px;border:1px solid var(--rule);border-radius:7px;overflow:hidden;'><table class='tblx'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
 
-    # Tabbed State Drilldown Inspector (Zero-Scroll Containment)
-    if not states_to_show:
+    # Tabbed State / Team Drilldown Inspector
+    if not row_entities:
         st.markdown(ui.empty("No records match filter", "Broaden your query or reset filters."), unsafe_allow_html=True)
         return
 
     def render_state_table(sub_df: pd.DataFrame) -> None:
-        display_df = sub_df[["schema_name", "environment", "component", "exp_date", "days_left", "band"]].copy()
+        display_df = sub_df[["schema_name", "team", "environment", "component", "exp_date", "days_left", "band"]].copy()
         display_df = display_df.sort_values("days_left")
 
         rows_html = []
         for r in display_df.itertuples():
             meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+            t_col = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
             rows_html.append(
                 f"<tr>"
                 f"<td class='sym' style='color:{meta['color']}'>{meta['symbol']}</td>"
                 f"<td class='m' style='font-weight:600;'>{r.schema_name}</td>"
+                f"<td class='m'><span class='env-tag' style='background:rgba(255,255,255,0.06);color:{t_col};border:1px solid {t_col}55;'>{r.team}</span></td>"
                 f"<td class='m'><span class='env-tag'>{r.environment}</span></td>"
                 f"<td>{ui.COMPONENT_CODE.get(r.component, r.component)}</td>"
                 f"<td class='m'>{ui.fmt_date(r.exp_date)}</td>"
@@ -730,14 +772,14 @@ def render_matrix_view(df: pd.DataFrame) -> None:
                 f"<td class='c'>{ui.status_pill(r.band)}</td>"
                 f"</tr>"
             )
-        head = "<tr><th></th><th>Schema Name</th><th>Environment</th><th>Component</th><th>Expiry Date</th><th style='text-align:center;'>Time Left</th><th style='text-align:center;'>Status</th></tr>"
+        head = "<tr><th></th><th>Schema Name</th><th>Team</th><th>Environment</th><th>Component</th><th>Expiry Date</th><th style='text-align:center;'>Time Left</th><th style='text-align:center;'>Status</th></tr>"
         st.markdown(f"<div style='max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;'><table class='tblx'>{head}{''.join(rows_html)}</table></div>", unsafe_allow_html=True)
 
     if len(states_to_show) == 1:
         st_code = states_to_show[0]
         st_sub = mat_df[mat_df["state"] == st_code]
         render_state_table(st_sub)
-    else:
+    elif states_to_show:
         state_tabs = st.tabs([f"📍 {st_code} ({len(mat_df[mat_df['state'] == st_code])})" for st_code in states_to_show])
         for tab_el, st_code in zip(state_tabs, states_to_show):
             with tab_el:
@@ -758,10 +800,13 @@ def render_governance_center() -> None:
 
     # Top KPI summary strip
     conn = get_connection(DB_PATH)
-    tables = ["component_records", "expiry_records", "owners", "reminder_log"]
+    tables = ["component_records", "expiry_records", "maintenance_schedules", "owners", "reminder_log"]
     stats = {}
     for t in tables:
-        stats[t] = conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+        try:
+            stats[t] = conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+        except Exception:
+            stats[t] = 0
     conn.close()
 
     kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
@@ -784,9 +829,9 @@ def render_governance_center() -> None:
     with kpi_c3:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#f59e0b;">
-          <div class="kpi-label">Owner Routing</div>
-          <div class="kpi-value">{stats['owners']} States</div>
-          <div class="kpi-sub">Alaska, New Hampshire, North Dakota</div>
+          <div class="kpi-label">Maintenance Windows</div>
+          <div class="kpi-value">{stats.get('maintenance_schedules', 0)} Schedules</div>
+          <div class="kpi-sub">Cognos, Infa, Letters, App Server</div>
         </div>
         """, unsafe_allow_html=True)
     with kpi_c4:
@@ -812,6 +857,7 @@ def render_governance_center() -> None:
             <tr><th>Table Name</th><th class="r">Row Count</th><th>Lineage Role</th><th>Status</th></tr>
             <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
             <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
+            <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">✓ Synced</span></td></tr>
             <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">3 States</span></td></tr>
             <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td><span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.15)">Audit Ready</span></td></tr>
           </table>
@@ -831,7 +877,31 @@ def render_governance_center() -> None:
             rerun()
 
     with g_col2:
-        st.markdown('<div class="eyebrow" style="margin-top:0;">Email Alert Engine & Dispatch Simulator</div>', unsafe_allow_html=True)
+        st.markdown('<div class="eyebrow" style="margin-top:0;">Multi-Team Alert Routing Directory</div>', unsafe_allow_html=True)
+        team_routes = [
+            ("Cognos", "Cognos BI Operations", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)"),
+            ("Informatica", "Informatica ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays"),
+            ("Letters", "Letters Correspondence", "letters-ops@example.com", "#34D399", "Monthly (1st Sun)"),
+            ("App Server", "Java Containers & JVM", "appserver-admin@example.com", "#FBBF24", "Weekly on Sundays"),
+            ("Core", "Core DB & Infrastructure", "core-dba@example.com", "#38BDF8", "Quarterly Maintenance"),
+        ]
+        route_rows = "".join(
+            f"<tr><td class='m' style='color:{color};font-weight:700;'>{team}</td>"
+            f"<td style='color:#f8fafc;font-size:11.5px;'>{lead}</td>"
+            f"<td class='m' style='font-size:11px;'><code>{email}</code></td>"
+            f"<td style='font-size:10.5px;color:var(--slate);'>{cadence}</td></tr>"
+            for team, lead, email, color, cadence in team_routes
+        )
+        st.markdown(f"""
+        <div class="card" style="margin-bottom:12px;">
+          <table class="tblx">
+            <tr><th>Team</th><th>Functional Lead</th><th>Notification Recipient</th><th>Cadence</th></tr>
+            {route_rows}
+          </table>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="eyebrow">Email Alert Engine & Dispatch Simulator</div>', unsafe_allow_html=True)
         conn = get_connection(DB_PATH)
         due_alerts = get_due_reminders(conn, threshold_days=ui.CRITICAL_DAYS)
         conn.close()
@@ -900,7 +970,7 @@ with tab_state:
                       type="primary" if chosen == state else "secondary",
                       use_container_width=True):
             st.session_state["st_state"] = None if chosen == state else state
-            for key in ("mg_q", "mg_comp", "mg_editor", "mg_revert", "maint_editor", "btn_save_maint"):
+            for key in ("mg_q", "mg_team", "mg_comp", "mg_health", "mg_window", "mg_editor", "mg_revert", "maint_editor", "btn_save_maint"):
                 st.session_state.pop(key, None)
             rerun()
 
