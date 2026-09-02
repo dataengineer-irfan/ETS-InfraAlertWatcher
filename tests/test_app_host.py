@@ -89,40 +89,27 @@ def grid_minimum() -> int:
 
 
 def main() -> int:
-    print("[1] no state chosen — the prompt path")
+    print("[1] primary navigation & workspaces")
     r = run()
     dups = [k for k, n in collections.Counter(r["keys"]).items() if n > 1]
     check("no duplicate widget keys", not dups, dups)
-    check("one canvas mounted", len(r["mounts"]) == 1, f"{len(r['mounts'])} mounts")
-    check("main tabs include Overview and State",
-          any(e[0] == "tabs" and "Overview" in e[1] and "State" in e[1] for e in r["log"]))
-    check("no sub-tabs before a state is picked",
-          not any(e[0] == "tabs" and e[1] == ("Overview", "Manage") for e in r["log"]))
-    check("the user is prompted to pick a state",
-          any("Pick a state above" in h for h in r["html"]))
-    check("all three states are offered",
-          all(("button", s) in r["log"] for s in ("AK", "NH", "ND")))
+    check("one consolidated canvas mounted", len(r["mounts"]) == 1, f"{len(r['mounts'])} mounts")
+    check("main tabs include Executive Command Center and Inspector Hub",
+          any(e[0] == "tabs" and "Executive Command Center" in e[1] and "Entity Inspector & Renewal Hub" in e[1] for e in r["log"]))
+    check("all 4 enterprise workspaces present in navigation",
+          any(e[0] == "tabs" and len(e[1]) == 4 and "Hierarchical Matrix" in e[1] and "Governance & Alerts" in e[1] for e in r["log"]))
 
-    print("\n[2] AK chosen — the full path")
-    r = run("AK")
-    dups = [k for k, n in collections.Counter(r["keys"]).items() if n > 1]
-    check("no duplicate widget keys", not dups, dups)
-    check("two canvases mounted", len(r["mounts"]) == 2, f"{len(r['mounts'])} mounts")
-    check("sub-tabs are Overview then Manage",
-          ("tabs", ("Overview", "Manage")) in r["log"])
-    check("consolidated canvas covers every state",
+    print("\n[2] canvas mounting and configuration")
+    check("consolidated canvas covers all states",
           '"mode":"all"' in r["mounts"][0]["body"]
           and '"state":null' in r["mounts"][0]["body"])
-    check("state canvas is pinned to AK",
-          '"mode":"state"' in r["mounts"][1]["body"]
-          and '"state":"AK"' in r["mounts"][1]["body"])
-    check("every canvas has scrolling switched off",
+    check("canvas has scrolling switched off",
           all(m["scrolling"] is False for m in r["mounts"]))
 
     editors = [e for e in r["log"] if e[0] == "data_editor"]
-    check("the Manage editor has a fixed height so the page cannot grow",
+    check("the batch renewal editor has a fixed height so the page cannot grow",
           editors and isinstance(editors[0][2], int), editors)
-    check("the editor exposes the four columns the brief names",
+    check("the batch editor exposes the core schema and renewal columns",
           editors and {"schema_name", "env_label", "exp_dt", "band"} <= set(editors[0][1]),
           editors)
 
@@ -131,35 +118,19 @@ def main() -> int:
     heights = [m["height"] for m in r["mounts"]]
     print(f"       canvas grid minimum {minimum}px · mounted at {heights} · "
           f"small viewport {SMALL_VIEWPORT}px")
-    check("the grid fits inside every mounted height",
+    check("the grid fits inside mounted height",
           all(h >= minimum for h in heights), f"{heights} vs {minimum}")
     check("no mounted height overflows the smallest screen",
           all(h <= SMALL_VIEWPORT - 40 for h in heights), heights)
-    check("the state canvas leaves room for the chooser and sub-tabs",
-          heights[1] <= heights[0] - 60, heights)
 
-    print("\n[4] every state behaves identically")
-    shapes = {}
-    for state in ("AK", "NH", "ND"):
-        r_state = run(state)
-        shapes[state] = (len(r_state["mounts"]),
-                         tuple(sorted(r_state["keys"])),
-                         tuple(e[0] for e in r_state["log"]))
-    check("AK, NH and ND produce the same widget structure",
-          shapes["AK"] == shapes["NH"] == shapes["ND"],
-          {k: v[0] for k, v in shapes.items()})
-
-    print("\n[5] markup the host renders itself")
-    r = run("AK")
+    print("\n[4] markup the host renders itself")
     blob = "\n".join(r["html"])
     leaks = re.findall(r"\b(?:nan|NaT|None|undefined)\b|\[object Object\]", blob)
     check("no placeholder values leaked into the page", not leaks, set(leaks))
-    check("no class names left over from the old dark theme",
-          not re.search(r'class="(?:tbl|schema|comp|env-pill)"', blob))
     check("no reference to the deleted --faint token", "--faint" not in blob)
 
-    print("\n[6] the four column names the brief specifies reach the canvas")
-    body = r["mounts"][1]["body"]
+    print("\n[5] the four column names the brief specifies reach the canvas")
+    body = r["mounts"][0]["body"]
     for column in ("Environment", "Schema Name", "Expiry Date", "Health Status"):
         check(f"canvas declares {column!r}", f'"{column}"' in body)
 

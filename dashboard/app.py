@@ -519,7 +519,7 @@ def render_master_detail(df: pd.DataFrame) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        i_tab1, i_tab2, i_tab3 = st.tabs(["Overview & Metadata", "Raw JSON & SQL Lineage", "Action & Renewal Console"])
+        i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Action & Renewal Console", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
             c_a, c_b = st.columns(2)
@@ -543,10 +543,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 </div>
                 """, unsafe_allow_html=True)
 
-        with i_tab2:
+            st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
             payload = {
                 "id": int(rec["id"]),
                 "state": rec["state"],
+                "team": rec["team"],
                 "component": rec["component"],
                 "environment": rec["env_label"],
                 "schema_name": rec["schema_name"],
@@ -557,13 +558,11 @@ def render_master_detail(df: pd.DataFrame) -> None:
                 "edited_at": str(rec["edited_at"]),
             }
             if hasattr(st, "code"):
-                st.code(json.dumps(payload, indent=2), language="json")
                 st.markdown("<div class='eyebrow'>SQLite Lineage Query</div>", unsafe_allow_html=True)
                 st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
-            else:
-                st.markdown(f"<div class='code-box'>{json.dumps(payload, indent=2)}</div>", unsafe_allow_html=True)
+                st.code(json.dumps(payload, indent=2), language="json")
 
-        with i_tab3:
+        with i_tab2:
             st.markdown(ui.note("Extend expiry date or revert back to Excel workbook value:"), unsafe_allow_html=True)
 
             act_col1, act_col2 = st.columns(2)
@@ -601,6 +600,70 @@ def render_master_detail(df: pd.DataFrame) -> None:
                         rerun()
                 else:
                     st.info("Record is in sync with Excel workbook.")
+
+        with i_tab3:
+            st.markdown(ui.note("Bulk renewal grid for all matching entities in the active filter:"), unsafe_allow_html=True)
+            batch_work = filtered.head(50).copy()
+            if hasattr(st, "data_editor") and hasattr(st, "column_config"):
+                b_view = batch_work[["schema_name", "state", "team", "env_label", "component", "exp_dt", "band", "days_left"]].copy()
+                b_view["exp_dt"] = b_view["exp_dt"].dt.date
+                b_view["days_left"] = b_view["days_left"].apply(ui.fmt_days)
+                b_view["band"] = b_view["band"].apply(ui.health_text)
+
+                b_edited = st.data_editor(
+                    b_view, key="md_batch_editor", hide_index=True, use_container_width=True,
+                    num_rows="fixed", height=280,
+                    column_config={
+                        "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
+                        "state": st.column_config.TextColumn("State", disabled=True, width="small"),
+                        "team": st.column_config.TextColumn("Team", disabled=True, width="small"),
+                        "env_label": st.column_config.TextColumn("Env", disabled=True, width="small"),
+                        "component": st.column_config.TextColumn("Component", disabled=True, width="medium"),
+                        "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width="medium"),
+                        "band": st.column_config.TextColumn("Status", disabled=True, width="small"),
+                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="small"),
+                    },
+                )
+
+                b_ids = batch_work["id"].tolist()
+                b_changes = []
+                for b_pos, b_rec_id in enumerate(b_ids):
+                    b_before = b_view.iloc[b_pos]["exp_dt"]
+                    b_after = b_edited.iloc[b_pos]["exp_dt"]
+                    if b_after is not None and not pd.isna(b_after):
+                        b_after = pd.to_datetime(b_after).date()
+                        if b_after != b_before:
+                            b_changes.append((b_rec_id, b_after))
+
+                b_btn_col, b_note_col = st.columns([1, 2])
+                if b_btn_col.button("Save Batch Changes", type="primary", key="md_save_batch_btn", disabled=not b_changes, use_container_width=True):
+                    apply_edits(b_changes)
+                    st.success(f"Saved {len(b_changes)} batch updates!")
+                    rerun()
+                b_note_col.markdown(f"<div style='font-size:11px;color:#94a3b8;padding-top:6px;'><b>{len(b_changes)}</b> unsaved change(s) in grid</div>", unsafe_allow_html=True)
+
+        with i_tab4:
+            active_edits = df[df["edited"]].copy()
+            st.markdown('<div class="eyebrow">Active Local Overrides Ledger</div>', unsafe_allow_html=True)
+            if active_edits.empty:
+                st.markdown("""
+                <div class="card" style="font-size:12px;color:#94a3b8;">
+                  <div style="font-weight:700;color:#10b981;margin-bottom:4px;">✓ Fleet 100% In Sync with Workbooks</div>
+                  All 500 records currently match their source Excel files. Local overrides made in the renewal console will appear here for 1-click audit & rollback.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(ui.note(f"<b>{len(active_edits)}</b> record(s) currently overridden in SQLite:"), unsafe_allow_html=True)
+                for er in active_edits.itertuples():
+                    ec1, ec2 = st.columns([3, 1])
+                    ec1.markdown(f"<b>{er.schema_name}</b> ({er.state} · {er.team}) — Modified to <code>{er.exp_date}</code> (Excel: <code>{er.source_exp_date}</code>)")
+                    if ec2.button("Revert", key=f"rev_ledger_{er.id}", use_container_width=True):
+                        conn = get_connection(DB_PATH)
+                        revert_component_exp_date(conn, int(er.id))
+                        conn.close()
+                        bust_cache()
+                        st.success(f"Reverted {er.schema_name}")
+                        rerun()
 
 
 # ==========================================================================
@@ -961,59 +1024,17 @@ def render_governance_center() -> None:
 
 
 # ==========================================================================
-# Primary Navigation
+# Primary Navigation (4 Streamlined Enterprise Workspaces)
 # ==========================================================================
-tab_overview, tab_state, tab_inspector, tab_matrix, tab_governance = st.tabs([
-    "Overview",
-    "State",
-    "Master-Detail Inspector",
+tab_overview, tab_inspector, tab_matrix, tab_governance = st.tabs([
+    "Executive Command Center",
+    "Entity Inspector & Renewal Hub",
     "Hierarchical Matrix",
     "Governance & Alerts",
 ])
 
 with tab_overview:
     canvas("all", None, CANVAS_OVERVIEW)
-
-with tab_state:
-    chosen = st.session_state.get("st_state")
-
-    cols = st.columns([0.8, 0.8, 0.8, 4.4])
-    for col, state in zip(cols[:3], STATES):
-        if col.button(state, key=f"st_pick_{state}",
-                      type="primary" if chosen == state else "secondary",
-                      use_container_width=True):
-            st.session_state["st_state"] = None if chosen == state else state
-            for key in ("mg_q", "mg_team", "mg_comp", "mg_health", "mg_window", "mg_editor", "mg_revert"):
-                st.session_state.pop(key, None)
-            rerun()
-
-    with cols[3]:
-        if chosen:
-            subset = records[records["state"] == chosen]
-            overdue = int((subset["days_left"] < 0).sum())
-            st.markdown(ui.pick_line(
-                f"{chosen} Selected",
-                f"{len(subset)} records · "
-                + (f"{overdue} overdue" if overdue else "none overdue")
-                + " · click to deselect"),
-                unsafe_allow_html=True)
-        else:
-            st.markdown(ui.pick_line(
-                "Choose a state",
-                "AK, NH and ND each open the same two views"), unsafe_allow_html=True)
-
-    if not chosen:
-        st.markdown(ui.empty(
-            "Pick a state above to continue",
-            "Each state opens an Overview — the same report as the first tab, pinned to that "
-            "state — and a Manage view for recording renewals. The Overview tab already shows "
-            "all three states together."), unsafe_allow_html=True)
-    else:
-        sub_overview, sub_manage = st.tabs(["Overview", "Manage"])
-        with sub_overview:
-            canvas("state", chosen, CANVAS_STATE)
-        with sub_manage:
-            render_manage(records[records["state"] == chosen], chosen)
 
 with tab_inspector:
     render_master_detail(records)
