@@ -66,7 +66,7 @@ st.markdown(ui.css(), unsafe_allow_html=True)
 # ==========================================================================
 # Data Loading & Ingestion
 # ==========================================================================
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
     """Read component_records and derive everything the views need."""
     conn = get_connection(db_path)
@@ -92,7 +92,7 @@ def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=2, show_spinner=False)
 def build_page(db_path: str, mode: str, state: str | None, _bust: int = 0) -> str:
     """The report canvas as a self-contained zero-scroll HTML document."""
     df = load_records(db_path, _bust)
