@@ -106,6 +106,21 @@ CREATE TABLE IF NOT EXISTS metric_snapshot (
 
 CREATE INDEX IF NOT EXISTS idx_metric_snapshot_scope
     ON metric_snapshot (state, component, captured_at);
+
+CREATE TABLE IF NOT EXISTS maintenance_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    state TEXT NOT NULL,
+    team TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    days_of_week TEXT NOT NULL,
+    time_window TEXT NOT NULL,
+    frequency_blurb TEXT NOT NULL,
+    next_run_date TEXT,
+    notes TEXT,
+    last_run_at TEXT,
+    updated_at TEXT,
+    UNIQUE(state, team)
+);
 """
 
 
@@ -360,3 +375,52 @@ def get_metric_snapshots(conn: sqlite3.Connection, limit: int = 200) -> list:
     )
     rows = [dict(r) for r in cur.fetchall()]
     return rows[-limit:] if len(rows) > limit else rows
+
+
+def load_maintenance_schedules_csv(conn: sqlite3.Connection, csv_path: str) -> int:
+    """Load or refresh maintenance schedules from CSV into SQLite database."""
+    import csv
+    if not Path(csv_path).exists():
+        return 0
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    now = datetime.now(timezone.utc).isoformat()
+    for r in rows:
+        conn.execute(
+            """
+            INSERT INTO maintenance_schedules (state, team, cadence, days_of_week, time_window, frequency_blurb, next_run_date, notes, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(state, team) DO UPDATE SET
+                cadence = excluded.cadence,
+                days_of_week = excluded.days_of_week,
+                time_window = excluded.time_window,
+                frequency_blurb = excluded.frequency_blurb,
+                next_run_date = coalesce(maintenance_schedules.next_run_date, excluded.next_run_date),
+                notes = coalesce(maintenance_schedules.notes, excluded.notes),
+                updated_at = excluded.updated_at;
+            """,
+            (r["state"], r["team"], r["cadence"], r["days_of_week"], r["time_window"], r["frequency_blurb"], r.get("next_run_date"), r.get("notes"), now)
+        )
+    conn.commit()
+    return len(rows)
+
+
+def get_maintenance_schedules(conn: sqlite3.Connection) -> list[dict]:
+    """Fetch all configured maintenance schedules as dictionaries."""
+    rows = conn.execute("SELECT * FROM maintenance_schedules ORDER BY state, team").fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_maintenance_schedule(conn: sqlite3.Connection, state: str, team: str, days_of_week: str, next_run_date: str, notes: str) -> bool:
+    """Update operator-managed maintenance schedule fields."""
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = conn.execute(
+        """
+        UPDATE maintenance_schedules
+        SET days_of_week = ?, next_run_date = ?, notes = ?, updated_at = ?
+        WHERE state = ? AND team = ?;
+        """,
+        (days_of_week, next_run_date, notes, now, state, team)
+    )
+    conn.commit()
+    return cursor.rowcount > 0

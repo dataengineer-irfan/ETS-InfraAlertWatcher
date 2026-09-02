@@ -1,0 +1,13 @@
+state,team,cadence,days_of_week,time_window,frequency_blurb,next_run_date,notes
+AK,Cognos,thrice_weekly,"Sunday,Tuesday,Friday",22:00-02:00,Thrice a week (Sun / Tue / Fri),2026-09-06,Automated dispatcher restart & report content store cache cleanup
+NH,Cognos,monthly,1st Sunday,20:00-04:00,Monthly (1st Sunday),2026-09-06,Monthly OS patching and reporting service health check
+ND,Cognos,bi_weekly,Sunday,22:00-02:00,Bi-weekly on Sundays,2026-09-13,Bi-weekly Cognos query server bounce and log rotation
+AK,Informatica,weekly,Sunday,01:00-05:00,Weekly on Sundays,2026-09-06,PowerCenter node restart & staging table index optimize
+NH,Informatica,bi_weekly,Sunday,01:00-05:00,Bi-weekly on Sundays,2026-09-13,ETL repository cleanup and session log archive
+ND,Informatica,monthly,1st Sunday,01:00-05:00,Monthly on Sundays,2026-09-06,Monthly data pipeline cold restart and integrity audit
+AK,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Java heap dump flush & container rolling bounce
+NH,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Tomcat / WebSphere container recycling & JVM health audit
+ND,App Server,weekly,Sunday,02:00-06:00,Weekly on Sundays,2026-09-06,Java container maintenance and SSL keystore reload
+AK,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,FADS template cache reindex and queue drainage
+NH,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,Print spooler maintenance and font library sync
+ND,Letters,monthly,1st Sunday,03:00-06:00,Monthly (1st Sunday),2026-09-06,Monthly batch correspondence engine cold restart

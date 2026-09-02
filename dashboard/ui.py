@@ -106,6 +106,34 @@ STATES = ["AK", "NH", "ND"]
 COMPONENT_ORDER = list(COMPONENT_CODE)
 
 # --------------------------------------------------------------------------
+# Multi-Team vocabulary
+# --------------------------------------------------------------------------
+TEAMS = ["Cognos", "Informatica", "Letters", "App Server", "Core"]
+
+TEAM_META = {
+    "Cognos": {"color": "#818CF8", "icon": "📊", "lead": "BI & Analytics"},
+    "Informatica": {"color": "#FB923C", "icon": "🔄", "lead": "ETL & Integration"},
+    "Letters": {"color": "#34D399", "icon": "✉️", "lead": "Correspondence & Print"},
+    "App Server": {"color": "#FBBF24", "icon": "⚙️", "lead": "Java Containers & JVM"},
+    "Core": {"color": "#38BDF8", "icon": "🛡️", "lead": "Database & Infrastructure"},
+}
+
+
+def team_of(schema_name: str, component: str = "") -> str:
+    """Classify schema or component into team owner."""
+    sn = (schema_name or "").upper()
+    cmp = (component or "").upper()
+    if any(k in sn for k in ["ORR", "MMIS", "COGNOS", "COTS_REP"]):
+        return "Cognos"
+    if any(k in sn for k in ["ISIM", "EMAR", "INFA", "ETL"]):
+        return "Informatica"
+    if any(k in sn for k in ["FADS", "OMNI", "LETTER", "PRINT"]):
+        return "Letters"
+    if any(k in sn for k in ["WAS", "TC", "JBOSS", "JVM"]) or any(k in cmp for k in ["SOFTWARE", "PATCH", "SWVER"]):
+        return "App Server"
+    return "Core"
+
+# --------------------------------------------------------------------------
 # Colour tokens shared by the Streamlit chrome and the canvas (Deep Slate)
 # --------------------------------------------------------------------------
 TOKENS = {

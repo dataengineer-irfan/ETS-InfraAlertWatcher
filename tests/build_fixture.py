@@ -53,6 +53,7 @@ def load() -> pd.DataFrame:
     df["quarter"] = ("Q" + df["exp_dt"].dt.quarter.astype(str)
                      + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
+    df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", "")), axis=1)
     return df
 
 
@@ -118,6 +119,7 @@ def main() -> int:
                         for s, g in df.groupby("state")},
         "byBand": df["band"].value_counts().to_dict(),
         "byEnv": df["env_label"].value_counts().to_dict(),
+        "byTeam": df["team"].value_counts().to_dict(),
         "pairings": int(df.groupby(["env_label", "component"]).ngroups),
         "minDays": int(df["days_left"].min()),
         "maxDays": int(df["days_left"].max()),
@@ -162,8 +164,15 @@ def main() -> int:
         {"captured_at": "2026-09-01T09:00:00Z", "state": None, "component": "PATCH", "tracked": 24, "expired": 0, "critical": 0, "warning": 0, "healthy": 24, "soonest_days": 110},
     ]
 
+    import csv
+    maint_csv = ROOT / "config" / "maintenance_schedules.csv"
+    schedules = []
+    if maint_csv.exists():
+        with open(maint_csv, newline="", encoding="utf-8") as f:
+            schedules = list(csv.DictReader(f))
+
     for mode, state in (("all", None), ("state", "AK")):
-        html = report.build(records, mode=mode, state=state, env_order=ENV_ORDER, snapshots=sample_snapshots)
+        html = report.build(records, mode=mode, state=state, env_order=ENV_ORDER, snapshots=sample_snapshots, schedules=schedules, teams=ui.TEAMS)
         (FIXTURE / f"page_{mode}.html").write_text(html, encoding="utf-8")
         print(f"page_{mode}.html  {len(html):>7,} bytes")
 

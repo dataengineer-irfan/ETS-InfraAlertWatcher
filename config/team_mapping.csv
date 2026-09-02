@@ -1,11 +1,16 @@
 schema_type,team
 COTS,Core
-ORR,Core
 ORR,Cognos
-MMIS,Core
 MMIS,Cognos
 ISIM,Informatica
 EMAR,Informatica
-EMAR,EDMS
-OMNI,EDMS
+OMNI,Letters
 FADS,Letters
+WAS,App Server
+TC,App Server
+JBOSS,App Server
+JVM,App Server
+SWVER,App Server
+PATCH,App Server
+CRYPTO,Core
+DBPWD,Core

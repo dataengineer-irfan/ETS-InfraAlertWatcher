@@ -53,8 +53,11 @@ from ui import (  # noqa: F401  (BAND_COLOR is re-exported for callers)
     CRITICAL_DAYS,
     ENV_BLURB,
     STATES,
+    TEAMS,
+    TEAM_META,
     TOKENS,
     WARNING_DAYS,
+    team_of,
 )
 
 # --------------------------------------------------------------------------
@@ -177,25 +180,66 @@ body{
   border:1px solid var(--accent-line); border-radius:4px; padding:1px 4px; white-space:nowrap;
 }
 
-/* Smart Narrative Banner */
-.narrative-strip{
-  display:flex; align-items:center; gap:5px; flex:1 1 auto; min-width:0; max-width:100%;
-  background:var(--sunk); border-radius:5px; padding:2px 7px;
+/* ---- Cascading Filter Bar & Intelligence Strip (2026 Edition) -------- */
+.cascade-bar{
+  display:inline-flex; align-items:center; gap:4px; flex:none;
+}
+.cascade-pill{
+  position:relative; display:inline-flex; align-items:center;
+  background:var(--sunk); border:1px solid var(--rule); border-radius:5px;
+  padding:1px 6px 1px 6px; font-size:9.5px; font-weight:600; color:var(--slate);
+  transition:all .12s ease; cursor:pointer;
+}
+.cascade-pill:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
+.cascade-pill.active{
+  border-color:var(--accent); background:var(--accent-tint); color:var(--accent);
+}
+.cascade-pill select{
+  appearance:none; -webkit-appearance:none; background:transparent; border:none;
+  color:inherit; font:inherit; font-size:9.5px; font-weight:600; cursor:pointer;
+  outline:none; padding-right:10px; margin:0;
+}
+.cascade-pill select option{
+  background:#0F172A; color:#F8FAFC; font-family:var(--ui);
+}
+
+/* Day-of Intelligence Alert Strip */
+.intel-strip{
+  display:inline-flex; align-items:center; gap:5px; flex:1 1 auto; min-width:0; max-width:100%;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.narrative-tag{
-  font-family:var(--mono); font-size:8.5px; font-weight:700; letter-spacing:.05em;
-  text-transform:uppercase; padding:1px 4px; border-radius:3px; flex:none; white-space:nowrap;
+.intel-chip{
+  display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:5px;
+  font-size:9.5px; line-height:1.2; white-space:nowrap; flex:none;
+  transition:all .15s ease;
 }
-.tag-alert{ background:rgba(239,68,68,0.22); color:#EF4444; border:1px solid rgba(239,68,68,0.4); }
-.tag-crit{ background:rgba(249,115,22,0.22); color:#F97316; border:1px solid rgba(249,115,22,0.4); }
-.tag-warn{ background:rgba(245,158,11,0.22); color:#F59E0B; border:1px solid rgba(245,158,11,0.4); }
-.tag-ok{ background:rgba(16,185,129,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.35); }
-.narrative-text{
-  font-size:10px; color:var(--ink); flex:1 1 auto; min-width:0; max-width:100%;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+.intel-chip.maint{
+  background:rgba(56,189,248,0.16); color:#38BDF8; border:1px solid rgba(56,189,248,0.4);
 }
-.narrative-text b{ font-weight:600; color:var(--ink); }
+.intel-chip.urgent{
+  background:rgba(239,68,68,0.18); color:#EF4444; border:1px solid rgba(239,68,68,0.4);
+}
+.intel-chip.warn{
+  background:rgba(245,158,11,0.18); color:#F59E0B; border:1px solid rgba(245,158,11,0.4);
+}
+.intel-chip.ok{
+  background:rgba(16,185,129,0.14); color:#10B981; border:1px solid rgba(16,185,129,0.3);
+}
+.intel-chip b{ font-weight:700; color:inherit; }
+.intel-chip .sub{ color:var(--slate); font-size:8.5px; font-family:var(--mono); margin-left:3px; }
+
+.pulse-dot{
+  width:6px; height:6px; border-radius:50%; background:#38BDF8; display:inline-block;
+  box-shadow:0 0 0 rgba(56,189,248, 0.7); animation:pulse 1.8s infinite; flex:none;
+}
+.pulse-dot.red{ background:#EF4444; box-shadow:0 0 0 rgba(239,68,68,0.7); }
+.pulse-dot.yellow{ background:#F59E0B; box-shadow:0 0 0 rgba(245,158,11,0.7); }
+.pulse-dot.green{ background:#10B981; box-shadow:0 0 0 rgba(16,185,129,0.7); }
+@keyframes pulse{
+  0%{ box-shadow:0 0 0 0 rgba(56,189,248,0.7); }
+  70%{ box-shadow:0 0 0 6px rgba(56,189,248,0); }
+  100%{ box-shadow:0 0 0 0 rgba(56,189,248,0); }
+}
 
 .story-btn{
   font:inherit; font-size:9.5px; font-weight:600; color:var(--accent);
@@ -246,6 +290,27 @@ body{
 .views{ display:flex; align-items:center; gap:3px; flex:none; }
 .views .lead{ font-size:8.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
               color:var(--mute); margin-right:1px; }
+
+/* Maintenance Cadence Visualizer */
+.cadence-wrap{ height:100%; overflow-y:auto; }
+.cadence-tbl{ width:100%; border-collapse:collapse; font-size:10px; }
+.cadence-tbl th{ padding:3px 6px; font-size:8.5px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); }
+.cadence-tbl th.cur-th{ color:#38BDF8; font-weight:700; background:rgba(56,189,248,0.1); }
+.cadence-tbl td{ padding:4px 6px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+.cadence-tbl tr.hot-maint{ background:rgba(56,189,248,0.08); }
+.cadence-cell{ text-align:center; font-size:11px; color:var(--mute); }
+.cadence-cell.active{ color:#38BDF8; font-weight:700; }
+.cadence-cell.today-active{ color:#10B981; font-weight:700; background:rgba(16,185,129,0.15); border-radius:3px; }
+.cadence-cell.cur-day{ background:rgba(255,255,255,0.03); }
+.st-tag{ background:var(--accent-tint); color:var(--accent); border:1px solid var(--accent-line); border-radius:3px; padding:1px 4px; font-size:9px; }
+.badge-maint-active{
+  background:rgba(16,185,129,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4);
+  border-radius:3px; padding:1px 5px; font-size:8.5px; font-weight:700; text-transform:uppercase;
+}
+.badge-maint-sched{
+  background:var(--sunk); color:var(--slate); border:1px solid var(--rule);
+  border-radius:3px; padding:1px 5px; font-size:8.5px;
+}
 
 /* ---- chips ----------------------------------------------------------- */
 .chip{
@@ -729,6 +794,7 @@ function rows(S, skip){
   skip = skip || "";
   let out = DATA.records;
   if (S.state && skip !== "state") out = out.filter(r => r.state === S.state);
+  if (S.team && skip !== "team") out = out.filter(r => r.team === S.team);
   if (S.component && skip !== "component") out = out.filter(r => r.component === S.component);
   if (S.environment && skip !== "environment") out = out.filter(r => r.environment === S.environment);
   if (S.band && skip !== "band"){
@@ -808,6 +874,7 @@ function legend(){
 function renderCrumbs(S){
   const bits = [];
   if (DATA.mode === "all" && S.state) bits.push(["State", S.state, "state"]);
+  if (S.team) bits.push(["Team", S.team, "team"]);
   if (S.component) bits.push(["Component", CODE[S.component], "component"]);
   if (S.environment) bits.push(["Environment", S.environment, "environment"]);
   if (S.band) bits.push(["Health", S.band === "__urgent__" ? "Needs attention" : S.band, "band"]);
@@ -992,24 +1059,76 @@ function storySteps(S){
   ];
 }
 
-// ---- search & filter toggle (inline in command bar) ------------------
-function renderSearch(S){
-  const activeCount = (DATA.mode === "all" && S.state ? 1 : 0)
-    + (S.component ? 1 : 0)
-    + (S.band && S.band !== "__urgent__" ? 1 : S.band === "__urgent__" ? 1 : 0)
-    + ((S.window && S.window !== "all") ? 1 : 0);
+// ---- cascading filter bar (2026 Edition) -----------------------------
+function cascadeSelect(dim, options, current){
+  const isSet = !!current;
+  return '<div class="cascade-pill' + (isSet ? " active" : "") + '">'
+    + '<select data-act="cascade" data-dim="' + esc(dim) + '" aria-label="' + esc(dim) + '">'
+    + options.map(o => '<option value="' + esc(o.id) + '"' + (o.id === current ? " selected" : "") + ">" + esc(o.label) + "</option>").join("")
+    + '</select>▾</div>';
+}
 
+function renderCascades(S){
+  const out = [];
+  if (DATA.mode === "all"){
+    const stOpts = [{ id: "", label: "State: All" }].concat(DATA.states.map(st => ({ id: st, label: "State: " + st })));
+    out.push(cascadeSelect("state", stOpts, S.state || ""));
+  }
+  const teamOpts = [{ id: "", label: "Team: All" }].concat((DATA.teams || []).map(t => ({ id: t, label: "Team: " + t })));
+  out.push(cascadeSelect("team", teamOpts, S.team || ""));
+  const compOpts = [{ id: "", label: "Comp: All" }].concat(DATA.components.map(c => ({ id: c, label: "Comp: " + CODE[c] })));
+  out.push(cascadeSelect("component", compOpts, S.component || ""));
+  const healthOpts = [{ id: "", label: "Health: All" }].concat(BANDS.map(b => ({ id: b, label: "Health: " + b })));
+  out.push(cascadeSelect("band", healthOpts, S.band || ""));
+  const dateOpts = DATA.windows.map(w => ({ id: w.id === "all" ? "" : w.id, label: w.id === "all" ? "Dates: All" : w.label }));
+  out.push(cascadeSelect("window", dateOpts, S.window === "all" ? "" : (S.window || "")));
+
+  return out.join("");
+}
+
+// ---- proactive operational maintenance & expiry intelligence banner ---
+function isMaintToday(sch){
+  if (!sch || !sch.days_of_week) return false;
+  const days = String(sch.days_of_week).toLowerCase();
+  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const todayDay = dayNames[new Date().getDay()];
+  return days.includes(todayDay);
+}
+
+function renderAlertBanner(S){
+  const activeSchedules = (DATA.schedules || []).filter(sch => {
+    if (S.state && sch.state !== S.state) return false;
+    if (S.team && sch.team !== S.team) return false;
+    return isMaintToday(sch);
+  });
+
+  const inScope = rows(S);
+  const expiredCount = inScope.filter(r => r.days < 0).length;
+  const warnCount = inScope.filter(r => r.days >= 0 && r.days <= 30).length;
+
+  const alerts = [];
+  if (activeSchedules.length > 0){
+    const sch = activeSchedules[0];
+    alerts.push('<div class="intel-chip maint" data-tip="Active operational maintenance window scheduled today for ' + esc(sch.state + ' ' + sch.team) + '"><span class="pulse-dot"></span><b>🛠️ ' + esc(sch.state + " " + sch.team) + ' Maintenance Today</b> <span class="sub">(' + esc(sch.time_window) + ')</span></div>');
+  }
+  if (expiredCount > 0){
+    alerts.push('<div class="intel-chip urgent" data-tip="Credentials / software versions overdue"><span class="pulse-dot red"></span><b>🔴 ' + expiredCount + ' Overdue Item' + (expiredCount > 1 ? 's' : '') + '</b></div>');
+  } else if (warnCount > 0){
+    alerts.push('<div class="intel-chip warn" data-tip="Upcoming renewals in 30d"><span class="pulse-dot yellow"></span><b>⚠️ ' + warnCount + ' Due Soon</b></div>');
+  } else if (!activeSchedules.length){
+    alerts.push('<div class="intel-chip ok"><span class="pulse-dot green"></span><b>✓ 100% Compliant</b></div>');
+  }
+
+  return alerts.join("");
+}
+
+// ---- search box ------------------------------------------------------
+function renderSearch(S){
   const q = S.q || "";
   return '<div class="search"><input id="q" type="search" value="' + esc(q)
-    + '" placeholder="Find a schema, environment or date" aria-label="Search tracked items" />'
-    + (q ? '<button class="clr" type="button" data-act="drop" data-val="q" '
-         + 'aria-label="Clear search">&times;</button>' : "") + "</div>"
-    + '<button class="filter-toggle' + (S.showFilters ? " active" : "") + '" type="button"'
-    + ' data-act="toggleFilters" data-tip="'
-    + (S.showFilters ? "Collapse filter options" : "Expand filters to narrow by state, component, health or date range") + '">'
-    + (S.showFilters ? "&#9650; Filters" : "&#9660; Filters")
-    + (activeCount ? '<span class="filter-badge">' + activeCount + "</span>" : "")
-    + "</button>";
+    + '" placeholder="Find a schema, env, or date" aria-label="Search tracked items" />'
+    + (q ? '<button class="clr" type="button" data-act="drop" data-val="q" aria-label="Clear search">&times;</button>' : "")
+    + '</div>';
 }
 
 // ---- Floating Filter Popover / Modal (Power BI Standard) ------------------
@@ -1150,7 +1269,8 @@ function renderComps(S){
 const FOCUS_VIEWS = [
   { id: "horizon", label: "Timeline", tip: "Every item placed on a time axis" },
   { id: "envs", label: "Environments", tip: "Environments in current selection" },
-  { id: "coverage", label: "Coverage", tip: "State/Env vs Component coverage" }
+  { id: "coverage", label: "Coverage", tip: "State/Env vs Component coverage" },
+  { id: "cadence", label: "Cadence", tip: "Team operational maintenance recurrence and windows" }
 ];
 
 function focusHint(S){
@@ -1160,15 +1280,60 @@ function focusHint(S){
   if (S.focus === "coverage")
     return (DATA.mode === "all" ? "State" : "Environment") + " against component, "
       + "labelled with time to the soonest expiry";
+  if (S.focus === "cadence")
+    return "Operational maintenance windows and recurrence cadence per State and Team";
   const rs = rows(S), nx = soonest(rs.filter(r => r.days >= 0)) || soonest(rs);
   if (!nx) return "Nothing in scope";
   return (nx.days < 0 ? "Oldest overdue item lapsed " + fmtDays(nx.days)
                       : "Next expiry " + fmtDaysLong(nx.days)) + " - " + fmtDate(nx.exp);
 }
 
+function renderCadence(S){
+  const scheds = (DATA.schedules || []).filter(sch => {
+    if (S.state && sch.state !== S.state) return false;
+    if (S.team && sch.team !== S.team) return false;
+    return true;
+  });
+
+  if (!scheds.length)
+    return voidState("No maintenance schedules defined", "No scheduled windows match the current filter scope.");
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const fullDayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const todayIdx = new Date().getDay();
+
+  const rowsHtml = scheds.map(sch => {
+    const daysStr = String(sch.days_of_week || "").toLowerCase();
+    const isToday = isMaintToday(sch);
+    const dayCells = fullDayNames.map((d, i) => {
+      const active = daysStr.includes(d);
+      const isCur = i === todayIdx;
+      let cls = "cadence-cell";
+      if (active) cls += isCur ? " today-active" : " active";
+      else if (isCur) cls += " cur-day";
+      return '<td class="' + cls + '">' + (active ? (isCur ? "🟢" : "●") : "·") + '</td>';
+    }).join("");
+
+    return '<tr class="' + (isToday ? "hot-maint" : "") + '">'
+      + '<td class="mono font-bold"><span class="st-tag">' + esc(sch.state) + '</span></td>'
+      + '<td style="font-weight:600;color:var(--ink);">' + esc(sch.team) + '</td>'
+      + '<td style="color:var(--slate);font-size:9.5px;">' + esc(sch.frequency_blurb) + '</td>'
+      + '<td class="mono" style="color:var(--mute);font-size:9.5px;">' + esc(sch.time_window) + '</td>'
+      + dayCells
+      + '<td>' + (isToday ? '<span class="badge-maint-active">ACTIVE TODAY</span>' : '<span class="badge-maint-sched">Upcoming (' + esc(sch.next_run_date || "Sun") + ')</span>') + '</td>'
+      + '</tr>';
+  }).join("");
+
+  return '<div class="cadence-wrap"><table class="tbl cadence-tbl"><thead><tr>'
+    + '<th>State</th><th>Team</th><th>Cadence</th><th>Window (UTC)</th>'
+    + dayNames.map((d, i) => '<th class="' + (i === todayIdx ? "cur-th" : "") + '">' + d + '</th>').join("")
+    + '<th>Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+}
+
 function renderFocus(S){
   if (S.focus === "envs") return renderEnvs(S);
   if (S.focus === "coverage") return renderCoverage(S);
+  if (S.focus === "cadence") return renderCadence(S);
   return renderHorizon(S);
 }
 
@@ -1604,6 +1769,7 @@ function whereLabel(S){
    ====================================================================== */
 const S = {
   state: DATA.mode === "state" ? DATA.state : null,
+  team: null,
   component: null, environment: null, band: null, window: "all", q: "",
   focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all",
   showFilters: false,
@@ -1614,7 +1780,7 @@ const S = {
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
-["mWhere", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
+["mWhere", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenHint",
  "mWhenSeg", "mWhen", "mStoryModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
@@ -1632,6 +1798,8 @@ function animateNumbers(){
 
 function apply(){
   put("mWhere", esc(whereLabel(S)));
+  put("mCascades", renderCascades(S));
+  put("mAlertBanner", renderAlertBanner(S));
   put("mNarrative", renderNarrative(S));
   put("mCrumbs", renderCrumbs(S));
   put("mViews", renderViews(S));
@@ -1766,6 +1934,9 @@ function act(name, value){
       toggle("state", value);
       S.component = null; S.environment = null;
       break;
+    case "team":
+      toggle("team", value);
+      break;
     case "component":
       toggle("component", value);
       S.environment = null;
@@ -1804,7 +1975,7 @@ function act(name, value){
       break;
     case "reset":
       Object.assign(S, {
-        state: DATA.mode === "state" ? DATA.state : null, component: null, environment: null,
+        state: DATA.mode === "state" ? DATA.state : null, team: null, component: null, environment: null,
         band: null, window: "all", q: "", focus: "horizon", sort: "soon", page: 0, view: "all"
       });
       { const box = $("q"); if (box) box.value = ""; }
@@ -1841,6 +2012,18 @@ document.addEventListener("click", e => {
   if (!hit || hit.disabled) return;
   e.preventDefault();
   act(hit.dataset.act, hit.dataset.val || "");
+});
+
+document.addEventListener("change", e => {
+  const select = e.target.closest("select[data-act='cascade']");
+  if (!select) return;
+  const dim = select.dataset.dim;
+  const val = select.value;
+  S[dim] = val || null;
+  if (dim === "state"){ S.component = null; S.environment = null; }
+  S.view = null;
+  S.page = 0;
+  apply();
 });
 
 document.addEventListener("input", e => {
@@ -1963,7 +2146,8 @@ if (typeof module !== "undefined" && module.exports){
   module.exports = { rows, counts, soonest, sorted, healthOf, worstBand, fmtDate, fmtDays,
                      fmtDaysLong, renderTable, renderSummary, summaryRows, visibleCount,
                      renderKpis, renderComps, renderHorizon, renderEnvs, renderCoverage,
-                     renderWhen, renderSlicers, renderCrumbs, renderPager, renderNarrative,
+                     renderCadence, renderWhen, renderCascades, renderAlertBanner, isMaintToday,
+                     renderSlicers, renderCrumbs, renderPager, renderNarrative,
                      renderSinceVisit, sparklineSvg, trendDelta, storySteps, clampStr,
                      getScopeSnapshots, METRIC_DIRECTIONS, tableHint, whereLabel, focusHint,
                      whenHint, quarters, qOrd, COLS, SUM_COLS, SORTS };
@@ -1986,13 +2170,14 @@ def to_records(rows: list, *, env_order: list, component_order: list) -> list:
             "Expired" if days < 0 else "Critical" if days <= CRITICAL_DAYS
             else "Warning" if days <= WARNING_DAYS else "Healthy")
         schema = r.get("schema_name") or ""
+        team = r.get("team") or team_of(schema, comp)
         try:
             env_no = int(r.get("env_no") or 0)
         except (TypeError, ValueError):
             env_no = 0
 
         hay = " ".join(str(v) for v in (
-            r.get("state", ""), comp, COMPONENT_CODE.get(comp, ""), env, schema,
+            r.get("state", ""), comp, COMPONENT_CODE.get(comp, ""), env, schema, team,
             r.get("module") or "", exp, _human_date(exp), band, r.get("quarter") or "",
         )).lower()
 
@@ -2000,6 +2185,7 @@ def to_records(rows: list, *, env_order: list, component_order: list) -> list:
             "id": r.get("id"),
             "state": r.get("state", ""),
             "component": comp,
+            "team": team,
             "environment": env,
             "envNo": env_no,
             "envRank": env_order.index(env) if env in env_order else len(env_order),
@@ -2026,7 +2212,8 @@ def _human_date(iso: str) -> str:
 
 
 def _payload(records: list, *, mode: str, state, as_of: date, env_order: list,
-             snapshots: list | None = None) -> dict:
+             snapshots: list | None = None, schedules: list | None = None,
+             teams: list | None = None) -> dict:
     """The JSON handed to the browser."""
     today = as_of
     return {
@@ -2037,6 +2224,9 @@ def _payload(records: list, *, mode: str, state, as_of: date, env_order: list,
         "components": list(COMPONENT_CODE),
         "componentCode": COMPONENT_CODE,
         "componentBlurb": COMPONENT_BLURB,
+        "teams": teams or list(TEAMS),
+        "teamMeta": TEAM_META,
+        "schedules": schedules or [],
         "envOrder": env_order,
         "envBlurb": ENV_BLURB,
         "bands": BANDS,
@@ -2056,11 +2246,12 @@ def _payload(records: list, *, mode: str, state, as_of: date, env_order: list,
 
 def build(records: list, *, mode: str = "all", state: str | None = None,
           as_of: date | None = None, env_order: list | None = None,
-          snapshots: list | None = None) -> str:
+          snapshots: list | None = None, schedules: list | None = None,
+          teams: list | None = None) -> str:
     """One self-contained HTML document for the whole report."""
     data = _payload(records, mode=mode, state=state,
                     as_of=as_of or date.today(), env_order=env_order or [],
-                    snapshots=snapshots)
+                    snapshots=snapshots, schedules=schedules, teams=teams)
     css = _CSS.replace("/*__TOKENS__*/", _css_tokens())
     js = _JS.replace("/*__DATA__*/", json.dumps(data, separators=(",", ":")))
     title = f"Expiry Watchtower - {state}" if state else "Expiry Watchtower"

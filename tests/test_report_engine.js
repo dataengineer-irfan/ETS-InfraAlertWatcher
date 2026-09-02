@@ -48,8 +48,8 @@ function loadEngine(file) {
     html.slice(start, end) +
     ";Object.assign(module.exports,{DATA,rows,counts,soonest,sorted,healthOf,worstBand," +
     "fmtDate,fmtDays,fmtDaysLong,renderTable,renderSummary,summaryRows,visibleCount," +
-    "renderKpis,renderComps,renderHorizon,renderEnvs,renderCoverage,renderWhen," +
-    "renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
+    "renderKpis,renderComps,renderHorizon,renderEnvs,renderCoverage,renderCadence,renderWhen," +
+    "renderCascades,renderAlertBanner,isMaintToday,renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
     "trendDelta,storySteps,clampStr,getScopeSnapshots,METRIC_DIRECTIONS,tableHint," +
     "whereLabel,focusHint,whenHint,quarters,qOrd,COLS,SUM_COLS,SORTS});",
     ctx, { filename: path.basename(file) }
@@ -63,15 +63,15 @@ const T = JSON.parse(fs.readFileSync(path.join(FIX, "truth.json"), "utf8"));
 
 // A fresh default state, matching what the page starts with.
 const base = () => ({
-  state: null, component: null, environment: null, band: null, window: "all", q: "",
+  state: null, team: null, component: null, environment: null, band: null, window: "all", q: "",
   focus: "horizon", sort: "soon", page: 0, rows: 9, tview: "detail", qty: "count", view: "all",
   showFilters: false
 });
 const withS = o => Object.assign(base(), o);
 const COMPS = Object.keys(E.DATA.componentCode);
 const ALL_RENDERERS = ["renderKpis", "renderComps", "renderHorizon", "renderEnvs",
-  "renderCoverage", "renderWhen", "renderTable", "renderSummary", "renderSlicers",
-  "renderCrumbs", "renderPager"];
+  "renderCoverage", "renderCadence", "renderWhen", "renderCascades", "renderAlertBanner",
+  "renderTable", "renderSummary", "renderSlicers", "renderCrumbs", "renderPager"];
 
 // =========================================================================
 // 1. the filter pipeline agrees with pandas

@@ -36,6 +36,9 @@ from db import (  # noqa: E402
     get_metric_snapshots,
     revert_component_exp_date,
     update_component_exp_date,
+    load_maintenance_schedules_csv,
+    get_maintenance_schedules,
+    update_maintenance_schedule,
 )
 from ingest_components import COMPONENTS, run as run_ingest  # noqa: E402
 from expiry_checker import get_due_reminders, mark_sent  # noqa: E402
@@ -74,7 +77,7 @@ def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
         return pd.DataFrame(columns=[
             "id", "state", "component", "env_no", "environment", "module",
             "schema_name", "exp_date", "source_exp_date", "edited_at",
-            "exp_dt", "days_left", "band", "edited", "quarter", "env_label",
+            "exp_dt", "days_left", "band", "edited", "quarter", "env_label", "team",
         ])
 
     df["exp_dt"] = pd.to_datetime(df["exp_date"], errors="coerce")
@@ -85,6 +88,7 @@ def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
     df["quarter"] = ("Q" + df["exp_dt"].dt.quarter.astype(str)
                      + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
+    df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", "")), axis=1)
     return df
 
 
@@ -97,8 +101,14 @@ def build_page(db_path: str, mode: str, state: str | None, _bust: int = 0) -> st
     conn = get_connection(db_path)
     ensure_metric_snapshots(conn, records)
     snapshots = get_metric_snapshots(conn)
+    # Ensure baseline maintenance schedules are loaded
+    load_maintenance_schedules_csv(conn, str(ROOT / "config" / "maintenance_schedules.csv"))
+    schedules = get_maintenance_schedules(conn)
     conn.close()
-    return report.build(records, mode=mode, state=state, env_order=ENV_ORDER, snapshots=snapshots)
+    return report.build(
+        records, mode=mode, state=state, env_order=ENV_ORDER,
+        snapshots=snapshots, schedules=schedules, teams=ui.TEAMS
+    )
 
 
 def ensure_ingested() -> None:
@@ -342,6 +352,53 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
             revert_component_exp_date(conn, int(revert_labels[pick]))
             conn.close()
             bust_cache()
+            rerun()
+
+    # ---- Operational Maintenance Schedule Manager ----
+    st.markdown("<hr style='border:0;border-top:1px solid #1E293B;margin:18px 0 14px;'>", unsafe_allow_html=True)
+    st.markdown(ui.pick_line(
+        f"Operational Maintenance Windows for {state}",
+        "Manage team recurrence cadences, scheduled days, planned dates, and operational notes"),
+        unsafe_allow_html=True)
+
+    conn = get_connection(DB_PATH)
+    load_maintenance_schedules_csv(conn, str(ROOT / "config" / "maintenance_schedules.csv"))
+    all_schedules = get_maintenance_schedules(conn)
+    conn.close()
+
+    state_scheds = [s for s in all_schedules if s.get("state") == state]
+    if state_scheds:
+        sched_df = pd.DataFrame(state_scheds)[["team", "cadence", "days_of_week", "time_window", "frequency_blurb", "next_run_date", "notes"]]
+        sched_editor = st.data_editor(
+            sched_df,
+            key=f"maint_editor_{state}",
+            hide_index=True,
+            use_container_width=True,
+            num_rows="fixed",
+            column_config={
+                "team": st.column_config.TextColumn("Team", disabled=True),
+                "cadence": st.column_config.TextColumn("Cadence", disabled=True),
+                "days_of_week": st.column_config.TextColumn("Maintenance Days (e.g. Sunday,Tuesday,Friday)"),
+                "time_window": st.column_config.TextColumn("Window (UTC)"),
+                "frequency_blurb": st.column_config.TextColumn("Recurrence Pattern"),
+                "next_run_date": st.column_config.TextColumn("Next Planned Date (YYYY-MM-DD)"),
+                "notes": st.column_config.TextColumn("Operational Notes"),
+            }
+        )
+        if st.button("💾 Save Maintenance Schedule Changes", key=f"btn_save_maint_{state}", type="primary"):
+            conn = get_connection(DB_PATH)
+            for _, row in sched_editor.iterrows():
+                update_maintenance_schedule(
+                    conn,
+                    state=state,
+                    team=row["team"],
+                    days_of_week=str(row["days_of_week"]),
+                    next_run_date=str(row["next_run_date"]),
+                    notes=str(row.get("notes", "") or "")
+                )
+            conn.close()
+            bust_cache()
+            st.success(f"✓ Operational maintenance schedule for {state} saved successfully.")
             rerun()
 
 
