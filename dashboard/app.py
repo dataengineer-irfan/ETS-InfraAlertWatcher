@@ -458,7 +458,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             use_container_width=True,
         )
 
-    # 2. Executive Metric Ribbon (Ultra-compact 48px)
+    # 2. Executive Metric Ribbon (Ultra-compact 42px)
     tot_cnt = len(filtered)
     exp_cnt = int((filtered["days_left"] < 0).sum())
     crit_cnt = int((filtered["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
@@ -468,38 +468,38 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#38bdf8;padding:6px 12px;">
-          <div class="kpi-label">Entities in View</div>
-          <div class="kpi-value" style="font-size:20px;">{tot_cnt}</div>
-          <div class="kpi-sub">Across active filters</div>
+        <div class="top-glow-kpi" style="--glow:#38bdf8;padding:4px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Entities in View</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{tot_cnt}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">Across active filters</div>
         </div>
         """, unsafe_allow_html=True)
     with k2:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:6px 12px;">
-          <div class="kpi-label">Expired Items</div>
-          <div class="kpi-value" style="font-size:20px;">{exp_cnt}</div>
-          <div class="kpi-sub">{'Requires immediate renewal' if exp_cnt else 'Zero expired'}</div>
+        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Expired Items</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{exp_cnt}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{'Requires renewal' if exp_cnt else 'Zero expired'}</div>
         </div>
         """, unsafe_allow_html=True)
     with k3:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:6px 12px;">
-          <div class="kpi-label">Critical & Warning</div>
-          <div class="kpi-value" style="font-size:20px;">{crit_cnt + warn_cnt}</div>
-          <div class="kpi-sub">{crit_cnt} critical · {warn_cnt} warning</div>
+        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Critical & Warning</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{crit_cnt + warn_cnt}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{crit_cnt} crit · {warn_cnt} warn</div>
         </div>
         """, unsafe_allow_html=True)
     with k4:
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#10b981;padding:6px 12px;">
-          <div class="kpi-label">Healthy Entities</div>
-          <div class="kpi-value" style="font-size:20px;">{hlth_cnt}</div>
-          <div class="kpi-sub">{(hlth_cnt/tot_cnt*100) if tot_cnt else 0:.0f}% healthy fleet</div>
+        <div class="top-glow-kpi" style="--glow:#10b981;padding:4px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Healthy Entities</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{hlth_cnt}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{(hlth_cnt/tot_cnt*100) if tot_cnt else 0:.0f}% healthy fleet</div>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
     # 3. Master-Detail Workspace (40% Left / 60% Right)
     left_col, _, right_col = st.columns([1.7, 0.04, 2.3])
@@ -516,17 +516,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             selected_id = cur_active_id
 
             st.markdown(f"""
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px 5px;">
-              <span style="font-size:12px;font-weight:600;color:#f8fafc;">
-                Showing <b style="color:#38bdf8;font-family:var(--mono);font-size:13px;">{len(filtered)}</b> entities
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 3px;">
+              <span style="font-size:11.5px;font-weight:600;color:#f8fafc;">
+                Showing <b style="color:#38bdf8;font-family:var(--mono);font-size:12.5px;">{len(filtered)}</b> entities
               </span>
-              <span style="font-size:10px;font-weight:600;color:#94a3b8;font-family:var(--mono);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:2px 6px;">
+              <span style="font-size:9.5px;font-weight:600;color:#94a3b8;font-family:var(--mono);background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:1px 5px;">
                 Soonest Expiry First
               </span>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown("<div style='max-height:410px;overflow-y:auto;border:1px solid var(--rule);border-radius:7px;padding:2px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:290px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px;'>", unsafe_allow_html=True)
             for r in filtered.head(30).itertuples():
                 meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
                 t_color = ui.TEAM_META.get(r.team, {}).get("color", "#38BDF8")
@@ -536,15 +536,15 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 c_row1, c_row2 = st.columns([4.2, 1.1])
                 with c_row1:
                     st.markdown(f"""
-                    <div style="{bg_active};border-radius:5px;padding:4px 7px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
-                      <div style="display:flex;align-items:center;gap:5px;overflow:hidden;">
-                        <span style="color:{meta['color']};font-weight:700;font-size:12px;">{meta['symbol']}</span>
-                        <span style="font-weight:700;color:#f8fafc;font-size:11px;">{r.state}</span>
-                        <span class="env-tag" style="background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;font-size:9px;padding:1px 4px;">{r.team}</span>
-                        <span style="font-family:var(--mono);font-size:10.5px;font-weight:{'700' if is_active else '500'};color:{'#38bdf8' if is_active else '#f8fafc'};">{r.schema_name}</span>
-                        <span class="env-tag" style="font-size:8.5px;padding:1px 3px;">{r.env_label}</span>
+                    <div style="{bg_active};border-radius:4px;padding:3px 6px;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between;">
+                      <div style="display:flex;align-items:center;gap:4px;overflow:hidden;">
+                        <span style="color:{meta['color']};font-weight:700;font-size:11.5px;">{meta['symbol']}</span>
+                        <span style="font-weight:700;color:#f8fafc;font-size:10.5px;">{r.state}</span>
+                        <span class="env-tag" style="background:rgba(255,255,255,0.06);color:{t_color};border:1px solid {t_color}55;font-size:8.5px;padding:0 3px;">{r.team}</span>
+                        <span style="font-family:var(--mono);font-size:10px;font-weight:{'700' if is_active else '500'};color:{'#38bdf8' if is_active else '#f8fafc'};">{r.schema_name}</span>
+                        <span class="env-tag" style="font-size:8px;padding:0 2px;">{r.env_label}</span>
                       </div>
-                      <span style="color:{meta['color']};font-weight:700;font-size:10.5px;font-family:var(--mono);flex:none;margin-left:4px;">{ui.fmt_days(r.days_left)}</span>
+                      <span style="color:{meta['color']};font-weight:700;font-size:10px;font-family:var(--mono);flex:none;margin-left:3px;">{ui.fmt_days(r.days_left)}</span>
                     </div>
                     """, unsafe_allow_html=True)
                 with c_row2:
@@ -562,13 +562,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
         team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
 
-        # Top Inspector Header & Quick Renewal Bar
+        # Top Inspector Header & Quick Renewal Bar (Compact 38px)
         st.markdown(f"""
-        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:6px;padding:8px 12px;">
+        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:4px;padding:5px 10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:9.5px;font-weight:700;letter-spacing:.1em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {rec['component']}</span>
-              <div style="font-size:15px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:1px;">{rec['schema_name']} <span class="env-tag" style="font-size:10px;">{rec['env_label']}</span></div>
+              <span style="font-size:9px;font-weight:700;letter-spacing:.08em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {rec['component']}</span>
+              <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:1px;">{rec['schema_name']} <span class="env-tag" style="font-size:9.5px;">{rec['env_label']}</span></div>
             </div>
             {ui.status_pill(rec['band'])}
           </div>
@@ -618,20 +618,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
+            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             c_a, c_b = st.columns(2)
             with c_a:
                 st.markdown(f"""
-                <div class="card" style="font-size:11.5px;line-height:1.5;padding:6px 10px;">
-                  <div><b>Team Owner:</b> <span style="color:{team_meta['color']};font-weight:700;">{rec['team']}</span> <span style="color:#94a3b8;font-size:10px;">({team_meta['lead']})</span></div>
+                <div class="card" style="font-size:11px;line-height:1.45;padding:5px 8px;">
+                  <div><b>Team Owner:</b> <span style="color:{team_meta['color']};font-weight:700;">{rec['team']}</span> <span style="color:#94a3b8;font-size:9.5px;">({team_meta['lead']})</span></div>
                   <div><b>Component:</b> {rec['component']}</div>
-                  <div style="color:#94a3b8;font-size:10px;margin-bottom:4px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
-                  <div><b>Environment:</b> <span class="env-tag">{rec['env_label']}</span> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
+                  <div style="color:#94a3b8;font-size:9.5px;margin-bottom:3px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
+                  <div><b>Environment:</b> <span class="env-tag" style="font-size:9px;">{rec['env_label']}</span> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
                   <div><b>Module Code:</b> <code>{rec['module'] or 'N/A'}</code></div>
                 </div>
                 """, unsafe_allow_html=True)
             with c_b:
                 st.markdown(f"""
-                <div class="card" style="font-size:11.5px;line-height:1.5;padding:6px 10px;">
+                <div class="card" style="font-size:11px;line-height:1.45;padding:5px 8px;">
                   <div><b>Current Expiry:</b> <code style="font-weight:700;color:{meta['color']}">{rec['exp_date']}</code></div>
                   <div><b>Workbook Source:</b> <code>{rec['source_exp_date']}</code></div>
                   <div><b>Life Remaining:</b> <b>{ui.fmt_days(rec['days_left'])}</b> ({rec['days_left']} days)</div>
@@ -655,9 +656,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             if hasattr(st, "code"):
                 st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
                 st.code(json.dumps(payload, indent=2), language="json")
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab2:
-            st.markdown('<div class="note">Portfolio 2D Matrix Cross-Tab Summary:</div>', unsafe_allow_html=True)
+            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            st.markdown('<div class="note" style="margin-bottom:4px;">Portfolio 2D Matrix Cross-Tab Summary:</div>', unsafe_allow_html=True)
             mat_states = STATES
             mat_comps = COMPONENT_ORDER
             header_cols = "".join(f"<th style='text-align:center;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
@@ -677,7 +680,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
                         cell_tds.append(
                             f"<td class='c'>"
-                            f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;font-size:10px;padding:2px 5px;'>"
+                            f"<span class='matrix-cell-badge' style='background:{meta['tint']};color:{meta['color']};border:1px solid {meta['color']}33;font-size:9.5px;padding:1px 4px;'>"
                             f"<b>{meta['symbol']}</b> {c_cnt}"
                             f"</span></td>"
                         )
@@ -685,10 +688,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 matrix_rows.append(
                     f"<tr><td style='font-weight:700;font-family:var(--mono);'>{st_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);'>{st_tot}</td></tr>"
                 )
-            st.markdown(f"<div style='border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx' style='font-size:11px;'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx' style='font-size:10.5px;'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab3:
-            st.markdown(ui.note("Bulk renewal grid for all matching entities in the active filter:"), unsafe_allow_html=True)
+            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             batch_work = filtered.head(50).copy()
             if hasattr(st, "data_editor") and hasattr(st, "column_config"):
                 b_view = batch_work[["schema_name", "state", "team", "env_label", "component", "exp_dt", "band", "days_left"]].copy()
@@ -698,7 +702,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
                 b_edited = st.data_editor(
                     b_view, key="op_batch_editor", hide_index=True, use_container_width=True,
-                    num_rows="fixed", height=240,
+                    num_rows="fixed", height=155,
                     column_config={
                         "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                         "state": st.column_config.TextColumn("State", disabled=True, width="small"),
@@ -721,28 +725,29 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         if b_after != b_before:
                             b_changes.append((b_rec_id, b_after))
 
-                b_btn_col, b_note_col = st.columns([1, 2])
+                b_btn_col, b_note_col = st.columns([1.2, 2])
                 if b_btn_col.button("Save Batch Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
                     apply_edits(b_changes)
                     st.success(f"Saved {len(b_changes)} batch updates!")
                     rerun()
-                b_note_col.markdown(f"<div style='font-size:11px;color:#94a3b8;padding-top:6px;'><b>{len(b_changes)}</b> unsaved change(s) in grid</div>", unsafe_allow_html=True)
+                b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{len(b_changes)}</b> unsaved change(s)</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab4:
+            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             active_edits = df[df["edited"]].copy()
-            st.markdown('<div class="eyebrow">Active Local Overrides Ledger</div>', unsafe_allow_html=True)
             if active_edits.empty:
                 st.markdown("""
-                <div class="card" style="font-size:12px;color:#94a3b8;">
-                  <div style="font-weight:700;color:#10b981;margin-bottom:4px;">✓ Fleet 100% In Sync with Workbooks</div>
-                  All 500 records currently match their source Excel files. Local overrides made in the renewal console will appear here for 1-click audit & rollback.
+                <div class="card" style="font-size:11px;color:#94a3b8;padding:6px 10px;">
+                  <div style="font-weight:700;color:#10b981;margin-bottom:2px;">✓ Fleet 100% In Sync with Workbooks</div>
+                  All 500 records match source Excel files. Local overrides appear here for 1-click rollback.
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown(ui.note(f"<b>{len(active_edits)}</b> record(s) currently overridden in SQLite:"), unsafe_allow_html=True)
+                st.markdown(ui.note(f"<b>{len(active_edits)}</b> override(s) in SQLite:"), unsafe_allow_html=True)
                 for er in active_edits.itertuples():
                     ec1, ec2 = st.columns([3, 1])
-                    ec1.markdown(f"<b>{er.schema_name}</b> ({er.state} · {er.team}) — Modified to <code>{er.exp_date}</code> (Excel: <code>{er.source_exp_date}</code>)")
+                    ec1.markdown(f"<span style='font-size:11px;'><b>{er.schema_name}</b> ({er.state}) — <code>{er.exp_date}</code></span>", unsafe_allow_html=True)
                     if ec2.button("Revert", key=f"op_rev_ledger_{er.id}", use_container_width=True):
                         conn = get_connection(DB_PATH)
                         revert_component_exp_date(conn, int(er.id))
@@ -750,6 +755,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         bust_cache()
                         st.success(f"Reverted {er.schema_name}")
                         rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ==========================================================================
