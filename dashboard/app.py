@@ -857,8 +857,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         with i_tab3:
             batch_work = filtered.head(50).copy()
             if hasattr(st, "data_editor") and hasattr(st, "column_config"):
-                b_view = batch_work[["schema_name", "state", "team", "env_label", "component", "exp_dt", "band", "days_left"]].copy()
-                b_view["component"] = b_view["component"].apply(lambda c: ui.COMPONENT_CODE.get(c, c))
+                b_view = batch_work[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
                 b_view["exp_dt"] = b_view["exp_dt"].dt.date
                 b_view["days_left"] = b_view["days_left"].apply(ui.fmt_days)
                 b_view["band"] = b_view["band"].apply(ui.health_text)
@@ -867,14 +866,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     b_view, key="op_batch_editor", hide_index=True, use_container_width=True,
                     num_rows="fixed", height=140,
                     column_config={
-                        "schema_name": st.column_config.TextColumn("Schema", disabled=True, width="medium"),
-                        "state": st.column_config.TextColumn("State", disabled=True, width="small"),
-                        "team": st.column_config.TextColumn("Team", disabled=True, width="small"),
+                        "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                         "env_label": st.column_config.TextColumn("Env", disabled=True, width="small"),
-                        "component": st.column_config.TextColumn("Comp", disabled=True, width="small"),
                         "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width="medium"),
                         "band": st.column_config.TextColumn("Status", disabled=True, width="small"),
-                        "days_left": st.column_config.TextColumn("Left", disabled=True, width="small"),
+                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="small"),
                     },
                 )
 
