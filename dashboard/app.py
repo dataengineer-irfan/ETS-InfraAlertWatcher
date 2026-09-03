@@ -1052,81 +1052,102 @@ def render_governance_center() -> None:
 
     gov_drill = st.session_state.setdefault("gov_drill_scope", "all")
 
+    # 1. Hero Header & Information Architecture
+    st.markdown("""
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:8px;padding:2px 2px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#f8fafc;letter-spacing:-0.01em;">Governance & Alert Control Center</div>
+        <div style="font-size:11.5px;color:#94a3b8;margin-top:1px;">
+          Operational risk governance, multi-team maintenance cadence, credential inventories, and automated notification dispatches.
+        </div>
+      </div>
+      <div style="font-size:10.5px;color:#64748b;font-family:var(--mono);display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span>
+        <span>Live SQLite Sync · Updated just now · 500 Assets</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. Standardized KPI Ribbon (4 Reusable Neutral Cards with Metric-First Hierarchy)
     kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
-    with kpi_c1:
-        is_sel = (gov_drill == "all")
-        glow = "#38bdf8"
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Component Entities</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats['component_records']}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">Across AK, NH, ND portfolios</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("✓ All Entities" if is_sel else "Filter: All Portfolios", key="gov_kpi_b1", use_container_width=True, type="primary" if is_sel else "secondary"):
-            st.session_state["gov_drill_scope"] = "all"
-            rerun()
 
-    with kpi_c2:
-        is_sel = (gov_drill == "passwords")
-        glow = "#10b981"
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Database Passwords</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats['expiry_records']}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">Tracked in SQLite table</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("✓ DB Passwords Active" if is_sel else "Filter: DB Passwords", key="gov_kpi_b2", use_container_width=True, type="primary" if is_sel else "secondary"):
-            st.session_state["gov_drill_scope"] = "passwords" if gov_drill != "passwords" else "all"
-            rerun()
+    def render_gov_kpi(col, key_id, metric, title, sub, target_scope, btn_label, active_label):
+        is_sel = (gov_drill == target_scope)
+        border_css = "border:1px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.2);" if is_sel else "border:1px solid var(--rule);"
+        with col:
+            st.markdown(f"""
+            <div class="card" style="{border_css};padding:8px 10px 6px;margin-bottom:3px;border-radius:8px;">
+              <div style="font-family:var(--mono);font-size:38px;font-weight:700;color:#f8fafc;line-height:1.0;letter-spacing:-0.02em;">{metric}</div>
+              <div style="font-size:12.5px;font-weight:600;color:#cbd5e1;margin-top:3px;">{title}</div>
+              <div style="font-size:10.5px;color:#94a3b8;margin-top:1px;">{sub}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(active_label if is_sel else btn_label, key=key_id, use_container_width=True, type="primary" if is_sel else "secondary"):
+                if target_scope == "all":
+                    st.session_state["gov_drill_scope"] = "all"
+                else:
+                    st.session_state["gov_drill_scope"] = target_scope if gov_drill != target_scope else "all"
+                rerun()
 
-    with kpi_c3:
-        is_sel = (gov_drill == "maintenance")
-        glow = "#f59e0b"
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Maintenance Windows</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats.get('maintenance_schedules', 0)} Schedules</div>
-          <div class="kpi-sub" style="font-size:9.5px;">Cognos, Infa, Letters, App Server</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("✓ Maintenance Active" if is_sel else "Filter: Maintenance", key="gov_kpi_b3", use_container_width=True, type="primary" if is_sel else "secondary"):
-            st.session_state["gov_drill_scope"] = "maintenance" if gov_drill != "maintenance" else "all"
-            rerun()
+    render_gov_kpi(
+        kpi_c1, "gov_kpi_b1",
+        metric=str(stats['component_records']),
+        title="Component Entities",
+        sub="Across AK, NH, ND portfolios",
+        target_scope="all",
+        btn_label="View All Assets",
+        active_label="✓ All Assets Active"
+    )
 
-    with kpi_c4:
-        is_sel = (gov_drill == "reminders")
-        glow = "#6366f1"
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Reminder Cycles</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats['reminder_log']} Dispatched</div>
-          <div class="kpi-sub" style="font-size:9.5px;">Daily Schedule @ 08:00 UTC</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("✓ Reminders Active" if is_sel else "Filter: Reminders", key="gov_kpi_b4", use_container_width=True, type="primary" if is_sel else "secondary"):
-            st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
-            rerun()
+    render_gov_kpi(
+        kpi_c2, "gov_kpi_b2",
+        metric=str(stats['expiry_records']),
+        title="Database Passwords",
+        sub="Active DBA accounts in SQLite",
+        target_scope="passwords",
+        btn_label="Filter: Passwords",
+        active_label="✓ Passwords Active"
+    )
 
-    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
-    
-    # Primary Business View: Multi-Team Alert Routing & Email Dispatch Simulator
+    render_gov_kpi(
+        kpi_c3, "gov_kpi_b3",
+        metric=str(stats.get('maintenance_schedules', 0)),
+        title="Maintenance Windows",
+        sub="Scheduled across 4 team cadences",
+        target_scope="maintenance",
+        btn_label="Filter: Maintenance",
+        active_label="✓ Maintenance Active"
+    )
+
+    render_gov_kpi(
+        kpi_c4, "gov_kpi_b4",
+        metric=str(stats['reminder_log']),
+        title="Reminder Cycles",
+        sub="Audit logged · Daily @ 08:00 UTC",
+        target_scope="reminders",
+        btn_label="Filter: Reminders",
+        active_label="✓ Reminders Active"
+    )
+
+    st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
+
+    # 3. Balanced 2-Column Command Center (Zero Dead Space)
     g_col1, _, g_col2 = st.columns([1.8, 0.04, 2.2])
 
     with g_col1:
+        # Section A: Multi-Team Alert Routing Directory
         team_routes = [
-            ("Cognos", "BI & Analytics", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)", ["all", "passwords", "maintenance", "reminders"]),
-            ("Informatica", "ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays", ["all", "maintenance", "reminders"]),
-            ("Letters", "Correspondence", "letters-ops@example.com", "#34D399", "Monthly (1st Sun)", ["all", "maintenance"]),
-            ("App Server", "JVM Containers", "appserver-admin@example.com", "#FBBF24", "Weekly on Sundays", ["all", "maintenance", "reminders"]),
-            ("Core", "DB & Infra", "core-dba@example.com", "#38BDF8", "Quarterly Maintenance", ["all", "passwords"]),
+            ("Cognos", "BI & Analytics", "cognos-dba@example.com", "3× Weekly", "Sun/Tue/Fri", ["all", "passwords", "maintenance", "reminders"]),
+            ("Informatica", "ETL Team", "infa-etl@example.com", "Weekly", "Sundays", ["all", "maintenance", "reminders"]),
+            ("Letters", "Correspondence", "letters-ops@example.com", "Monthly", "1st Sun", ["all", "maintenance"]),
+            ("App Server", "JVM Containers", "appserver-admin@example.com", "Weekly", "Sundays", ["all", "maintenance", "reminders"]),
+            ("Core", "DB & Infra", "core-dba@example.com", "Quarterly", "Maintenance", ["all", "passwords"]),
         ]
         active_routes = [r for r in team_routes if gov_drill in r[5]]
-        
+
         dr_c1, dr_c2 = st.columns([3.2, 1.4])
         with dr_c1:
-            st.markdown(f'<div class="eyebrow" style="margin-top:0;margin-bottom:4px;">Multi-Team Alert Routing Directory ({len(active_routes)}/5 teams)</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:11.5px;color:#cbd5e1;">Multi-Team Alert Routing Directory ({len(active_routes)}/5 Teams)</div>', unsafe_allow_html=True)
         with dr_c2:
             if gov_drill != "all":
                 if st.button("Reset Scope", key="gov_reset_filter", use_container_width=True):
@@ -1134,23 +1155,58 @@ def render_governance_center() -> None:
                     rerun()
 
         route_rows = "".join(
-            f"<tr><td class='m' style='color:{color};font-weight:700;'>{team}</td>"
+            f"<tr><td class='m' style='color:#38bdf8;font-weight:700;'>{team}</td>"
             f"<td style='color:#f8fafc;'>{lead}</td>"
             f"<td class='m'><code>{email}</code></td>"
-            f"<td style='color:var(--slate);'>{cadence}</td></tr>"
-            for team, lead, email, color, cadence, _ in active_routes
+            f"<td><span class='pill' style='color:#cbd5e1;background:rgba(255,255,255,0.06);font-size:9px;' title='{tip}'>{cadence}</span></td>"
+            f"<td><span style='color:#10b981;font-size:9.5px;font-weight:600;'>● Active</span></td></tr>"
+            for team, lead, email, cadence, tip, _ in active_routes
         )
         st.markdown(f"""
-        <div class="card" style="padding:6px 10px;margin-bottom:8px;">
-          <table class="tblx" style="font-size:11px;">
-            <tr><th>Team</th><th>Lead</th><th>Recipient</th><th>Cadence</th></tr>
+        <div class="card" style="padding:6px 10px;margin-bottom:8px;border-radius:8px;">
+          <table class="tblx" style="font-size:10.5px;">
+            <tr><th>Team</th><th>Lead</th><th>Recipient Channel</th><th>Cadence</th><th>Status</th></tr>
             {route_rows}
           </table>
         </div>
         """, unsafe_allow_html=True)
 
+        # Section B: System Diagnostics & Lineage Table (Balanced Column)
+        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:11.5px;color:#cbd5e1;">System Lineage & Table Diagnostics</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="card" style="padding:6px 10px;margin-bottom:6px;border-radius:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
+            <span style="font-size:9.5px;color:#10b981;font-weight:700;">● ZERO-MOCK PIPELINE</span>
+          </div>
+          <table class="tblx" style="font-size:10.5px;">
+            <tr><th>Table Name</th><th class="r">Rows</th><th>Lineage Role</th><th class="r">Status</th></tr>
+            <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:9px;">✓ Active</span></td></tr>
+            <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:9px;">✓ Active</span></td></tr>
+            <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:9px;">✓ Synced</span></td></tr>
+            <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:9px;">3 States</span></td></tr>
+            <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.15);font-size:9px;">Audit Ready</span></td></tr>
+          </table>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Section C: Immediate Ingestion Trigger
+        ig_c1, ig_c2 = st.columns([2.6, 1.4])
+        with ig_c1:
+            st.markdown("<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'>AST Parser Workbook Re-synchronization:</div>", unsafe_allow_html=True)
+        with ig_c2:
+            if st.button("⚡ Re-ingest Workbooks", key="gov_reingest", type="primary", use_container_width=True):
+                t_start = datetime.now()
+                with st.spinner("Executing workbook parser..."):
+                    res = run_ingest(WORKBOOK_DIR, DB_PATH)
+                duration_ms = (datetime.now() - t_start).total_seconds() * 1000
+                bust_cache()
+                st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
+                rerun()
+
     with g_col2:
-        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:4px;">Dynamic Email Alert Dispatch Simulator</div>', unsafe_allow_html=True)
+        # Section A: Dedicated Simulator Toolbar
+        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:11.5px;color:#cbd5e1;">Email Dispatch Simulator & Outlook Preview</div>', unsafe_allow_html=True)
 
         sim_c1, sim_c2, sim_c3 = st.columns([1, 1.2, 2.2])
         sim_st = sim_c1.selectbox("State", STATES, key="sim_state", label_visibility="collapsed")
@@ -1173,12 +1229,15 @@ def render_governance_center() -> None:
             days_left = (exp_dt - date.today()).days
             team_meta = ui.TEAM_META.get(sim_tm, ui.TEAM_META["Core"])
             owner_email = f"{sim_tm.lower().replace(' ', '')}-team@ets.internal"
+            cp_code = ui.COMPONENT_CODE.get(sim_chosen["component"], sim_chosen["component"])
+            cp_icon = ui.COMPONENT_ICONS.get(sim_chosen["component"], "📦")
 
             sim_mock = {
                 "id": sim_chosen["id"],
                 "schema_name": sim_chosen["schema_name"],
                 "state": sim_chosen["state"],
                 "environment": sim_chosen["environment"],
+                "env": sim_chosen["environment"],
                 "component": sim_chosen["component"],
                 "exp_date": str(exp_dt),
                 "days_left": days_left,
@@ -1191,53 +1250,45 @@ def render_governance_center() -> None:
                 "threshold_days": ui.CRITICAL_DAYS if days_left <= ui.CRITICAL_DAYS else ui.WARNING_DAYS,
             }
 
-            st.markdown(f"""
-            <div class="card" style="margin-bottom:6px;padding:6px 10px;font-size:11.5px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;">
-                <span><b>Recipient:</b> <code style="color:#f8fafc;">{sim_mock['owner_email']}</code></span>
-                <span style="color:#38bdf8;font-weight:700;">{sim_chosen['state']} · {sim_chosen['team']}</span>
-              </div>
-              <div style="margin-top:2px;color:#cbd5e1;"><b>Subject:</b> <code style="color:#38bdf8;font-size:10.5px;">{subject_for(sim_mock)}</code></div>
-            </div>
-            """, unsafe_allow_html=True)
-
+            email_subject = subject_for(sim_mock)
             email_html = render_email(sim_mock)
-            st.markdown(f"""
-            <div style="border:1px solid var(--rule);border-radius:7px;overflow-y:auto;max-height:260px;background:#ffffff;padding:0;">
-              {email_html}
-            </div>
-            """, unsafe_allow_html=True)
 
-    # Technical Diagnostics Disclosure (Demoted / Collapsed by default)
-    with st.expander("System Diagnostics", expanded=False):
-        d_c1, d_c2 = st.columns([2.5, 1.5])
-        with d_c1:
+            # Section B: Outlook Client Window Envelope
             st.markdown(f"""
-            <div class="card" style="padding:6px 10px;margin-bottom:6px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                <span style="font-size:11.5px;font-weight:700;color:#f8fafc;">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
-                <span style="font-size:10px;color:#10b981;font-weight:700;">● ZERO-MOCK ACTIVE</span>
+            <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,0.3);">
+              <!-- Outlook Client Header -->
+              <div style="background:#0f172a;border-bottom:1px solid var(--rule);padding:6px 12px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span style="font-size:12px;">📧</span>
+                  <span style="font-size:11.5px;font-weight:700;color:#f8fafc;">Microsoft Outlook · Dispatch Preview</span>
+                </div>
+                <span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:9.5px;font-weight:600;">● Production HTML</span>
               </div>
-              <table class="tblx" style="font-size:11px;">
-                <tr><th>Table Name</th><th class="r">Rows</th><th>Lineage Role</th><th class="r">Status</th></tr>
-                <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
-                <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15)">✓ Active</span></td></tr>
-                <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">✓ Synced</span></td></tr>
-                <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15)">3 States</span></td></tr>
-                <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.15)">Audit Ready</span></td></tr>
-              </table>
+              
+              <!-- Outlook Metadata Strip -->
+              <div style="background:rgba(255,255,255,0.02);padding:8px 12px;border-bottom:1px solid var(--rule);font-size:11px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                  <span><b style="color:#94a3b8;">To:</b> <code style="color:#f8fafc;">{sim_mock['owner_email']}</code></span>
+                  <div style="display:flex;gap:4px;">
+                    <span class="env-tag" style="font-size:9px;">📍 {sim_chosen['state']}</span>
+                    <span class="env-tag" style="font-size:9px;">👥 {sim_chosen['team']}</span>
+                    <span class="env-tag" style="font-size:9px;">🖥️ {sim_chosen['environment']}</span>
+                    <span class="env-tag" style="font-size:9px;">{cp_icon} {cp_code}</span>
+                  </div>
+                </div>
+                <div style="color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  <b style="color:#94a3b8;">Subject:</b> <span style="color:#38bdf8;font-weight:600;">{email_subject}</span>
+                </div>
+              </div>
+
+              <!-- Elevated White Email Canvas -->
+              <div style="background:#f1f5f9;padding:12px;">
+                <div style="border:1px solid #cbd5e1;border-radius:6px;overflow-y:auto;max-height:225px;background:#ffffff;padding:0;box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+                  {email_html}
+                </div>
+              </div>
             </div>
             """, unsafe_allow_html=True)
-        with d_c2:
-            st.markdown("<div style='font-size:11.5px;color:#94a3b8;margin-bottom:6px;'>AST Parser & Excel Sync:</div>", unsafe_allow_html=True)
-            if st.button("Trigger Immediate Re-ingest (AST Parser)", key="gov_reingest", type="primary", use_container_width=True):
-                t_start = datetime.now()
-                with st.spinner("Executing workbook parser..."):
-                    res = run_ingest(WORKBOOK_DIR, DB_PATH)
-                duration_ms = (datetime.now() - t_start).total_seconds() * 1000
-                bust_cache()
-                st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
-                rerun()
 
 
 # ==========================================================================
