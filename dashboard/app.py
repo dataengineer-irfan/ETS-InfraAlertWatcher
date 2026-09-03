@@ -543,6 +543,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
             selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
+            def tri_state_info(child_ids: set, selected_ids: set) -> tuple[str, bool]:
+                """Returns (symbol, should_uncheck) where symbol is '☑', '⊟', or '☐'."""
+                if not child_ids:
+                    return "☐", False
+                intersect_n = len(child_ids.intersection(selected_ids))
+                if intersect_n == len(child_ids):
+                    return "☑", True
+                elif intersect_n > 0:
+                    return "⊟", True
+                else:
+                    return "☐", False
+
             def toggle_tree_node(path: str, parent_prefix: str | None = None) -> None:
                 """Toggle a node with accordion behavior (collapsing sibling nodes at the same level)."""
                 if path in tree_open:
@@ -557,11 +569,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tree_open.clear()
                     tree_open.add(path)
 
-            bc_c1, bc_c2 = st.columns([2.4, 2.0])
+            bc_c1, bc_c2 = st.columns([2.0, 2.4])
             with bc_c1:
                 st.markdown(f"<div style='font-size:10px;padding:2px 2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
             with bc_c2:
-                tc1, tc2, tc3 = st.columns([0.9, 0.9, 3.2])
+                tc1, tc2, tc3, tc4 = st.columns([0.7, 0.7, 1.6, 2.0])
                 with tc1:
                     if st.button("＋", key="tree_exp_all", help="Expand All Branches"):
                         for s_val in filtered["state"].unique():
@@ -581,13 +593,24 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tree_open.clear()
                         rerun()
                 with tc3:
+                    all_f_ids = set(filtered["id"].tolist())
+                    n_sel = len(selected_entity_ids)
+                    if n_sel > 0:
+                        if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", help="Clear selection"):
+                            selected_entity_ids.clear()
+                            rerun()
+                    else:
+                        if st.button("Select All", key="tree_select_all_btn", help="Select all filtered entities"):
+                            selected_entity_ids.update(all_f_ids)
+                            rerun()
+                with tc4:
                     n_sel = len(selected_entity_ids)
                     btn_txt = f"⚡ Batch ({n_sel})" if n_sel > 0 else "⚡ Batch Editor"
                     if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True, help="Send selected entities to Batch Grid Editor"):
                         st.session_state["op_target_tab"] = "batch"
                         rerun()
 
-            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Checkbox Multi-Select)
+            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Tri-State Multi-Select)
             st.markdown("<div style='max-height:280px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px 3px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
@@ -598,13 +621,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
                 st_exp_n = (st_sub["days_left"] < 0).sum()
                 st_child_ids = set(st_sub["id"].tolist())
-                st_all_sel = st_child_ids.issubset(selected_entity_ids) and len(st_child_ids) > 0
+                st_sym, st_uncheck = tri_state_info(st_child_ids, selected_entity_ids)
 
                 # Level 1: State Node
                 s_c0, s_c1, s_c2 = st.columns([0.6, 3.8, 0.6])
                 with s_c0:
-                    if st.button("☑" if st_all_sel else "☐", key=f"sel_st_{st_val}", use_container_width=True, help=f"Select all {len(st_child_ids)} entities in State {st_val}"):
-                        if st_all_sel:
+                    if st.button(st_sym, key=f"sel_st_{st_val}", use_container_width=True, help=f"Toggle all {len(st_child_ids)} entities in State {st_val}"):
+                        if st_uncheck:
                             selected_entity_ids.difference_update(st_child_ids)
                         else:
                             selected_entity_ids.update(st_child_ids)
@@ -634,13 +657,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
                         tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#38bdf8")
                         tm_child_ids = set(tm_sub["id"].tolist())
-                        tm_all_sel = tm_child_ids.issubset(selected_entity_ids) and len(tm_child_ids) > 0
+                        tm_sym, tm_uncheck = tri_state_info(tm_child_ids, selected_entity_ids)
 
                         # Level 2: Team Node
                         t_c0, t_c1, t_c2 = st.columns([0.6, 3.8, 0.6])
                         with t_c0:
-                            if st.button("☑" if tm_all_sel else "☐", key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True, help=f"Select all {len(tm_child_ids)} entities in Team {tm_val}"):
-                                if tm_all_sel:
+                            if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True, help=f"Toggle all {len(tm_child_ids)} entities in Team {tm_val}"):
+                                if tm_uncheck:
                                     selected_entity_ids.difference_update(tm_child_ids)
                                 else:
                                     selected_entity_ids.update(tm_child_ids)
@@ -669,21 +692,22 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
                                 cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
                                 cp_child_ids = set(cp_sub["id"].tolist())
-                                cp_all_sel = cp_child_ids.issubset(selected_entity_ids) and len(cp_child_ids) > 0
+                                cp_sym, cp_uncheck = tri_state_info(cp_child_ids, selected_entity_ids)
 
                                 # Level 3: Component Node
                                 cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
                                 with cp_c0:
-                                    if st.button("☑" if cp_all_sel else "☐", key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True, help=f"Select all {len(cp_child_ids)} entities in {cp_code}"):
-                                        if cp_all_sel:
+                                    if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True, help=f"Toggle all {len(cp_child_ids)} entities in {cp_code}"):
+                                        if cp_uncheck:
                                             selected_entity_ids.difference_update(cp_child_ids)
                                         else:
                                             selected_entity_ids.update(cp_child_ids)
                                         rerun()
+                                handy_cp_head = f"{cp_icon} {cp_code}"
                                 with cp_c1:
                                     st.markdown(f"""
                                     <div style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
-                                      <span style="color:#f8fafc;font-weight:600;">{cp_icon} {cp_code} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
+                                      <span style="color:#f8fafc;font-weight:600;">{handy_cp_head} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
                                       <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
                                     </div>
                                     """, unsafe_allow_html=True)
@@ -700,13 +724,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                         ev_worst = ui.worst_band(ev_sub["band"].tolist())
                                         ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
                                         ev_child_ids = set(ev_sub["id"].tolist())
-                                        ev_all_sel = ev_child_ids.issubset(selected_entity_ids) and len(ev_child_ids) > 0
+                                        ev_sym, ev_uncheck = tri_state_info(ev_child_ids, selected_entity_ids)
 
                                         # Level 4: Environment Node
                                         ev_c0, ev_c1, ev_c2 = st.columns([0.6, 3.8, 0.6])
                                         with ev_c0:
-                                            if st.button("☑" if ev_all_sel else "☐", key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True, help=f"Select all {len(ev_child_ids)} entities in {ev_val}"):
-                                                if ev_all_sel:
+                                            if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True, help=f"Toggle all {len(ev_child_ids)} entities in {ev_val}"):
+                                                if ev_uncheck:
                                                     selected_entity_ids.difference_update(ev_child_ids)
                                                 else:
                                                     selected_entity_ids.update(ev_child_ids)
@@ -733,7 +757,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
                                                 row_c0, row_c1, row_c2 = st.columns([0.6, 3.2, 1.2])
                                                 with row_c0:
-                                                    if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True, help="Select for Batch Editor"):
+                                                    if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True, help="Toggle selection for Batch Editor"):
                                                         if is_leaf_sel:
                                                             selected_entity_ids.discard(r.id)
                                                         else:
@@ -913,26 +937,52 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
         with i_tab3:
             if selected_entity_ids:
-                batch_work = filtered[filtered["id"].isin(selected_entity_ids)].copy()
-                if batch_work.empty:
-                    batch_work = df[df["id"].isin(selected_entity_ids)].copy()
-                bg_c1, bg_c2 = st.columns([3.6, 1.4])
-                bg_c1.markdown(f"<div style='font-size:10px;color:#38bdf8;font-weight:700;padding-top:2px;'>⚡ Pre-populated with {len(batch_work)} multi-selected entities from tree</div>", unsafe_allow_html=True)
-                if bg_c2.button("Clear Selection", key="op_batch_clear_sel", use_container_width=True):
-                    selected_entity_ids.clear()
-                    rerun()
+                batch_work = df[df["id"].isin(selected_entity_ids)].copy()
+                batch_work.sort_values(by=["state", "team", "component", "env_no", "schema_name"], inplace=True)
             else:
-                batch_work = filtered.head(50).copy()
+                batch_work = filtered.copy()
 
-            if hasattr(st, "data_editor") and hasattr(st, "column_config"):
-                b_view = batch_work[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
+            total_batch_n = len(batch_work)
+            b_per_page = 8
+            b_pages = max(1, (total_batch_n + b_per_page - 1) // b_per_page)
+            b_page = st.session_state.setdefault("op_batch_page_no", 0)
+            b_page = max(0, min(b_page, b_pages - 1))
+
+            b_from = b_page * b_per_page + 1 if total_batch_n > 0 else 0
+            b_to = min(total_batch_n, (b_page + 1) * b_per_page)
+            page_slice = batch_work.iloc[b_from - 1:b_to].copy() if total_batch_n > 0 else batch_work.copy()
+
+            bg_c1, bg_c2, bg_c3 = st.columns([2.5, 1.4, 1.1])
+            with bg_c1:
+                if selected_entity_ids:
+                    st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;font-weight:700;padding-top:3px;'>⚡ Showing {b_from}–{b_to} of {total_batch_n} selected items</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {b_from}–{b_to} of {total_batch_n} items</div>", unsafe_allow_html=True)
+            with bg_c2:
+                if b_pages > 1:
+                    p_c1, p_c2, p_c3 = st.columns([1, 1.6, 1])
+                    if p_c1.button("‹", key="op_batch_p_prev", disabled=(b_page == 0), use_container_width=True):
+                        st.session_state["op_batch_page_no"] = b_page - 1
+                        rerun()
+                    p_c2.markdown(f"<div style='font-size:10px;text-align:center;padding-top:4px;color:#94a3b8;'>Page {b_page+1}/{b_pages}</div>", unsafe_allow_html=True)
+                    if p_c3.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
+                        st.session_state["op_batch_page_no"] = b_page + 1
+                        rerun()
+            with bg_c3:
+                if selected_entity_ids:
+                    if st.button("Clear", key="op_batch_clear_sel", use_container_width=True):
+                        selected_entity_ids.clear()
+                        rerun()
+
+            if hasattr(st, "data_editor") and hasattr(st, "column_config") and not page_slice.empty:
+                b_view = page_slice[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
                 b_view["exp_dt"] = b_view["exp_dt"].dt.date
                 b_view["days_left"] = b_view["days_left"].apply(ui.fmt_days)
                 b_view["band"] = b_view["band"].apply(ui.health_text)
 
                 b_edited = st.data_editor(
-                    b_view, key="op_batch_editor", hide_index=True, use_container_width=True,
-                    num_rows="fixed", height=140,
+                    b_view, key=f"op_batch_editor_p{b_page}", hide_index=True, use_container_width=True,
+                    num_rows="fixed", height=min(180, 36 + len(page_slice) * 35),
                     column_config={
                         "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                         "env_label": st.column_config.TextColumn("Env", disabled=True, width="small"),
@@ -942,7 +992,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     },
                 )
 
-                b_ids = batch_work["id"].tolist()
+                b_ids = page_slice["id"].tolist()
                 b_changes = []
                 for b_pos, b_rec_id in enumerate(b_ids):
                     b_before = b_view.iloc[b_pos]["exp_dt"]
@@ -952,12 +1002,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         if b_after != b_before:
                             b_changes.append((b_rec_id, b_after))
 
-                b_btn_col, b_note_col = st.columns([1.3, 2.7])
+                b_btn_col, b_note_col = st.columns([1.4, 2.6])
                 if b_btn_col.button("Save Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
                     apply_edits(b_changes)
                     st.success(f"Saved {len(b_changes)} batch updates!")
                     rerun()
-                b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{len(b_changes)}</b> unsaved change(s)</div>", unsafe_allow_html=True)
+                b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{len(b_changes)}</b> unsaved change(s) on current page</div>", unsafe_allow_html=True)
+            elif page_slice.empty:
+                st.markdown("<div style='font-size:11px;color:#94a3b8;padding:12px 0;'>No entities selected. Select items from the tree or filters.</div>", unsafe_allow_html=True)
 
         with i_tab4:
             st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
@@ -1191,42 +1243,114 @@ def render_governance_center() -> None:
 # ==========================================================================
 # Auto-Surfaced "What's New" Strip & Primary Navigation (3 Unified Workspaces)
 # ==========================================================================
+def compute_whats_new_diff(conn: sqlite3.Connection) -> dict | None:
+    """Computes specific, human-readable change description by comparing
+    the latest snapshot against the previous one per state and global fleet."""
+    cur = conn.execute(
+        """SELECT captured_at, state, component, tracked, expired, critical, warning, healthy, soonest_days
+           FROM metric_snapshot
+           WHERE state IS NOT NULL AND component IS NULL
+           ORDER BY captured_at ASC"""
+    )
+    all_state_snaps = cur.fetchall()
+    if not all_state_snaps:
+        return None
+
+    by_state = {}
+    for r in all_state_snaps:
+        s = r["state"]
+        if s not in by_state:
+            by_state[s] = []
+        by_state[s].append(dict(r))
+
+    specific_changes = []
+    latest_ts = None
+    prev_ts = None
+
+    for state, snaps in by_state.items():
+        if len(snaps) >= 2:
+            curr = snaps[-1]
+            prev = snaps[-2]
+            latest_ts = curr["captured_at"]
+            prev_ts = prev["captured_at"]
+            de = curr["expired"] - prev["expired"]
+            dc = curr["critical"] - prev["critical"]
+            dw = curr["warning"] - prev["warning"]
+
+            state_parts = []
+            if de > 0: state_parts.append(f"+{de} overdue")
+            elif de < 0: state_parts.append(f"{abs(de)} resolved overdue")
+            if dc > 0: state_parts.append(f"+{dc} critical (≤15d)")
+            elif dc < 0: state_parts.append(f"{abs(dc)} exited critical")
+            if dw > 0: state_parts.append(f"+{dw} warning (≤30d)")
+            elif dw < 0: state_parts.append(f"{abs(dw)} exited warning")
+
+            if state_parts:
+                specific_changes.append(f"<b>State {state}</b>: {', '.join(state_parts)}")
+
+    if not specific_changes:
+        cur_g = conn.execute(
+            """SELECT captured_at, state, component, tracked, expired, critical, warning, healthy
+               FROM metric_snapshot
+               WHERE state IS NULL AND component IS NULL
+               ORDER BY captured_at ASC"""
+        )
+        g_snaps = [dict(r) for r in cur_g.fetchall()]
+        if len(g_snaps) >= 2:
+            curr = g_snaps[-1]
+            prev = g_snaps[-2]
+            latest_ts = curr["captured_at"]
+            prev_ts = prev["captured_at"]
+            de = curr["expired"] - prev["expired"]
+            dc = curr["critical"] - prev["critical"]
+            dw = curr["warning"] - prev["warning"]
+            g_parts = []
+            if de > 0: g_parts.append(f"+{de} overdue items")
+            elif de < 0: g_parts.append(f"{abs(de)} resolved overdue items")
+            if dc > 0: g_parts.append(f"+{dc} critical items (≤15d)")
+            if dw > 0: g_parts.append(f"+{dw} warning items (≤30d)")
+            if g_parts:
+                specific_changes.append(f"<b>Global Fleet</b>: {', '.join(g_parts)}")
+
+    if not specific_changes:
+        return None
+
+    days_ago_str = ""
+    if prev_ts:
+        try:
+            prev_dt = datetime.fromisoformat(prev_ts.replace("Z", "+00:00"))
+            cur_dt = datetime.fromisoformat(latest_ts.replace("Z", "+00:00")) if latest_ts else datetime.now(timezone.utc)
+            diff_days = (cur_dt.date() - prev_dt.date()).days
+            if diff_days > 0:
+                days_ago_str = f" ({diff_days} day{'s' if diff_days != 1 else ''} ago)"
+            else:
+                days_ago_str = " (since last check)"
+        except Exception:
+            pass
+
+    return {
+        "id": f"{latest_ts}_{'|'.join(specific_changes)}",
+        "text": f"{'; '.join(specific_changes)}{days_ago_str}."
+    }
+
 conn_snap = get_connection(DB_PATH)
-snapshots = get_metric_snapshots(conn_snap)
+diff_info = compute_whats_new_diff(conn_snap)
 conn_snap.close()
 
-if len(snapshots) >= 2:
-    curr_snap = snapshots[-1]
-    prev_snap = snapshots[-2]
-    d_exp = curr_snap.get("expired", 0) - prev_snap.get("expired", 0)
-    d_crit = curr_snap.get("critical", 0) - prev_snap.get("critical", 0)
-    d_warn = curr_snap.get("warning", 0) - prev_snap.get("warning", 0)
-
-    if d_exp != 0 or d_crit != 0 or d_warn != 0:
-        snap_id = f"{curr_snap.get('as_of', '')}_{d_exp}_{d_crit}_{d_warn}"
-        if st.session_state.get("dismissed_whats_new") != snap_id:
-            wn_c1, wn_c2 = st.columns([9.3, 0.7])
-            with wn_c1:
-                parts = []
-                if d_exp > 0:
-                    parts.append(f"<b style='color:#ef4444;'>+{d_exp} overdue</b>")
-                elif d_exp < 0:
-                    parts.append(f"<b style='color:#10b981;'>{abs(d_exp)} resolved overdue</b>")
-                if d_crit > 0:
-                    parts.append(f"<b style='color:#f97316;'>+{d_crit} critical (≤15d)</b>")
-                if d_warn > 0:
-                    parts.append(f"<b style='color:#f59e0b;'>+{d_warn} warning (≤30d)</b>")
-                delta_desc = ", ".join(parts) if parts else "Fleet risk status changed"
-                st.markdown(f"""
-                <div style="background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:3px 8px;font-size:11px;color:#f8fafc;display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-                  <span style="font-weight:700;color:var(--accent);">💡 What's New Since Last Visit:</span>
-                  <span>{delta_desc} detected across monitoring scope.</span>
-                </div>
-                """, unsafe_allow_html=True)
-            with wn_c2:
-                if st.button("✕", key="wn_dismiss_btn", help="Dismiss Notification", use_container_width=True):
-                    st.session_state["dismissed_whats_new"] = snap_id
-                    rerun()
+if diff_info is not None:
+    if st.session_state.get("dismissed_whats_new") != diff_info["id"]:
+        wn_c1, wn_c2 = st.columns([9.5, 0.5])
+        with wn_c1:
+            st.markdown(f"""
+            <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:4px;padding:3px 8px;font-size:10.5px;color:#f8fafc;display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+              <span style="font-weight:700;color:var(--accent);">💡 What's New:</span>
+              <span>{diff_info['text']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with wn_c2:
+            if st.button("✕", key="wn_dismiss_btn", help="Dismiss Notification", use_container_width=True):
+                st.session_state["dismissed_whats_new"] = diff_info["id"]
+                rerun()
 
 tab_overview, tab_operations, tab_governance = st.tabs([
     "Executive Command Center",

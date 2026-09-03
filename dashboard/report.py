@@ -1378,9 +1378,9 @@ function renderFocus(S){
 // Generic Collision-Aware Annotation Placement Engine
 // --------------------------------------------------------------------------
 function layoutTimelineAnnotations(items, bounds){
-  // 1. Consolidate tight adjacent overflow annotations (< 22px apart) into clean summaries
-  const guides = items.filter(i => i.type !== 'overflow');
-  const overflows = items.filter(i => i.type === 'overflow').sort((a, b) => a.anchorX - b.anchorX);
+  // 1. Consolidate tight adjacent overflow annotations (< 32px apart) into clean summaries
+  const guides = items.filter(i => i.type !== 'overflow' && !i.id?.startsWith('overflow_'));
+  const overflows = items.filter(i => i.type === 'overflow' || i.id?.startsWith('overflow_')).sort((a, b) => a.anchorX - b.anchorX);
 
   const consolidatedOverflows = [];
   let currentCluster = [];
@@ -1390,7 +1390,7 @@ function layoutTimelineAnnotations(items, bounds){
       currentCluster.push(ov);
     } else {
       const prev = currentCluster[currentCluster.length - 1];
-      if (Math.abs(ov.anchorX - prev.anchorX) <= 22){
+      if (Math.abs(ov.anchorX - prev.anchorX) <= 32){
         currentCluster.push(ov);
       } else {
         consolidatedOverflows.push(mergeCluster(currentCluster));
@@ -1407,8 +1407,10 @@ function layoutTimelineAnnotations(items, bounds){
       const c = cluster[0];
       const count = c.count || parseInt(c.text.replace('+', ''), 10) || 1;
       return Object.assign({}, c, {
+        type: "overflow",
         isLoneSingle: count <= 1,
-        priority: count > 1 ? 6 : 4
+        priority: count > 1 ? 6 : 4,
+        candidateYs: [c.anchorY, bounds.top - 6, c.anchorY + 12, bounds.top - 12]
       });
     }
     const totalExtra = cluster.reduce((sum, c) => sum + (c.count || parseInt(c.text.replace('+', ''), 10) || 0), 0);
@@ -1420,14 +1422,14 @@ function layoutTimelineAnnotations(items, bounds){
       anchorY: avgY,
       text: "+" + totalExtra,
       clr: T.slate,
-      size: 10,
+      size: 9.5,
       weight: "700",
       opacity: "1",
       priority: 6,
       type: "overflow",
       isLoneSingle: totalExtra <= 1,
       tip: totalExtra + " more in this dense window (" + cluster.length + " buckets)",
-      candidateYs: [avgY, bounds.top - 4, avgY + 12, bounds.top - 12]
+      candidateYs: [avgY, bounds.top - 6, avgY + 12, bounds.top - 12]
     };
   }
 
@@ -1439,7 +1441,7 @@ function layoutTimelineAnnotations(items, bounds){
   const results = [];
 
   for (const item of queue){
-    const w = item.width || (item.text.length * (item.size * 0.62) + 8);
+    const w = item.width || (item.text.length * (item.size * 0.65) + 8);
     const h = item.height || (item.size + 4);
     const candidateYs = item.candidateYs || [
       item.anchorY,
@@ -1448,8 +1450,7 @@ function layoutTimelineAnnotations(items, bounds){
       item.anchorY - 20,
       item.anchorY + 20
     ];
-    // For lone single labels, prefer vertical leader placement directly above the bar
-    const candidateXOffsets = item.isLoneSingle ? [0, -3, 3] : [0, -6, 6, -12, 12, -20, 20];
+    const candidateXOffsets = item.isLoneSingle ? [0, -4, 4] : [0, -8, 8, -16, 16, -24, 24];
 
     let bestX = item.anchorX;
     let bestY = item.anchorY;
@@ -1462,10 +1463,10 @@ function layoutTimelineAnnotations(items, bounds){
         const testX = Math.max(bounds.minX + w / 2, Math.min(bounds.maxX - w / 2, item.anchorX + dx));
         const testY = dy;
         const box = {
-          x1: testX - w / 2 - 2,
-          x2: testX + w / 2 + 2,
-          y1: testY - h / 2 - 1,
-          y2: testY + h / 2 + 1
+          x1: testX - w / 2 - 3,
+          x2: testX + w / 2 + 3,
+          y1: testY - h * 0.85 - 2,
+          y2: testY + h * 0.35 + 2
         };
 
         let overlapArea = 0;
@@ -1492,17 +1493,18 @@ function layoutTimelineAnnotations(items, bounds){
       if (foundSlot) break;
     }
 
-    // If an isolated single-count item still has collision or cannot be placed cleanly directly above,
-    // suppress the inline label in favor of the existing hover tooltip on the bar itself
-    if (item.isLoneSingle && (bestOverlap > 0 || Math.abs(bestX - item.anchorX) > 4)){
+    // STRICT ZERO-COLLISION GUARANTEE:
+    // If any annotation cannot find a 100% collision-free slot, suppress the inline SVG text.
+    // The bar hover tooltip (data-tip) conveys the exact count without cluttering or overlapping.
+    if (bestOverlap > 0 || (item.isLoneSingle && Math.abs(bestX - item.anchorX) > 4)){
       continue;
     }
 
     const finalBox = {
-      x1: bestX - w / 2 - 2,
-      x2: bestX + w / 2 + 2,
-      y1: bestY - h / 2 - 1,
-      y2: bestY + h / 2 + 1
+      x1: bestX - w / 2 - 3,
+      x2: bestX + w / 2 + 3,
+      y1: bestY - h * 0.85 - 2,
+      y2: bestY + h * 0.35 + 2
     };
     placed.push(finalBox);
 
@@ -1571,19 +1573,20 @@ function renderHorizon(S){
   guideLines.forEach(([d, lbl, clr]) => {
     if (d <= horizon * 0.95){
       const gx = px(d);
-      o.push('<line x1="' + gx.toFixed(1) + '" y1="' + (top + 2) + '" x2="' + gx.toFixed(1)
+      o.push('<line x1="' + gx.toFixed(1) + '" y1="' + (top + 4) + '" x2="' + gx.toFixed(1)
         + '" y2="' + base + '" stroke="' + clr + '" stroke-opacity="0.38" stroke-width="1" stroke-dasharray="2 3"/>');
       annotationsToPlace.push({
         id: "guide_" + d,
         anchorX: gx,
-        anchorY: top + 10,
+        anchorY: top - 4,
         text: lbl,
         clr: clr,
-        size: 9,
+        size: 8.5,
         weight: "600",
         opacity: "0.85",
         priority: 10,
-        candidateYs: [top + 10, top - 4, top + 22, top - 12]
+        type: "guide",
+        candidateYs: [top - 4, top + 8, top - 11]
       });
     }
   });
@@ -1632,13 +1635,16 @@ function renderHorizon(S){
         anchorX: cx,
         anchorY: ceiling - 2,
         text: "+" + extra,
+        count: extra,
         clr: T.slate,
-        size: 10,
+        size: 9.5,
         weight: "600",
         opacity: "1",
-        priority: 5,
+        priority: extra > 1 ? 6 : 4,
+        type: "overflow",
+        isLoneSingle: extra <= 1,
         tip: extra + " more in this window",
-        candidateYs: [ceiling - 2, top - 4, ceiling + 10, top - 12]
+        candidateYs: [ceiling - 2, top - 6, ceiling + 10, top - 12]
       });
     }
   });
@@ -1795,7 +1801,7 @@ function renderTable(S){
 
   const rs = rows(S);
   if (!rs.length)
-    return voidState("No records match", "Try clearing search or filters.",
+    return voidState("No items match", "Try clearing search or filters.",
       '<button class="chip" type="button" data-act="reset">Clear all filters</button>');
 
   const per = Math.max(1, S.rows);
