@@ -527,18 +527,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         if filtered.empty:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
         else:
-            # Persistent Interactive Breadcrumb Header
+            # Persistent Interactive Breadcrumb Header & Selection Toolbar
             active_rec = df[df["id"] == selected_id].iloc[0] if selected_id in df["id"].values else None
             bc_st = active_rec["state"] if active_rec is not None else (state_filter if state_filter != "All States" else None)
             bc_tm = active_rec["team"] if active_rec is not None else (team_filter if team_filter != "All Teams" else None)
             bc_cp = active_rec["component"] if active_rec is not None else (comp_filter if comp_filter != "All Components" else None)
             bc_cp_code = ui.COMPONENT_CODE.get(bc_cp, bc_cp) if bc_cp else None
+            bc_icon = ui.COMPONENT_ICONS.get(bc_cp, "📦") if bc_cp else "📦"
 
             bc_parts = ["<span style='color:var(--accent);font-weight:700;'>🏠 All</span>"]
             if bc_st: bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;'>📍 {bc_st}</span>")
             if bc_tm: bc_parts.append(f"<span style='color:#cbd5e1;'>👥 {bc_tm}</span>")
-            if bc_cp_code: bc_parts.append(f"<span style='color:#94a3b8;'>📦 {bc_cp_code}</span>")
+            if bc_cp_code: bc_parts.append(f"<span style='color:#94a3b8;'>{bc_icon} {bc_cp_code}</span>")
             bc_trail = " <span style='color:var(--rule);font-size:9px;'>›</span> ".join(bc_parts)
+
+            selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
             def toggle_tree_node(path: str, parent_prefix: str | None = None) -> None:
                 """Toggle a node with accordion behavior (collapsing sibling nodes at the same level)."""
@@ -554,29 +557,37 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tree_open.clear()
                     tree_open.add(path)
 
-            bc_c1, bc_c2 = st.columns([3.2, 1.4])
+            bc_c1, bc_c2 = st.columns([2.4, 2.0])
             with bc_c1:
                 st.markdown(f"<div style='font-size:10px;padding:2px 2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
             with bc_c2:
-                tc1, tc2 = st.columns(2)
-                if tc1.button("＋", key="tree_exp_all", help="Expand All Branches"):
-                    for s_val in filtered["state"].unique():
-                        tree_open.add(str(s_val))
-                        st_sub = filtered[filtered["state"] == s_val]
-                        for t_val in st_sub["team"].unique():
-                            tree_open.add(f"{s_val}/{t_val}")
-                            tm_sub = st_sub[st_sub["team"] == t_val]
-                            for c_val in tm_sub["component"].unique():
-                                tree_open.add(f"{s_val}/{t_val}/{c_val}")
-                                cp_sub = tm_sub[tm_sub["component"] == c_val]
-                                for e_val in cp_sub["env_label"].unique():
-                                    tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
-                    rerun()
-                if tc2.button("－", key="tree_col_all", help="Collapse All Branches"):
-                    tree_open.clear()
-                    rerun()
+                tc1, tc2, tc3 = st.columns([0.9, 0.9, 3.2])
+                with tc1:
+                    if st.button("＋", key="tree_exp_all", help="Expand All Branches"):
+                        for s_val in filtered["state"].unique():
+                            tree_open.add(str(s_val))
+                            st_sub = filtered[filtered["state"] == s_val]
+                            for t_val in st_sub["team"].unique():
+                                tree_open.add(f"{s_val}/{t_val}")
+                                tm_sub = st_sub[st_sub["team"] == t_val]
+                                for c_val in tm_sub["component"].unique():
+                                    tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                                    cp_sub = tm_sub[tm_sub["component"] == c_val]
+                                    for e_val in cp_sub["env_label"].unique():
+                                        tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+                        rerun()
+                with tc2:
+                    if st.button("－", key="tree_col_all", help="Collapse All Branches"):
+                        tree_open.clear()
+                        rerun()
+                with tc3:
+                    n_sel = len(selected_entity_ids)
+                    btn_txt = f"⚡ Batch ({n_sel})" if n_sel > 0 else "⚡ Batch Editor"
+                    if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True, help="Send selected entities to Batch Grid Editor"):
+                        st.session_state["op_target_tab"] = "batch"
+                        rerun()
 
-            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Accordion Expansion)
+            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Checkbox Multi-Select)
             st.markdown("<div style='max-height:280px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px 3px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
@@ -586,9 +597,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 st_worst = ui.worst_band(st_sub["band"].tolist())
                 st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
                 st_exp_n = (st_sub["days_left"] < 0).sum()
+                st_child_ids = set(st_sub["id"].tolist())
+                st_all_sel = st_child_ids.issubset(selected_entity_ids) and len(st_child_ids) > 0
 
                 # Level 1: State Node
-                s_c1, s_c2 = st.columns([4.4, 0.6])
+                s_c0, s_c1, s_c2 = st.columns([0.6, 3.8, 0.6])
+                with s_c0:
+                    if st.button("☑" if st_all_sel else "☐", key=f"sel_st_{st_val}", use_container_width=True, help=f"Select all {len(st_child_ids)} entities in State {st_val}"):
+                        if st_all_sel:
+                            selected_entity_ids.difference_update(st_child_ids)
+                        else:
+                            selected_entity_ids.update(st_child_ids)
+                        rerun()
                 with s_c1:
                     st.markdown(f"""
                     <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:11px;">
@@ -613,12 +633,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tm_worst = ui.worst_band(tm_sub["band"].tolist())
                         tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
                         tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#38bdf8")
+                        tm_child_ids = set(tm_sub["id"].tolist())
+                        tm_all_sel = tm_child_ids.issubset(selected_entity_ids) and len(tm_child_ids) > 0
 
                         # Level 2: Team Node
-                        t_c1, t_c2 = st.columns([4.4, 0.6])
+                        t_c0, t_c1, t_c2 = st.columns([0.6, 3.8, 0.6])
+                        with t_c0:
+                            if st.button("☑" if tm_all_sel else "☐", key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True, help=f"Select all {len(tm_child_ids)} entities in Team {tm_val}"):
+                                if tm_all_sel:
+                                    selected_entity_ids.difference_update(tm_child_ids)
+                                else:
+                                    selected_entity_ids.update(tm_child_ids)
+                                rerun()
                         with t_c1:
                             st.markdown(f"""
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:10px;background:rgba(255,255,255,0.02);border-radius:3px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:rgba(255,255,255,0.02);border-radius:3px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
                               <span style="color:{tm_color};font-weight:700;">
                                 👥 {tm_val} <span style="color:#94a3b8;font-weight:400;font-size:9px;">({len(tm_sub)})</span>
                               </span>
@@ -638,13 +667,23 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 cp_worst = ui.worst_band(cp_sub["band"].tolist())
                                 cp_meta = ui.BAND_META.get(cp_worst, ui.BAND_META["Healthy"])
                                 cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
+                                cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
+                                cp_child_ids = set(cp_sub["id"].tolist())
+                                cp_all_sel = cp_child_ids.issubset(selected_entity_ids) and len(cp_child_ids) > 0
 
                                 # Level 3: Component Node
-                                cp_c1, cp_c2 = st.columns([4.4, 0.6])
+                                cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
+                                with cp_c0:
+                                    if st.button("☑" if cp_all_sel else "☐", key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True, help=f"Select all {len(cp_child_ids)} entities in {cp_code}"):
+                                        if cp_all_sel:
+                                            selected_entity_ids.difference_update(cp_child_ids)
+                                        else:
+                                            selected_entity_ids.update(cp_child_ids)
+                                        rerun()
                                 with cp_c1:
                                     st.markdown(f"""
-                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-left:18px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
-                                      <span style="color:#f8fafc;font-weight:600;">📦 {cp_code} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
+                                      <span style="color:#f8fafc;font-weight:600;">{cp_icon} {cp_code} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
                                       <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
                                     </div>
                                     """, unsafe_allow_html=True)
@@ -660,12 +699,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                         ev_is_open = ev_path in tree_open
                                         ev_worst = ui.worst_band(ev_sub["band"].tolist())
                                         ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
+                                        ev_child_ids = set(ev_sub["id"].tolist())
+                                        ev_all_sel = ev_child_ids.issubset(selected_entity_ids) and len(ev_child_ids) > 0
 
                                         # Level 4: Environment Node
-                                        ev_c1, ev_c2 = st.columns([4.4, 0.6])
+                                        ev_c0, ev_c1, ev_c2 = st.columns([0.6, 3.8, 0.6])
+                                        with ev_c0:
+                                            if st.button("☑" if ev_all_sel else "☐", key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True, help=f"Select all {len(ev_child_ids)} entities in {ev_val}"):
+                                                if ev_all_sel:
+                                                    selected_entity_ids.difference_update(ev_child_ids)
+                                                else:
+                                                    selected_entity_ids.update(ev_child_ids)
+                                                rerun()
                                         with ev_c1:
                                             st.markdown(f"""
-                                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:26px;padding:1px 4px;font-size:9.5px;color:#cbd5e1;">
+                                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;padding:1px 4px;font-size:9.5px;color:#cbd5e1;">
                                               <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
                                               <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
                                             </div>
@@ -680,12 +728,20 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                             for r in ev_sub.itertuples():
                                                 r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
                                                 is_act = (r.id == selected_id)
+                                                is_leaf_sel = r.id in selected_entity_ids
                                                 r_bg = "background:rgba(56,189,248,0.2);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_act else "background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.04);"
 
-                                                row_c1, row_c2 = st.columns([3.8, 1.2])
+                                                row_c0, row_c1, row_c2 = st.columns([0.6, 3.2, 1.2])
+                                                with row_c0:
+                                                    if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True, help="Select for Batch Editor"):
+                                                        if is_leaf_sel:
+                                                            selected_entity_ids.discard(r.id)
+                                                        else:
+                                                            selected_entity_ids.add(r.id)
+                                                        rerun()
                                                 with row_c1:
                                                     st.markdown(f"""
-                                                    <div style="{r_bg};margin-left:34px;border-radius:3px;padding:2px 5px;margin-bottom:1px;display:flex;align-items:center;justify-content:space-between;">
+                                                    <div style="{r_bg};margin-left:14px;border-radius:3px;padding:2px 5px;margin-bottom:1px;display:flex;align-items:center;justify-content:space-between;">
                                                       <span style="font-family:var(--mono);font-size:9.5px;font-weight:{'700' if is_act else '500'};color:{'#38bdf8' if is_act else '#f8fafc'};">
                                                         {r.schema_name}
                                                       </span>
@@ -706,13 +762,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         rec = df[df["id"] == selected_id].iloc[0]
         meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
         team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
+        cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
 
         # Top Inspector Header & Quick Renewal Bar (Compact 38px)
         st.markdown(f"""
         <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:4px;padding:5px 10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:9px;font-weight:700;letter-spacing:.08em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {rec['component']}</span>
+              <span style="font-size:9px;font-weight:700;letter-spacing:.08em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
               <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:1px;">{rec['schema_name']} <span class="env-tag" style="font-size:9.5px;">{rec['env_label']}</span></div>
             </div>
             {ui.status_pill(rec['band'])}
@@ -810,7 +867,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown('<div class="note" style="margin-bottom:6px;"><b>Severity Heatmap (State × Component):</b> Color saturation indicates risk density. Click any cell to filter and expand the tree.</div>', unsafe_allow_html=True)
             mat_states = STATES
             mat_comps = COMPONENT_ORDER
-            header_cols = "".join(f"<th style='text-align:center;padding:4px 6px;'>{ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
+            header_cols = "".join(f"<th style='text-align:center;padding:4px 6px;'>{ui.COMPONENT_ICONS.get(c, '')} {ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
             matrix_head = f"<tr><th>State</th>{header_cols}<th class='r' style='padding:4px 6px;'>Total</th></tr>"
 
             matrix_rows = []
@@ -855,7 +912,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab3:
-            batch_work = filtered.head(50).copy()
+            if selected_entity_ids:
+                batch_work = filtered[filtered["id"].isin(selected_entity_ids)].copy()
+                if batch_work.empty:
+                    batch_work = df[df["id"].isin(selected_entity_ids)].copy()
+                bg_c1, bg_c2 = st.columns([3.6, 1.4])
+                bg_c1.markdown(f"<div style='font-size:10px;color:#38bdf8;font-weight:700;padding-top:2px;'>⚡ Pre-populated with {len(batch_work)} multi-selected entities from tree</div>", unsafe_allow_html=True)
+                if bg_c2.button("Clear Selection", key="op_batch_clear_sel", use_container_width=True):
+                    selected_entity_ids.clear()
+                    rerun()
+            else:
+                batch_work = filtered.head(50).copy()
+
             if hasattr(st, "data_editor") and hasattr(st, "column_config"):
                 b_view = batch_work[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
                 b_view["exp_dt"] = b_view["exp_dt"].dt.date
@@ -920,7 +988,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 # View 3: Pipeline Governance & Alert Center (Zero-Scroll Control Center)
 # ==========================================================================
 def render_governance_center() -> None:
-    # Top KPI summary strip (Ultra-compact zero-scroll)
     conn = get_connection(DB_PATH)
     tables = ["component_records", "expiry_records", "maintenance_schedules", "owners", "reminder_log"]
     stats = {}
@@ -931,60 +998,95 @@ def render_governance_center() -> None:
             stats[t] = 0
     conn.close()
 
+    gov_drill = st.session_state.setdefault("gov_drill_scope", "all")
+
     kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
     with kpi_c1:
+        is_sel = (gov_drill == "all")
+        glow = "#38bdf8"
         st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#38bdf8;padding:6px 12px;">
-          <div class="kpi-label">Component Entities</div>
-          <div class="kpi-value" style="font-size:20px;">{stats['component_records']}</div>
-          <div class="kpi-sub">Across AK, NH, ND portfolios</div>
+        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Component Entities</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats['component_records']}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">Across AK, NH, ND portfolios</div>
         </div>
         """, unsafe_allow_html=True)
-    with kpi_c2:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#10b981;padding:6px 12px;">
-          <div class="kpi-label">Database Passwords</div>
-          <div class="kpi-value" style="font-size:20px;">{stats['expiry_records']}</div>
-          <div class="kpi-sub">Tracked in SQLite table</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with kpi_c3:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#f59e0b;padding:6px 12px;">
-          <div class="kpi-label">Maintenance Windows</div>
-          <div class="kpi-value" style="font-size:20px;">{stats.get('maintenance_schedules', 0)} Schedules</div>
-          <div class="kpi-sub">Cognos, Infa, Letters, App Server</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with kpi_c4:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#6366f1;padding:6px 12px;">
-          <div class="kpi-label">Reminder Cycles</div>
-          <div class="kpi-value" style="font-size:20px;">{stats['reminder_log']} Dispatched</div>
-          <div class="kpi-sub">Daily Schedule @ 08:00 UTC</div>
-        </div>
-        """, unsafe_allow_html=True)
+        if st.button("✓ All Entities" if is_sel else "Filter: All Portfolios", key="gov_kpi_b1", use_container_width=True, type="primary" if is_sel else "secondary"):
+            st.session_state["gov_drill_scope"] = "all"
+            rerun()
 
-    st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
+    with kpi_c2:
+        is_sel = (gov_drill == "passwords")
+        glow = "#10b981"
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Database Passwords</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats['expiry_records']}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">Tracked in SQLite table</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✓ DB Passwords Active" if is_sel else "Filter: DB Passwords", key="gov_kpi_b2", use_container_width=True, type="primary" if is_sel else "secondary"):
+            st.session_state["gov_drill_scope"] = "passwords" if gov_drill != "passwords" else "all"
+            rerun()
+
+    with kpi_c3:
+        is_sel = (gov_drill == "maintenance")
+        glow = "#f59e0b"
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Maintenance Windows</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats.get('maintenance_schedules', 0)} Schedules</div>
+          <div class="kpi-sub" style="font-size:9.5px;">Cognos, Infa, Letters, App Server</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✓ Maintenance Active" if is_sel else "Filter: Maintenance", key="gov_kpi_b3", use_container_width=True, type="primary" if is_sel else "secondary"):
+            st.session_state["gov_drill_scope"] = "maintenance" if gov_drill != "maintenance" else "all"
+            rerun()
+
+    with kpi_c4:
+        is_sel = (gov_drill == "reminders")
+        glow = "#6366f1"
+        st.markdown(f"""
+        <div class="top-glow-kpi" style="--glow:{glow};padding:5px 10px;margin-bottom:2px;">
+          <div class="kpi-label" style="font-size:9.5px;">Reminder Cycles</div>
+          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{stats['reminder_log']} Dispatched</div>
+          <div class="kpi-sub" style="font-size:9.5px;">Daily Schedule @ 08:00 UTC</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✓ Reminders Active" if is_sel else "Filter: Reminders", key="gov_kpi_b4", use_container_width=True, type="primary" if is_sel else "secondary"):
+            st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
+            rerun()
+
+    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
     
     # Primary Business View: Multi-Team Alert Routing & Email Dispatch Simulator
     g_col1, _, g_col2 = st.columns([1.8, 0.04, 2.2])
 
     with g_col1:
-        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:4px;">Multi-Team Alert Routing Directory</div>', unsafe_allow_html=True)
         team_routes = [
-            ("Cognos", "BI & Analytics", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)"),
-            ("Informatica", "ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays"),
-            ("Letters", "Correspondence", "letters-ops@example.com", "#34D399", "Monthly (1st Sun)"),
-            ("App Server", "JVM Containers", "appserver-admin@example.com", "#FBBF24", "Weekly on Sundays"),
-            ("Core", "DB & Infra", "core-dba@example.com", "#38BDF8", "Quarterly Maintenance"),
+            ("Cognos", "BI & Analytics", "cognos-dba@example.com", "#818CF8", "Thrice-weekly (Sun/Tue/Fri)", ["all", "passwords", "maintenance", "reminders"]),
+            ("Informatica", "ETL Team", "infa-etl@example.com", "#FB923C", "Weekly on Sundays", ["all", "maintenance", "reminders"]),
+            ("Letters", "Correspondence", "letters-ops@example.com", "#34D399", "Monthly (1st Sun)", ["all", "maintenance"]),
+            ("App Server", "JVM Containers", "appserver-admin@example.com", "#FBBF24", "Weekly on Sundays", ["all", "maintenance", "reminders"]),
+            ("Core", "DB & Infra", "core-dba@example.com", "#38BDF8", "Quarterly Maintenance", ["all", "passwords"]),
         ]
+        active_routes = [r for r in team_routes if gov_drill in r[5]]
+        
+        dr_c1, dr_c2 = st.columns([3.2, 1.4])
+        with dr_c1:
+            st.markdown(f'<div class="eyebrow" style="margin-top:0;margin-bottom:4px;">Multi-Team Alert Routing Directory ({len(active_routes)}/5 teams)</div>', unsafe_allow_html=True)
+        with dr_c2:
+            if gov_drill != "all":
+                if st.button("Reset Scope", key="gov_reset_filter", use_container_width=True):
+                    st.session_state["gov_drill_scope"] = "all"
+                    rerun()
+
         route_rows = "".join(
             f"<tr><td class='m' style='color:{color};font-weight:700;'>{team}</td>"
             f"<td style='color:#f8fafc;'>{lead}</td>"
             f"<td class='m'><code>{email}</code></td>"
             f"<td style='color:var(--slate);'>{cadence}</td></tr>"
-            for team, lead, email, color, cadence in team_routes
+            for team, lead, email, color, cadence, _ in active_routes
         )
         st.markdown(f"""
         <div class="card" style="padding:6px 10px;margin-bottom:8px;">
@@ -1018,27 +1120,23 @@ def render_governance_center() -> None:
             exp_dt = pd.to_datetime(sim_chosen["exp_date"]).date()
             days_left = (exp_dt - date.today()).days
             team_meta = ui.TEAM_META.get(sim_tm, ui.TEAM_META["Core"])
-
-            team_email = {
-                "Cognos": "cognos-dba@example.com",
-                "Informatica": "infa-etl@example.com",
-                "Letters": "letters-ops@example.com",
-                "App Server": "appserver-admin@example.com",
-                "Core": "core-dba@example.com"
-            }.get(sim_tm, "ops-team@example.com")
+            owner_email = f"{sim_tm.lower().replace(' ', '')}-team@ets.internal"
 
             sim_mock = {
-                "state": sim_chosen["state"],
-                "env": sim_chosen["environment"],
-                "team": sim_chosen["team"],
-                "component": sim_chosen["component"],
-                "username": f"{sim_chosen['state']}{sim_chosen['team'][:3].upper()}USR",
+                "id": sim_chosen["id"],
                 "schema_name": sim_chosen["schema_name"],
-                "exp_date": sim_chosen["exp_date"],
-                "days_left": days_left if days_left > 0 else 16,
-                "owner_name": f"{sim_chosen['team']} Operations",
-                "owner_email": team_email,
-                "is_first_reminder": True
+                "state": sim_chosen["state"],
+                "environment": sim_chosen["environment"],
+                "component": sim_chosen["component"],
+                "exp_date": str(exp_dt),
+                "days_left": days_left,
+                "team": sim_tm,
+                "owner_email": owner_email,
+                "owner_name": f"{sim_tm} Operations Lead",
+                "team_color": team_meta["color"],
+                "team_lead": team_meta["lead"],
+                "frequency_blurb": "Production Operations Escalation",
+                "threshold_days": ui.CRITICAL_DAYS if days_left <= ui.CRITICAL_DAYS else ui.WARNING_DAYS,
             }
 
             st.markdown(f"""
@@ -1091,8 +1189,45 @@ def render_governance_center() -> None:
 
 
 # ==========================================================================
-# Primary Navigation (3 Unified Enterprise Workspaces)
+# Auto-Surfaced "What's New" Strip & Primary Navigation (3 Unified Workspaces)
 # ==========================================================================
+conn_snap = get_connection(DB_PATH)
+snapshots = get_metric_snapshots(conn_snap)
+conn_snap.close()
+
+if len(snapshots) >= 2:
+    curr_snap = snapshots[-1]
+    prev_snap = snapshots[-2]
+    d_exp = curr_snap.get("expired", 0) - prev_snap.get("expired", 0)
+    d_crit = curr_snap.get("critical", 0) - prev_snap.get("critical", 0)
+    d_warn = curr_snap.get("warning", 0) - prev_snap.get("warning", 0)
+
+    if d_exp != 0 or d_crit != 0 or d_warn != 0:
+        snap_id = f"{curr_snap.get('as_of', '')}_{d_exp}_{d_crit}_{d_warn}"
+        if st.session_state.get("dismissed_whats_new") != snap_id:
+            wn_c1, wn_c2 = st.columns([9.3, 0.7])
+            with wn_c1:
+                parts = []
+                if d_exp > 0:
+                    parts.append(f"<b style='color:#ef4444;'>+{d_exp} overdue</b>")
+                elif d_exp < 0:
+                    parts.append(f"<b style='color:#10b981;'>{abs(d_exp)} resolved overdue</b>")
+                if d_crit > 0:
+                    parts.append(f"<b style='color:#f97316;'>+{d_crit} critical (≤15d)</b>")
+                if d_warn > 0:
+                    parts.append(f"<b style='color:#f59e0b;'>+{d_warn} warning (≤30d)</b>")
+                delta_desc = ", ".join(parts) if parts else "Fleet risk status changed"
+                st.markdown(f"""
+                <div style="background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:3px 8px;font-size:11px;color:#f8fafc;display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                  <span style="font-weight:700;color:var(--accent);">💡 What's New Since Last Visit:</span>
+                  <span>{delta_desc} detected across monitoring scope.</span>
+                </div>
+                """, unsafe_allow_html=True)
+            with wn_c2:
+                if st.button("✕", key="wn_dismiss_btn", help="Dismiss Notification", use_container_width=True):
+                    st.session_state["dismissed_whats_new"] = snap_id
+                    rerun()
+
 tab_overview, tab_operations, tab_governance = st.tabs([
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
@@ -1107,4 +1242,3 @@ with tab_operations:
 
 with tab_governance:
     render_governance_center()
-

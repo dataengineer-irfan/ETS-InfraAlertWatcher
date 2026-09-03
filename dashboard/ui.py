@@ -80,6 +80,17 @@ COMPONENT_CODE = {
     "Upgrade & Patch Tasks": "PATCH",
 }
 
+COMPONENT_ICONS = {
+    "Crypto Keys & CA Certificates": "🔑",
+    "Database Password Expiry": "🛡️",
+    "Software Versions & N-1 Tracking": "🏷️",
+    "Upgrade & Patch Tasks": "🔧",
+    "CRYPTO": "🔑",
+    "DBPWD": "🛡️",
+    "SWVER": "🏷️",
+    "PATCH": "🔧",
+}
+
 COMPONENT_BLURB = {
     "Crypto Keys & CA Certificates": "Signing keys and certificate authority certificates",
     "Database Password Expiry": "Service account passwords on each database",

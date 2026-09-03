@@ -50,6 +50,7 @@ from ui import (  # noqa: F401  (BAND_COLOR is re-exported for callers)
     BANDS,
     COMPONENT_BLURB,
     COMPONENT_CODE,
+    COMPONENT_ICONS,
     CRITICAL_DAYS,
     ENV_BLURB,
     STATES,
@@ -742,6 +743,16 @@ const DATA = /*__DATA__*/;
 
 /*==ENGINE-START==*/
 const BANDS = DATA.bands, META = DATA.bandMeta, CODE = DATA.componentCode;
+const COMP_ICONS = DATA.componentIcons || {
+  "Crypto Keys & CA Certificates": "🔑",
+  "Database Password Expiry": "🛡️",
+  "Software Versions & N-1 Tracking": "🏷️",
+  "Upgrade & Patch Tasks": "🔧",
+  "CRYPTO": "🔑",
+  "DBPWD": "🛡️",
+  "SWVER": "🏷️",
+  "PATCH": "🔧"
+};
 const CRIT = DATA.criticalDays, WARN = DATA.warningDays;
 const T = DATA.tokens;
 const NAME_OF = {};
@@ -1258,12 +1269,13 @@ function renderComps(S){
     const c = counts(sub), nx = soonest(sub);
     const band = worstBand(new Set(sub.map(r => r.band)));
     const on = S.component === comp;
+    const icon = COMP_ICONS[comp] || "📦";
     return '<button class="cc" type="button" data-act="component" data-val="' + esc(comp)
       + '" data-hl-comp="' + esc(comp)
       + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc((on ? "Click again to clear. " : "Click to focus ")
       + comp + " (" + CODE[comp] + ") — " + DATA.componentBlurb[comp])
-      + '"><div class="head-row"><span class="code">' + esc(CODE[comp]) + '</span><span class="nm">'
+      + '"><div class="head-row"><span class="code">' + icon + ' ' + esc(CODE[comp]) + '</span><span class="nm">'
       + esc(comp) + '</span></div>' + meter(c)
       + '<div class="meter-label">Health distribution</div>'
       + '<div class="foot"><span class="cnt">' + sub.length + "<em>item"
@@ -1391,7 +1403,14 @@ function layoutTimelineAnnotations(items, bounds){
   }
 
   function mergeCluster(cluster){
-    if (cluster.length === 1) return cluster[0];
+    if (cluster.length === 1){
+      const c = cluster[0];
+      const count = c.count || parseInt(c.text.replace('+', ''), 10) || 1;
+      return Object.assign({}, c, {
+        isLoneSingle: count <= 1,
+        priority: count > 1 ? 6 : 4
+      });
+    }
     const totalExtra = cluster.reduce((sum, c) => sum + (c.count || parseInt(c.text.replace('+', ''), 10) || 0), 0);
     const avgX = cluster.reduce((sum, c) => sum + c.anchorX, 0) / cluster.length;
     const avgY = cluster.reduce((sum, c) => sum + c.anchorY, 0) / cluster.length;
@@ -1406,6 +1425,7 @@ function layoutTimelineAnnotations(items, bounds){
       opacity: "1",
       priority: 6,
       type: "overflow",
+      isLoneSingle: totalExtra <= 1,
       tip: totalExtra + " more in this dense window (" + cluster.length + " buckets)",
       candidateYs: [avgY, bounds.top - 4, avgY + 12, bounds.top - 12]
     };
@@ -1428,7 +1448,8 @@ function layoutTimelineAnnotations(items, bounds){
       item.anchorY - 20,
       item.anchorY + 20
     ];
-    const candidateXOffsets = [0, -6, 6, -12, 12, -20, 20];
+    // For lone single labels, prefer vertical leader placement directly above the bar
+    const candidateXOffsets = item.isLoneSingle ? [0, -3, 3] : [0, -6, 6, -12, 12, -20, 20];
 
     let bestX = item.anchorX;
     let bestY = item.anchorY;
@@ -1471,6 +1492,12 @@ function layoutTimelineAnnotations(items, bounds){
       if (foundSlot) break;
     }
 
+    // If an isolated single-count item still has collision or cannot be placed cleanly directly above,
+    // suppress the inline label in favor of the existing hover tooltip on the bar itself
+    if (item.isLoneSingle && (bestOverlap > 0 || Math.abs(bestX - item.anchorX) > 4)){
+      continue;
+    }
+
     const finalBox = {
       x1: bestX - w / 2 - 2,
       x2: bestX + w / 2 + 2,
@@ -1482,7 +1509,7 @@ function layoutTimelineAnnotations(items, bounds){
     results.push(Object.assign({}, item, {
       x: bestX,
       y: bestY,
-      displaced: Math.abs(bestX - item.anchorX) > 4 || Math.abs(bestY - item.anchorY) > 4
+      displaced: Math.abs(bestX - item.anchorX) > 2 || Math.abs(bestY - item.anchorY) > 2
     }));
   }
   return results;
@@ -2508,6 +2535,7 @@ def _payload(records: list, *, mode: str, state, as_of: date, env_order: list,
         "states": list(STATES),
         "components": list(COMPONENT_CODE),
         "componentCode": COMPONENT_CODE,
+        "componentIcons": COMPONENT_ICONS,
         "componentBlurb": COMPONENT_BLURB,
         "teams": teams or list(TEAMS),
         "teamMeta": TEAM_META,
