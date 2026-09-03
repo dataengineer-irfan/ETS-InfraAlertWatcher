@@ -540,6 +540,20 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             if bc_cp_code: bc_parts.append(f"<span style='color:#94a3b8;'>📦 {bc_cp_code}</span>")
             bc_trail = " <span style='color:var(--rule);font-size:9px;'>›</span> ".join(bc_parts)
 
+            def toggle_tree_node(path: str, parent_prefix: str | None = None) -> None:
+                """Toggle a node with accordion behavior (collapsing sibling nodes at the same level)."""
+                if path in tree_open:
+                    to_remove = {p for p in tree_open if p == path or p.startswith(path + "/")}
+                    tree_open.difference_update(to_remove)
+                else:
+                    if parent_prefix:
+                        prefix_slash = parent_prefix + "/"
+                        to_remove = {p for p in tree_open if p.startswith(prefix_slash)}
+                        tree_open.difference_update(to_remove)
+                    else:
+                        tree_open.clear()
+                    tree_open.add(path)
+
             bc_c1, bc_c2 = st.columns([3.2, 1.4])
             with bc_c1:
                 st.markdown(f"<div style='font-size:10px;padding:2px 2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
@@ -562,7 +576,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     tree_open.clear()
                     rerun()
 
-            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy)
+            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Accordion Expansion)
             st.markdown("<div style='max-height:280px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px 3px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
@@ -588,8 +602,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     """, unsafe_allow_html=True)
                 with s_c2:
                     if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
-                        if st_is_open: tree_open.remove(st_path)
-                        else: tree_open.add(st_path)
+                        toggle_tree_node(st_path, None)
                         rerun()
 
                 if st_is_open:
@@ -614,8 +627,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             """, unsafe_allow_html=True)
                         with t_c2:
                             if st.button("▼" if tm_is_open else "▶", key=f"t_tm_{st_val}_{tm_val}", use_container_width=True):
-                                if tm_is_open: tree_open.remove(tm_path)
-                                else: tree_open.add(tm_path)
+                                toggle_tree_node(tm_path, st_path)
                                 rerun()
 
                         if tm_is_open:
@@ -638,8 +650,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                     """, unsafe_allow_html=True)
                                 with cp_c2:
                                     if st.button("▼" if cp_is_open else "▶", key=f"t_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
-                                        if cp_is_open: tree_open.remove(cp_path)
-                                        else: tree_open.add(cp_path)
+                                        toggle_tree_node(cp_path, tm_path)
                                         rerun()
 
                                 if cp_is_open:
@@ -661,8 +672,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                             """, unsafe_allow_html=True)
                                         with ev_c2:
                                             if st.button("▼" if ev_is_open else "▶", key=f"t_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
-                                                if ev_is_open: tree_open.remove(ev_path)
-                                                else: tree_open.add(ev_path)
+                                                toggle_tree_node(ev_path, cp_path)
                                                 rerun()
 
                                         if ev_is_open:
@@ -845,26 +855,26 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab3:
-            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             batch_work = filtered.head(50).copy()
             if hasattr(st, "data_editor") and hasattr(st, "column_config"):
                 b_view = batch_work[["schema_name", "state", "team", "env_label", "component", "exp_dt", "band", "days_left"]].copy()
+                b_view["component"] = b_view["component"].apply(lambda c: ui.COMPONENT_CODE.get(c, c))
                 b_view["exp_dt"] = b_view["exp_dt"].dt.date
                 b_view["days_left"] = b_view["days_left"].apply(ui.fmt_days)
                 b_view["band"] = b_view["band"].apply(ui.health_text)
 
                 b_edited = st.data_editor(
                     b_view, key="op_batch_editor", hide_index=True, use_container_width=True,
-                    num_rows="fixed", height=155,
+                    num_rows="fixed", height=140,
                     column_config={
-                        "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
+                        "schema_name": st.column_config.TextColumn("Schema", disabled=True, width="medium"),
                         "state": st.column_config.TextColumn("State", disabled=True, width="small"),
                         "team": st.column_config.TextColumn("Team", disabled=True, width="small"),
                         "env_label": st.column_config.TextColumn("Env", disabled=True, width="small"),
-                        "component": st.column_config.TextColumn("Component", disabled=True, width="medium"),
+                        "component": st.column_config.TextColumn("Comp", disabled=True, width="small"),
                         "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width="medium"),
                         "band": st.column_config.TextColumn("Status", disabled=True, width="small"),
-                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="small"),
+                        "days_left": st.column_config.TextColumn("Left", disabled=True, width="small"),
                     },
                 )
 
@@ -878,13 +888,12 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         if b_after != b_before:
                             b_changes.append((b_rec_id, b_after))
 
-                b_btn_col, b_note_col = st.columns([1.2, 2])
-                if b_btn_col.button("Save Batch Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
+                b_btn_col, b_note_col = st.columns([1.3, 2.7])
+                if b_btn_col.button("Save Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
                     apply_edits(b_changes)
                     st.success(f"Saved {len(b_changes)} batch updates!")
                     rerun()
                 b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{len(b_changes)}</b> unsaved change(s)</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab4:
             st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
