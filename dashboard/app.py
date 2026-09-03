@@ -1061,23 +1061,25 @@ def render_governance_center() -> None:
     n_warning = (records["band"] == "Warning").sum()
     n_total_risk = n_expired + n_critical + n_warning
     n_healthy = (records["band"] == "Healthy").sum()
+    pct_healthy = (n_healthy / len(records)) * 100.0
+    pct_risk = (n_total_risk / len(records)) * 100.0
 
-    # 1. Unified Slicer & Active Scope Bar
+    # 1. Lightweight Utility Scope Slicer
     scope_name = "All Teams & Portfolios" if gov_team_filter == "All" else f"Team {gov_team_filter}"
     if gov_drill != "all":
         scope_name += f" · Filter: {gov_drill.title()}"
 
-    s_c1, s_c2 = st.columns([3.2, 1.8])
+    s_c1, s_c2 = st.columns([3.4, 1.6])
     with s_c1:
         st.markdown(f"""
-        <div style="background:var(--sunk);border:1px solid var(--rule);border-radius:6px;padding:5px 10px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="background:var(--sunk);border:1px solid var(--rule);border-radius:6px;padding:4px 10px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">GOVERNANCE SCOPE:</span>
-            <span style="font-size:11.5px;color:#f8fafc;font-weight:700;">{scope_name}</span>
-            <span style="font-size:10px;color:#94a3b8;">({len(records)} Total Fleet Assets)</span>
+            <span style="font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">GOVERNANCE SCOPE:</span>
+            <span style="font-size:11px;color:#f8fafc;font-weight:700;">{scope_name}</span>
+            <span style="font-size:9.5px;color:#94a3b8;">({len(records)} Total Managed Assets)</span>
           </div>
-          <div style="font-size:10px;color:#10b981;font-weight:600;font-family:var(--mono);">
-            ● Live SQLite Sync · 08:00 UTC Daily
+          <div style="font-size:9.5px;color:#10b981;font-weight:600;font-family:var(--mono);">
+            ● Live SQLite Reconciliation · 08:00 UTC
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1094,37 +1096,52 @@ def render_governance_center() -> None:
             st.session_state["gov_team_filter"] = "All"
             rerun()
 
-    st.markdown("<div style='margin-top:3px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 2. Dominant Hero Focal Point (Answering: "What requires attention?")
+    # 2. Level 10: Dominant Hero Situation Card (The 3-Second Executive Verdict)
     st.markdown(f"""
-    <div style="background:linear-gradient(135deg, rgba(239,68,68,0.12), rgba(245,158,11,0.05));border:1px solid rgba(239,68,68,0.35);border-left:4px solid #ef4444;border-radius:6px;padding:6px 12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
+    <div style="background:linear-gradient(135deg, rgba(239,68,68,0.14), rgba(15,23,42,0.8));border:1px solid rgba(239,68,68,0.4);border-left:5px solid #ef4444;border-radius:8px;padding:8px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+      <div style="flex:1;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12.5px;font-weight:700;color:#f8fafc;">⚠️ Operational Risk Posture: {n_total_risk} Actionable Debt Items Requiring Immediate Renewal</span>
-          <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.2);font-size:9px;font-weight:700;">🔴 URGENT ESCALATION</span>
+          <span style="font-size:13px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">🔴 ACTION REQUIRED: {n_total_risk} Risk Entities Threaten Fleet Reliability</span>
+          <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.22);font-size:9px;font-weight:700;">URGENT ESCALATION</span>
         </div>
         <div style="font-size:10.5px;color:#cbd5e1;margin-top:2px;">
-          <b>{n_expired} Expired</b> (-5.7yr max debt in Core ND) · <b>{n_critical} Critical</b> (≤15d in Letters AK & Cognos NH) · <b>{n_healthy} Assets (96%)</b> 100% Healthy.
+          <b>{n_expired} Expired Overdue</b> (-5.7yr debt in Core ND) · <b>{n_critical} Critical</b> (≤15d in Letters AK & Cognos NH) · <b>{n_healthy} Assets ({pct_healthy:.1f}%)</b> 100% Healthy.
         </div>
       </div>
-      <div style="text-align:right;font-family:var(--mono);">
-        <span style="font-size:15px;font-weight:700;color:#ef4444;">{(n_total_risk/len(records)*100):.1f}%</span>
-        <span style="font-size:9.5px;color:#94a3b8;display:block;">Fleet Risk Exposure</span>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="width:130px;">
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;margin-bottom:2px;font-family:var(--mono);">
+            <span style="color:#10b981;font-weight:700;">{pct_healthy:.1f}% OK</span>
+            <span style="color:#ef4444;font-weight:700;">{pct_risk:.1f}% Risk</span>
+          </div>
+          <div style="height:5px;width:100%;background:#1e293b;border-radius:3px;overflow:hidden;display:flex;">
+            <div style="width:{pct_healthy:.1f}%;background:#10b981;"></div>
+            <div style="width:{pct_risk:.1f}%;background:#ef4444;"></div>
+          </div>
+        </div>
+        <div style="text-align:right;font-family:var(--mono);border-left:1px solid #334155;padding-left:10px;">
+          <span style="font-size:16px;font-weight:800;color:#ef4444;line-height:1;">{n_total_risk}</span>
+          <span style="font-size:8.5px;color:#94a3b8;display:block;">Action Items</span>
+        </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Contextual Power BI KPI Cards (Severity Micro-Bars, Trends & Operational Meaning)
+    # 3. Level 7: Connected Risk & Impact Narrative Chain (4 Flow-Connected Cards)
     kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
 
     with kpi_c1:
         st.markdown(f"""
-        <div class="card" style="border:1px solid rgba(239,68,68,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#ef4444;border-radius:2px;margin-bottom:4px;"></div>
-          <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:#ef4444;line-height:1.0;">{n_total_risk}</div>
-          <div style="font-size:12px;font-weight:600;color:#cbd5e1;margin-top:2px;">Actionable Risk Assets</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:1px;">10 Expired + 10 Critical (≤15d)</div>
+        <div class="card" style="border:1px solid rgba(239,68,68,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;position:relative;">
+          <div style="height:3px;width:100%;background:#ef4444;border-radius:2px;margin-bottom:3px;"></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <div style="font-family:var(--mono);font-size:32px;font-weight:800;color:#ef4444;line-height:1.0;">{n_total_risk}</div>
+            <span style="font-size:9px;color:#ef4444;font-weight:700;font-family:var(--mono);">STAGE 1</span>
+          </div>
+          <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;margin-top:2px;">Actionable Risk Assets</div>
+          <div style="font-size:9.5px;color:#94a3b8;margin-top:1px;">10 Expired + 10 Critical (≤15d)</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("🔴 Filter Risk Assets", key="gov_kpi_risk", use_container_width=True, type="primary" if gov_drill == "urgent" else "secondary"):
@@ -1133,11 +1150,14 @@ def render_governance_center() -> None:
 
     with kpi_c2:
         st.markdown(f"""
-        <div class="card" style="border:1px solid rgba(245,158,11,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#f59e0b;border-radius:2px;margin-bottom:4px;"></div>
-          <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:#f59e0b;line-height:1.0;">3 / 5</div>
-          <div style="font-size:12px;font-weight:600;color:#cbd5e1;margin-top:2px;">Teams Impacted</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:1px;">Core, Letters, Cognos attention</div>
+        <div class="card" style="border:1px solid rgba(245,158,11,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;position:relative;">
+          <div style="height:3px;width:100%;background:#f59e0b;border-radius:2px;margin-bottom:3px;"></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <div style="font-family:var(--mono);font-size:32px;font-weight:800;color:#f59e0b;line-height:1.0;">3 / 5</div>
+            <span style="font-size:9px;color:#f59e0b;font-weight:700;font-family:var(--mono);">STAGE 2</span>
+          </div>
+          <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;margin-top:2px;">Teams Impacted</div>
+          <div style="font-size:9.5px;color:#94a3b8;margin-top:1px;">Core, Letters, Cognos attention</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("🟠 Impacted Teams", key="gov_kpi_teams", use_container_width=True, type="primary" if gov_team_filter != "All" else "secondary"):
@@ -1146,11 +1166,14 @@ def render_governance_center() -> None:
 
     with kpi_c3:
         st.markdown(f"""
-        <div class="card" style="border:1px solid rgba(16,185,129,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#10b981;border-radius:2px;margin-bottom:4px;"></div>
-          <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:#10b981;line-height:1.0;">{stats.get('maintenance_schedules', 0)}</div>
-          <div style="font-size:12px;font-weight:600;color:#cbd5e1;margin-top:2px;">Maintenance Windows</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:1px;">100% Synced across 4 cadences</div>
+        <div class="card" style="border:1px solid rgba(16,185,129,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;position:relative;">
+          <div style="height:3px;width:100%;background:#10b981;border-radius:2px;margin-bottom:3px;"></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <div style="font-family:var(--mono);font-size:32px;font-weight:800;color:#10b981;line-height:1.0;">{stats.get('maintenance_schedules', 0)}</div>
+            <span style="font-size:9px;color:#10b981;font-weight:700;font-family:var(--mono);">STAGE 3</span>
+          </div>
+          <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;margin-top:2px;">Maintenance Windows</div>
+          <div style="font-size:9.5px;color:#94a3b8;margin-top:1px;">100% Synced across 4 cadences</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("🟢 View Maintenance", key="gov_kpi_maint", use_container_width=True, type="primary" if gov_drill == "maintenance" else "secondary"):
@@ -1159,25 +1182,28 @@ def render_governance_center() -> None:
 
     with kpi_c4:
         st.markdown(f"""
-        <div class="card" style="border:1px solid rgba(56,189,248,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#38bdf8;border-radius:2px;margin-bottom:4px;"></div>
-          <div style="font-family:var(--mono);font-size:36px;font-weight:700;color:#38bdf8;line-height:1.0;">{stats['reminder_log']} Runs</div>
-          <div style="font-size:12px;font-weight:600;color:#cbd5e1;margin-top:2px;">Automated Dispatches</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:1px;">Daily audit logged @ 08:00 UTC</div>
+        <div class="card" style="border:1px solid rgba(56,189,248,0.4);padding:6px 10px;margin-bottom:2px;border-radius:6px;position:relative;">
+          <div style="height:3px;width:100%;background:#38bdf8;border-radius:2px;margin-bottom:3px;"></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <div style="font-family:var(--mono);font-size:32px;font-weight:800;color:#38bdf8;line-height:1.0;">{stats['reminder_log']} Runs</div>
+            <span style="font-size:9px;color:#38bdf8;font-weight:700;font-family:var(--mono);">STAGE 4</span>
+          </div>
+          <div style="font-size:11.5px;font-weight:700;color:#cbd5e1;margin-top:2px;">Automated Dispatches</div>
+          <div style="font-size:9.5px;color:#94a3b8;margin-top:1px;">Daily audit logged @ 08:00 UTC</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("🔵 Reminder Logs", key="gov_kpi_rem", use_container_width=True, type="primary" if gov_drill == "reminders" else "secondary"):
             st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
             rerun()
 
-    st.markdown("<div style='margin-top:3px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 4. Split-Pane Architecture: Left Team Matrix vs Right Action Console
+    # 4. Level 5 & Level 3: Left Team Governance Landscape vs Right Action Console
     g_col1, _, g_col2 = st.columns([2.0, 0.03, 2.0])
 
     with g_col1:
         # Team Governance & Risk Distribution Matrix
-        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:11px;color:#cbd5e1;">Team Governance & Risk Distribution Matrix</div>', unsafe_allow_html=True)
+        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:10.5px;color:#cbd5e1;">Team Governance & Risk Distribution Matrix</div>', unsafe_allow_html=True)
 
         team_profiles = [
             {
@@ -1186,9 +1212,6 @@ def render_governance_center() -> None:
                 "channel": "core-dba@example.com",
                 "cadence": "Quarterly",
                 "assets": 160,
-                "expired": 10,
-                "critical": 0,
-                "warning": 0,
                 "status": "🔴 10 Expired",
                 "status_color": "#ef4444",
                 "status_bg": "rgba(239,68,68,0.18)"
@@ -1199,9 +1222,6 @@ def render_governance_center() -> None:
                 "channel": "letters-ops@example.com",
                 "cadence": "Monthly (1st Sun)",
                 "assets": 96,
-                "expired": 0,
-                "critical": 5,
-                "warning": 0,
                 "status": "▲ 5 Critical (15d)",
                 "status_color": "#f97316",
                 "status_bg": "rgba(249,115,22,0.18)"
@@ -1212,9 +1232,6 @@ def render_governance_center() -> None:
                 "channel": "cognos-dba@example.com",
                 "cadence": "3× Weekly",
                 "assets": 96,
-                "expired": 0,
-                "critical": 5,
-                "warning": 0,
                 "status": "▲ 5 Critical (15d)",
                 "status_color": "#f97316",
                 "status_bg": "rgba(249,115,22,0.18)"
@@ -1225,9 +1242,6 @@ def render_governance_center() -> None:
                 "channel": "infa-etl@example.com",
                 "cadence": "Weekly (Sun)",
                 "assets": 96,
-                "expired": 0,
-                "critical": 0,
-                "warning": 0,
                 "status": "✓ 100% Healthy",
                 "status_color": "#10b981",
                 "status_bg": "rgba(16,185,129,0.15)"
@@ -1238,9 +1252,6 @@ def render_governance_center() -> None:
                 "channel": "appserver-admin@example.com",
                 "cadence": "Weekly (Sun)",
                 "assets": 96,
-                "expired": 0,
-                "critical": 0,
-                "warning": 0,
                 "status": "✓ 100% Healthy",
                 "status_color": "#10b981",
                 "status_bg": "rgba(16,185,129,0.15)"
