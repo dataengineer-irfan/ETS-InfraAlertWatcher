@@ -168,16 +168,16 @@ body{
 .head{
   display:flex; flex-direction:column; gap:3px; flex:none;
   background:var(--card); border-radius:7px; box-shadow:var(--shadow);
-  padding:3px 8px; min-width:0; overflow:hidden;
+  padding:4px 8px; min-width:0; overflow:hidden;
 }
 .head-row{
-  display:flex; align-items:center; gap:6px; width:100%; min-width:0;
+  display:flex; align-items:center; gap:8px; width:100%; min-width:0;
 }
-.head-top{
+.head-slicers{
+  justify-content:space-between; padding-bottom:3px; border-bottom:1px solid var(--rule-soft);
+}
+.head-status{
   justify-content:space-between;
-}
-.head-bottom{
-  align-items:center;
 }
 .brand{ display:flex; align-items:baseline; gap:5px; flex:none; }
 .brand h1{ margin:0; font-size:12px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; }
@@ -189,25 +189,26 @@ body{
 
 /* Cascading Filter Bar & Intelligence Strip (2026 Edition) */
 .cascade-bar{
-  display:inline-flex; align-items:center; gap:4px; flex:none;
+  display:inline-flex; align-items:center; gap:5px; flex:none;
 }
 .cascade-pill{
   position:relative; display:inline-flex; align-items:center;
-  background:var(--sunk); border:1px solid var(--rule); border-radius:4px;
-  padding:1px 5px; font-size:9px; font-weight:600; color:var(--slate);
-  transition:all .12s ease; cursor:pointer; line-height:1.2;
+  background:var(--sunk); border:1px solid var(--rule); border-radius:5px;
+  padding:2px 8px; font-size:11px; font-weight:600; color:#cbd5e1;
+  transition:all .12s ease; cursor:pointer; line-height:1.2; height:24px;
 }
-.cascade-pill:hover{ border-color:var(--accent-line); color:var(--ink); background:var(--card); }
+.cascade-pill:hover{ border-color:var(--accent-line); color:#f8fafc; background:var(--card); }
 .cascade-pill.active{
-  border-color:var(--accent); background:var(--accent-tint); color:var(--accent);
+  border-color:var(--accent); background:var(--accent-tint); color:var(--accent); font-weight:700;
+  box-shadow:0 0 6px rgba(56,189,248,0.25);
 }
 .cascade-pill select{
   appearance:none; -webkit-appearance:none; background:transparent; border:none;
-  color:inherit; font:inherit; font-size:9px; font-weight:600; cursor:pointer;
+  color:inherit; font:inherit; font-size:11px; font-weight:600; cursor:pointer;
   outline:none; padding-right:8px; margin:0;
 }
 .cascade-pill select option{
-  background:#0F172A; color:#F8FAFC; font-family:var(--ui);
+  background:#0F172A; color:#F8FAFC; font-family:var(--ui); font-size:11px;
 }
 
 /* Day-of Intelligence Alert Strip */
@@ -216,8 +217,8 @@ body{
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .intel-chip{
-  display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:4px;
-  font-size:9px; line-height:1.2; white-space:nowrap; flex:none;
+  display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:4px;
+  font-size:9.5px; line-height:1.2; white-space:nowrap; flex:none;
   transition:all .15s ease;
 }
 .intel-chip.maint{
@@ -361,13 +362,13 @@ body{
   font-family:var(--mono); font-size:8.5px; font-weight:700;
   background:var(--accent); color:#000; border-radius:3px; padding:0 3px;
 }
-.search{ position:relative; display:flex; align-items:center; min-width:110px; max-width:180px; }
+.search{ position:relative; display:flex; align-items:center; min-width:125px; max-width:190px; }
 .search input{
-  font:inherit; font-size:10px; font-family:var(--mono); width:100%; color:var(--ink);
+  font:inherit; font-size:11px; font-family:var(--ui); width:100%; color:var(--ink);
   background:var(--sunk); border:1px solid var(--rule); border-radius:5px;
-  padding:2px 18px 2px 6px;
+  padding:2px 18px 2px 7px; height:24px;
 }
-.search input::placeholder{ color:var(--mute); font-family:var(--ui); }
+.search input::placeholder{ color:var(--mute); font-family:var(--ui); font-size:10px; }
 .search input:focus{ outline:none; border-color:var(--accent); background:var(--card); }
 .search .clr{ position:absolute; right:3px; border:0; background:none; cursor:pointer;
               color:var(--mute); font-size:11px; line-height:1; padding:0 2px; }
@@ -413,9 +414,14 @@ body{
   line-height:1.15; margin-top:2px;
 }
 
-.kpi[data-dom]{ padding:6px 10px 6px; }
-.kpi[data-dom] .v{ font-size:clamp(20px,4vh,30px); font-weight:800; }
-.kpi[data-dom] .k{ font-size:10.5px; }
+.kpi[data-dom]{
+  background: linear-gradient(135deg, rgba(239,68,68,0.18), rgba(15,23,42,0.92)) !important;
+  border: 1px solid rgba(239,68,68,0.45) !important;
+  border-left: 4px solid #ef4444 !important;
+  box-shadow: 0 0 10px rgba(239,68,68,0.2) !important;
+}
+.kpi[data-dom] .v{ font-size:clamp(22px,4.2vh,32px); font-weight:800; color:#f87171 !important; }
+.kpi[data-dom] .k{ font-size:10.5px; font-weight:700; color:#fecaca !important; }
 
 /* ---- component cards ------------------------------------------------- */
 .comps{ display:grid; gap:var(--gap); grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
@@ -445,10 +451,10 @@ body{
 .cc .nx{ font-family:var(--mono); font-size:9px; color:var(--slate); text-align:right;
          white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .cc .nx b{ color:var(--val,var(--ink)); font-weight:700; }
-.meter{ display:flex; height:4px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
-        margin:4px 0 2px; flex:none; }
-.meter-label{ font-size:8.5px; color:var(--mute); margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.meter i{ display:block; height:100%; }
+.meter{ display:flex; height:6px; border-radius:3px; overflow:hidden; background:var(--rule-soft);
+        margin:3px 0 2px; flex:none; }
+.meter-label{ font-size:9px; color:var(--slate); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--mono); }
+.meter i{ display:block; height:100%; min-width:3px; }
 
 /* ---- segmented control ----------------------------------------------- */
 .seg{ display:inline-flex; background:var(--sunk); border:1px solid var(--rule);
@@ -676,17 +682,17 @@ body{
 _BODY = r"""
 <div class="shell" id="mShell">
   <div class="head">
-    <div class="head-row head-top">
-      <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
-      <div class="intel-strip" id="mAlertBanner"></div>
-      <div class="views" id="mViews"></div>
-      <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
-      <div class="asof" id="mAsOf"></div>
-    </div>
-    <div class="head-row head-bottom">
+    <div class="head-row head-slicers">
       <div class="cascade-bar" id="mCascades"></div>
       <div class="search-bar" id="mSearch"></div>
+      <div class="views" id="mViews"></div>
+    </div>
+    <div class="head-row head-status">
+      <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
+      <div class="intel-strip" id="mAlertBanner"></div>
       <div class="crumbs" id="mCrumbs"></div>
+      <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
+      <div class="asof" id="mAsOf"></div>
     </div>
   </div>
 
@@ -979,9 +985,9 @@ function trendDelta(curr, prev, metricKey){
   const cls = isGood ? "good" : "bad";
 
   if (diff > 0){
-    return '<span class="trend ' + cls + '">&#9650; +' + diff + ' vs prev</span>';
+    return '<span class="trend ' + cls + '">&#9650; +' + diff + ' vs prior</span>';
   } else {
-    return '<span class="trend ' + cls + '">&#9660; ' + diff + ' vs prev</span>';
+    return '<span class="trend ' + cls + '">&#9660; ' + diff + ' vs prior</span>';
   }
 }
 
@@ -1237,6 +1243,8 @@ function renderKpis(S){
       soWhatHtml = '<div class="so-what" title="So what: Expiry within 15 days. Now what: Stage renewal workflow.">So what: Expiry in 15d. Now what: Stage renewal workflow.</div>';
     }
 
+    const domBadge = isDom ? '<span style="color:#ef4444;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.4);font-size:7.5px;font-weight:800;padding:1px 4px;border-radius:3px;margin-left:4px;letter-spacing:0.04em;">ACTION</span>' : '';
+
     tiles.push('<button class="kpi" type="button" data-act="band" data-val="' + esc(b)
       + '" aria-pressed="' + (S.band === b ? "true" : "false")
       + '" style="--val:' + META[b].color + ";--edge:" + META[b].color + '"'
@@ -1244,7 +1252,7 @@ function renderKpis(S){
       + ' data-tip="' + esc(META[b].label + " - " + META[b].plain + ". Click to show only these.")
       + '">'
       + '<div class="kpi-row1"><div class="v">' + c[b] + '</div>' + bSpark + '</div>'
-      + '<div class="k">' + esc(META[b].label) + '</div>'
+      + '<div class="k">' + esc(META[b].label) + domBadge + '</div>'
       + '<div class="kpi-row2"><div class="s">' + esc(pct) + '</div>' + bTrend + '</div>'
       + soWhatHtml
       + '</button>');
@@ -1270,6 +1278,17 @@ function renderComps(S){
     const band = worstBand(new Set(sub.map(r => r.band)));
     const on = S.component === comp;
     const icon = COMP_ICONS[comp] || "📦";
+    let mLabel = "100% Healthy";
+    if (c.Expired > 0) {
+      mLabel = '<b style="color:#ef4444">' + c.Expired + ' Expired</b> &middot; ' + (c.Healthy || 0) + ' OK';
+    } else if (c.Critical > 0) {
+      mLabel = '<b style="color:#f97316">' + c.Critical + ' Critical</b> &middot; ' + (c.Healthy || 0) + ' OK';
+    } else if (c.Warning > 0) {
+      mLabel = '<b style="color:#f59e0b">' + c.Warning + ' Due Soon</b> &middot; ' + (c.Healthy || 0) + ' OK';
+    } else {
+      mLabel = '<span style="color:#10b981">&#10003; 100% Compliant</span>';
+    }
+
     return '<button class="cc" type="button" data-act="component" data-val="' + esc(comp)
       + '" data-hl-comp="' + esc(comp)
       + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
@@ -1277,7 +1296,7 @@ function renderComps(S){
       + comp + " (" + CODE[comp] + ") — " + DATA.componentBlurb[comp])
       + '"><div class="head-row"><span class="code">' + icon + ' ' + esc(CODE[comp]) + '</span><span class="nm">'
       + esc(comp) + '</span></div>' + meter(c)
-      + '<div class="meter-label">Health distribution</div>'
+      + '<div class="meter-label">' + mLabel + '</div>'
       + '<div class="foot"><span class="cnt">' + sub.length + "<em>item"
       + (sub.length === 1 ? "" : "s") + '</em></span><span class="nx">'
       + (nx ? "next <b>" + esc(fmtDays(nx.days)) + "</b><br />" + esc(fmtDate(nx.exp))

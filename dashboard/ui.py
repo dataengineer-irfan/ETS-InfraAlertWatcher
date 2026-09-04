@@ -227,11 +227,10 @@ def _span(days: int) -> str:
 
 def fmt_days(days) -> str:
     """
-    Days remaining -> a compact duration, or how long ago it lapsed.
+    Days remaining -> enterprise-quality duration label.
 
-    Overdue uses the same scale as time remaining. Two records in this data
-    lapsed in 2020 and 2022, and '2068d overdue' is a number nobody reads at a
-    glance - '5.7yr overdue' is the same fact, understood.
+    Examples: '14 days overdue', '5.7 yrs overdue', 'Expires today',
+              '14 days left', '2.1 yrs left'
     """
     if days is None:
         return "--"
@@ -240,10 +239,27 @@ def fmt_days(days) -> str:
     except (TypeError, ValueError):
         return "--"
     if d < 0:
-        return f"{_span(-d)} overdue"
+        n = -d
+        if n == 1:
+            return "1 day overdue"
+        if n < 60:
+            return f"{n} days overdue"
+        if n < 730:
+            m, rem = divmod(n, 30)
+            rd = rem
+            return f"{m}m {rd}d overdue" if rd else f"{m} mo overdue"
+        return f"{n / 365:.1f} yrs overdue"
     if d == 0:
-        return "today"
-    return _span(d)
+        return "Expires today"
+    if d == 1:
+        return "1 day left"
+    if d < 60:
+        return f"{d} days left"
+    if d < 730:
+        m, rem = divmod(d, 30)
+        rd = rem
+        return f"{m}m {rd}d left" if rd else f"{m} mo left"
+    return f"{d / 365:.1f} yrs left"
 
 
 def _span_long(days: int) -> str:

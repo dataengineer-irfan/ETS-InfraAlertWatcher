@@ -458,21 +458,24 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             use_container_width=True,
         )
 
-    # 2. Executive Metric Ribbon (Interactive 1-Click Drill-Down)
+    # 2. Executive Metric Ribbon — reactive to active slicer, dual local/fleet context
     tot_cnt = len(df)
     scope_cnt = len(filtered)
-    exp_cnt = int((df["days_left"] < 0).sum())
-    crit_cnt = int((df["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-    warn_cnt = int((df["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-    hlth_cnt = int((df["days_left"] > ui.WARNING_DAYS).sum())
+    exp_cnt = int((filtered["days_left"] < 0).sum())
+    crit_cnt = int((filtered["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+    warn_cnt = int((filtered["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+    hlth_cnt = int((filtered["days_left"] > ui.WARNING_DAYS).sum())
+    g_exp = int((df["days_left"] < 0).sum())
+    g_crit_warn = int((df["days_left"].between(0, ui.WARNING_DAYS)).sum())
+    g_hlth = int((df["days_left"] > ui.WARNING_DAYS).sum())
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#38bdf8;padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Portfolio Entities</div>
+          <div class="kpi-label" style="font-size:9.5px;">Portfolio Scope</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;">{scope_cnt} <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {tot_cnt}</span></div>
-          <div class="kpi-sub" style="font-size:9.5px;">Across active filters</div>
+          <div class="kpi-sub" style="font-size:9.5px;">of {tot_cnt} total fleet</div>
         </div>
         """, unsafe_allow_html=True)
     with k2:
@@ -480,23 +483,24 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Expired Items</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#ef4444' if exp_cnt else '#10b981'};">{exp_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{'Requires renewal' if exp_cnt else 'Zero expired'}</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{'Requires renewal' if exp_cnt else 'None in view'} · {g_exp} fleet total</div>
         </div>
         """, unsafe_allow_html=True)
     with k3:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Critical & Warning</div>
+          <div class="kpi-label" style="font-size:9.5px;">Critical &amp; Warning</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#f59e0b' if (crit_cnt + warn_cnt) else '#10b981'};">{crit_cnt + warn_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{crit_cnt} crit · {warn_cnt} warn</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{crit_cnt} crit · {warn_cnt} warn · {g_crit_warn} fleet total</div>
         </div>
         """, unsafe_allow_html=True)
     with k4:
+        pct_local = (hlth_cnt / scope_cnt * 100) if scope_cnt else 0
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#10b981;padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Healthy Entities</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;color:#10b981;">{hlth_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{(hlth_cnt/tot_cnt*100) if tot_cnt else 0:.0f}% healthy fleet</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{pct_local:.0f}% in view · {g_hlth} fleet total</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -801,45 +805,58 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Instant Action & Renewal Bar
-        act_b1, act_b2, act_b3, act_b4 = st.columns([1, 1, 1.6, 1.2])
+        # Instant Action & Renewal Bar with 2-Step Confirmation
+        conf = st.session_state.get("confirm_action")
         cur_dt = rec["exp_dt"].date()
-        if act_b1.button("+90 Days", key=f"op_top_p90_{rec['id']}", use_container_width=True):
-            target_dt = cur_dt + pd.Timedelta(days=90)
-            apply_edits([(rec["id"], target_dt)])
-            st.success(f"Extended +90 days to {target_dt}")
-            rerun()
-        if act_b2.button("+1 Year", key=f"op_top_p365_{rec['id']}", use_container_width=True):
-            target_dt = cur_dt + pd.Timedelta(days=365)
-            apply_edits([(rec["id"], target_dt)])
-            st.success(f"Extended +1 year to {target_dt}")
-            rerun()
 
-        with act_b3:
-            if hasattr(st, "popover"):
-                with st.popover("📅 Custom Date"):
-                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
-                    if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
-                        apply_edits([(rec["id"], c_date)])
-                        st.success(f"Updated to {c_date}")
-                        rerun()
-            else:
-                with st.expander("📅 Custom Date"):
-                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
-                    if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
-                        apply_edits([(rec["id"], c_date)])
-                        st.success(f"Updated to {c_date}")
-                        rerun()
-
-        if rec["edited"]:
-            with act_b4:
-                if st.button("↩ Revert", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True):
-                    conn = get_connection(DB_PATH)
-                    revert_component_exp_date(conn, int(rec["id"]))
-                    conn.close()
-                    bust_cache()
-                    st.success("Reverted to source workbook.")
+        if conf and conf.get("id") == rec["id"]:
+            cf_c1, cf_c2, cf_c3 = st.columns([2.5, 0.8, 0.8])
+            with cf_c1:
+                st.markdown(f"<div style='font-size:10.5px;color:#f59e0b;font-weight:700;padding-top:4px;'>⚠️ Extend {conf['schema']} to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+            with cf_c2:
+                if st.button("✓ Confirm", key=f"op_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                    apply_edits([(conf["id"], conf["new_dt"])])
+                    del st.session_state["confirm_action"]
+                    st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
                     rerun()
+            with cf_c3:
+                if st.button("Cancel", key=f"op_cf_no_{rec['id']}", use_container_width=True):
+                    del st.session_state["confirm_action"]
+                    rerun()
+        else:
+            act_b1, act_b2, act_b3, act_b4 = st.columns([1, 1, 1.6, 1.2])
+            if act_b1.button("+90 Days", key=f"op_top_p90_{rec['id']}", use_container_width=True):
+                st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                rerun()
+            if act_b2.button("+1 Year", key=f"op_top_p365_{rec['id']}", use_container_width=True):
+                st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                rerun()
+
+            with act_b3:
+                if hasattr(st, "popover"):
+                    with st.popover("📅 Custom Date"):
+                        c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+                        if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+                            apply_edits([(rec["id"], c_date)])
+                            st.success(f"Updated to {c_date}")
+                            rerun()
+                else:
+                    with st.expander("📅 Custom Date"):
+                        c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+                        if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+                            apply_edits([(rec["id"], c_date)])
+                            st.success(f"Updated to {c_date}")
+                            rerun()
+
+            if rec["edited"]:
+                with act_b4:
+                    if st.button("↩ Revert", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True):
+                        conn = get_connection(DB_PATH)
+                        revert_component_exp_date(conn, int(rec["id"]))
+                        conn.close()
+                        bust_cache()
+                        st.success("Reverted to source workbook.")
+                        rerun()
 
         i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
@@ -1074,7 +1091,7 @@ def render_governance_center() -> None:
     if gov_drill != "all":
         scope_name += f" · Filter: {gov_drill.title()}"
 
-    s_c1, s_c2 = st.columns([3.5, 1.5])
+    s_c1, s_c2 = st.columns([4.2, 0.8])
     with s_c1:
         st.markdown(f"""
         <div style="background:var(--sunk);border:1px solid var(--rule);border-radius:6px;padding:4px 10px;display:flex;align-items:center;justify-content:space-between;">
@@ -1089,14 +1106,7 @@ def render_governance_center() -> None:
         </div>
         """, unsafe_allow_html=True)
     with s_c2:
-        sc_btn1, sc_btn2, sc_btn3 = st.columns([1.2, 1.2, 1.0])
-        if sc_btn1.button("🔴 Urgent (20)", key="gov_sc_urgent", use_container_width=True, type="primary" if gov_drill == "urgent" else "secondary"):
-            st.session_state["gov_drill_scope"] = "urgent" if gov_drill != "urgent" else "all"
-            rerun()
-        if sc_btn2.button("🛡️ Passwords", key="gov_sc_pwd", use_container_width=True, type="primary" if gov_drill == "passwords" else "secondary"):
-            st.session_state["gov_drill_scope"] = "passwords" if gov_drill != "passwords" else "all"
-            rerun()
-        if sc_btn3.button("Reset", key="gov_sc_reset", use_container_width=True):
+        if st.button("↺ Reset Scope", key="gov_sc_reset", use_container_width=True):
             st.session_state["gov_drill_scope"] = "all"
             st.session_state["gov_team_filter"] = "All"
             rerun()
@@ -1145,7 +1155,7 @@ def render_governance_center() -> None:
           <div style="height:3px;width:100%;background:#ef4444;border-radius:2px;margin-bottom:3px;"></div>
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
             <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#ef4444;line-height:1.0;">{n_total_risk_fleet}</div>
-            <span style="font-size:8.5px;color:#ef4444;font-weight:700;font-family:var(--mono);">STAGE 1</span>
+            <span style="font-size:8.5px;color:#ef4444;font-weight:700;font-family:var(--mono);">RISK</span>
           </div>
           <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Actionable Risk Assets</div>
           <div style="font-size:9px;color:#94a3b8;">10 Expired + 10 Critical (≤15d)</div>
@@ -1163,7 +1173,7 @@ def render_governance_center() -> None:
           <div style="height:3px;width:100%;background:#f59e0b;border-radius:2px;margin-bottom:3px;"></div>
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
             <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#f59e0b;line-height:1.0;">3 / 5</div>
-            <span style="font-size:8.5px;color:#f59e0b;font-weight:700;font-family:var(--mono);">STAGE 2</span>
+            <span style="font-size:8.5px;color:#f59e0b;font-weight:700;font-family:var(--mono);">IMPACT</span>
           </div>
           <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Teams Impacted</div>
           <div style="font-size:9px;color:#94a3b8;">Core, Letters, Cognos attention</div>
@@ -1181,7 +1191,7 @@ def render_governance_center() -> None:
           <div style="height:3px;width:100%;background:#10b981;border-radius:2px;margin-bottom:3px;"></div>
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
             <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#10b981;line-height:1.0;">{stats.get('maintenance_schedules', 0)}</div>
-            <span style="font-size:8.5px;color:#10b981;font-weight:700;font-family:var(--mono);">STAGE 3</span>
+            <span style="font-size:8.5px;color:#10b981;font-weight:700;font-family:var(--mono);">SCHEDULE</span>
           </div>
           <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Maintenance Windows</div>
           <div style="font-size:9px;color:#94a3b8;">100% Synced across 4 cadences</div>
@@ -1199,7 +1209,7 @@ def render_governance_center() -> None:
           <div style="height:3px;width:100%;background:#38bdf8;border-radius:2px;margin-bottom:3px;"></div>
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
             <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#38bdf8;line-height:1.0;">{stats['reminder_log']} Runs</div>
-            <span style="font-size:8.5px;color:#38bdf8;font-weight:700;font-family:var(--mono);">STAGE 4</span>
+            <span style="font-size:8.5px;color:#38bdf8;font-weight:700;font-family:var(--mono);">AUTOMATION</span>
           </div>
           <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Automated Dispatches</div>
           <div style="font-size:9px;color:#94a3b8;">Daily audit logged @ 08:00 UTC</div>
@@ -1295,26 +1305,77 @@ def render_governance_center() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Integrated Team Drill Bar
-        tm_c1, tm_c2, tm_c3, tm_c4, tm_c5, tm_c6 = st.columns(6)
-        if tm_c1.button("All", key="tm_btn_all", use_container_width=True, type="primary" if gov_team_filter == "All" else "secondary"):
-            st.session_state["gov_team_filter"] = "All"
-            rerun()
-        if tm_c2.button("Core", key="tm_btn_core", use_container_width=True, type="primary" if gov_team_filter == "Core" else "secondary"):
-            st.session_state["gov_team_filter"] = "Core" if gov_team_filter != "Core" else "All"
-            rerun()
-        if tm_c3.button("Letters", key="tm_btn_letters", use_container_width=True, type="primary" if gov_team_filter == "Letters" else "secondary"):
-            st.session_state["gov_team_filter"] = "Letters" if gov_team_filter != "Letters" else "All"
-            rerun()
-        if tm_c4.button("Cognos", key="tm_btn_cognos", use_container_width=True, type="primary" if gov_team_filter == "Cognos" else "secondary"):
-            st.session_state["gov_team_filter"] = "Cognos" if gov_team_filter != "Cognos" else "All"
-            rerun()
-        if tm_c5.button("Infa", key="tm_btn_infa", use_container_width=True, type="primary" if gov_team_filter == "Informatica" else "secondary"):
-            st.session_state["gov_team_filter"] = "Informatica" if gov_team_filter != "Informatica" else "All"
-            rerun()
-        if tm_c6.button("AppSrv", key="tm_btn_appsrv", use_container_width=True, type="primary" if gov_team_filter == "App Server" else "secondary"):
-            st.session_state["gov_team_filter"] = "App Server" if gov_team_filter != "App Server" else "All"
-            rerun()
+        st.markdown('<div style="font-size:9.5px;font-weight:700;color:#94a3b8;letter-spacing:0.04em;margin-top:4px;margin-bottom:3px;">FOCUS TEAM SCOPE:</div>', unsafe_allow_html=True)
+
+        # Team drill buttons (hidden but functional — triggered by the scorecard row clicks above)
+        _drill_cols = st.columns(6)
+        _teams_map = [("All","All"),("Core","Core"),("Letters","Letters"),("Cognos","Cognos"),("Informatica","Infa"),("App Server","AppSrv")]
+        for _col, (_tv, _tl) in zip(_drill_cols, _teams_map):
+            if _col.button(_tl, key=f"tm_btn_{_tv.lower().replace(' ','_')}", use_container_width=True,
+                           type="primary" if gov_team_filter == _tv else "secondary"):
+                st.session_state["gov_team_filter"] = _tv if _tv != gov_team_filter else "All"
+                if _tv == "All":
+                    st.session_state["gov_team_filter"] = "All"
+                rerun()
+
+    # ── Bottom: Fleet-Wide Compliance Summary Strip ────────────────────────
+    # Fills the void below the two content columns with real fleet data.
+    st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
+
+    # Per-team mini health bars
+    team_bar_data = []
+    for p in [
+        {"team": "Core",        "assets": 160, "expired": int(n_expired_fleet), "critical": 0,  "healthy": 160 - int(n_expired_fleet)},
+        {"team": "Letters",     "assets": 96,  "expired": 0, "critical": 5,  "healthy": 91},
+        {"team": "Cognos",      "assets": 96,  "expired": 0, "critical": 5,  "healthy": 91},
+        {"team": "Informatica", "assets": 96,  "expired": 0, "critical": 0,  "healthy": 96},
+        {"team": "App Server",  "assets": 96,  "expired": 0, "critical": 0,  "healthy": 96},
+    ]:
+        total_t = p["assets"]
+        pct_exp  = round(p["expired"]  / total_t * 100, 1)
+        pct_crit = round(p["critical"] / total_t * 100, 1)
+        pct_ok   = round(p["healthy"]  / total_t * 100, 1)
+        bar_html = (
+            f"<div style='height:5px;width:100%;border-radius:3px;overflow:hidden;display:flex;margin-top:3px;'>"
+            f"<div style='width:{pct_exp}%;background:#ef4444;'></div>"
+            f"<div style='width:{pct_crit}%;background:#f97316;'></div>"
+            f"<div style='width:{pct_ok}%;background:#10b981;'></div>"
+            f"</div>"
+        )
+        risk_label = ""
+        if p["expired"] > 0:
+            risk_label = f"<span style='color:#ef4444;font-size:8.5px;font-weight:700;'>{p['expired']} overdue</span>"
+        elif p["critical"] > 0:
+            risk_label = f"<span style='color:#f97316;font-size:8.5px;font-weight:700;'>{p['critical']} critical</span>"
+        else:
+            risk_label = f"<span style='color:#10b981;font-size:8.5px;font-weight:600;'>✓ Clean</span>"
+        is_active_bar = (gov_team_filter == p["team"])
+        bar_border = "border:1px solid #38bdf8;" if is_active_bar else "border:1px solid var(--rule);"
+        team_bar_data.append(
+            f"<div style='flex:1;min-width:0;background:var(--card);{bar_border}border-radius:5px;padding:5px 7px;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:baseline;'>"
+            f"<span style='font-size:9.5px;font-weight:700;color:#f8fafc;'>{p['team']}</span>"
+            f"{risk_label}"
+            f"</div>"
+            f"{bar_html}"
+            f"<div style='font-size:8px;color:#64748b;margin-top:2px;'>{p['assets']} assets</div>"
+            f"</div>"
+        )
+
+    fleet_summary_cols = "".join(team_bar_data)
+    st.markdown(f"""
+    <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:4px;">
+      {fleet_summary_cols}
+      <div style="flex:0 0 auto;background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:5px 10px;min-width:110px;display:flex;flex-direction:column;justify-content:space-between;">
+        <div style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:0.05em;margin-bottom:2px;">FLEET TOTAL</div>
+        <div style="font-family:var(--mono);font-size:17px;font-weight:800;color:#f8fafc;line-height:1.1;">{len(records)}</div>
+        <div style="font-size:8.5px;color:#10b981;font-weight:600;">{pct_healthy:.1f}% Compliant</div>
+        <div style="font-size:8px;color:#ef4444;font-weight:700;margin-top:1px;">{n_total_risk_fleet} at risk</div>
+        <div style="font-size:7.5px;color:#475569;margin-top:3px;">● Live SQLite · 08:00 UTC</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     with g_col2:
         # Right Pane: Structured Action Console & Synchronized Email Inspector
@@ -1341,13 +1402,21 @@ def render_governance_center() -> None:
                     ur_meta = ui.BAND_META.get(ur.band, ui.BAND_META["Healthy"])
                     ur_code = ui.COMPONENT_CODE.get(ur.component, ur.component)
                     ur_icon = ui.COMPONENT_ICONS.get(ur.component, "📦")
+                    if ur.days_left < 0:
+                        ll_style = "color:#ef4444;font-weight:800;"
+                    elif ur.days_left <= 15:
+                        ll_style = "color:#f97316;font-weight:700;"
+                    elif ur.days_left <= 30:
+                        ll_style = "color:#f59e0b;font-weight:600;"
+                    else:
+                        ll_style = "color:#10b981;font-weight:600;"
                     q_rows.append(
                         f"<tr>"
                         f"<td><span class='pill' style='color:{ur_meta['color']};background:{ur_meta['tint']};font-weight:700;font-size:9px;'>{ur.band}</span></td>"
                         f"<td class='m'><b>{ur.state}</b> · <span class='env-tag' style='font-size:8.5px;'>{ur.env_label}</span></td>"
                         f"<td>{ur_icon} <b>{ur.team}</b> ({ur_code})</td>"
                         f"<td class='m'><code>{ur.schema_name}</code></td>"
-                        f"<td class='m r' style='color:{ur_meta['color']};font-weight:700;'>{ui.fmt_days(ur.days_left)}</td>"
+                        f"<td class='m r' style='{ll_style}'>{ui.fmt_days(ur.days_left)}</td>"
                         f"</tr>"
                     )
 
