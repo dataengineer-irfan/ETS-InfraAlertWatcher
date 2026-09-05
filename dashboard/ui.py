@@ -520,6 +520,77 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   background:var(--card); border-top:3px solid var(--glow,#38bdf8);
   border-radius:8px; padding:10px 12px; box-shadow:0 2px 8px rgba(0,0,0,0.25);
 }}
+.top-glow-kpi.interactive {{
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}}
+.top-glow-kpi.interactive:hover {{
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
+  border-color: var(--accent);
+}}
+.top-glow-kpi.interactive:active {{
+  transform: translateY(0);
+}}
+.tree-node-row {{
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-bottom: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}}
+.tree-node-row:hover {{
+  background: rgba(56, 189, 248, 0.12) !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+}}
+.tree-leaf-row {{
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 2px 5px;
+  margin-bottom: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}}
+.tree-leaf-row:hover {{
+  background: rgba(56, 189, 248, 0.14) !important;
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  transform: translateX(2px);
+}}
+.tree-leaf-row.active {{
+  background: rgba(56, 189, 248, 0.22) !important;
+  border: 1px solid #38bdf8 !important;
+  box-shadow: inset 2px 0 0 #38bdf8, 0 0 8px rgba(56, 189, 248, 0.25);
+}}
+.heatmap-cell {{
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 3px 4px;
+  text-align: center;
+  font-size: 9.5px;
+  line-height: 1.2;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}}
+.heatmap-cell:hover {{
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5) !important;
+  border-color: #38bdf8 !important;
+}}
+.heatmap-cell.selected {{
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6) !important;
+}}
+@keyframes pulse-highlight {{
+  0% {{ box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }}
+  50% {{ box-shadow: 0 0 14px 4px rgba(56, 189, 248, 0.45); }}
+  100% {{ box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }}
+}}
+.cross-filter-pulse {{
+  animation: pulse-highlight 1.6s ease-out;
+}}
 .top-glow-kpi .kpi-label {{
   font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--mute);
 }}
@@ -724,6 +795,8 @@ def kpi_card(
     badge: str | None = None,
     badge_color: str | None = None,
     is_active: bool = False,
+    interactive: bool = False,
+    onclick: str | None = None,
 ) -> str:
     """
     Canonical shared KPI card component used across the application.
@@ -734,10 +807,12 @@ def kpi_card(
     v_col = f"color:{val_color};" if val_color else ""
     val_suffix_html = f' <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {total_suffix}</span>' if total_suffix else ""
     badge_html = f'<span style="font-size:8.5px;color:{badge_color or glow};font-weight:700;font-family:var(--mono);">{badge}</span>' if badge else ""
-    active_style = f"border:1px solid {glow};box-shadow:0 0 6px {glow}40;" if is_active else "border:1px solid var(--rule);"
+    active_style = f"border:1px solid {glow};box-shadow:0 0 8px {glow}50;" if is_active else "border:1px solid var(--rule);"
+    cls_names = "top-glow-kpi interactive" if interactive else "top-glow-kpi"
+    click_attr = f' onclick="{onclick}"' if onclick else ""
 
     return f"""
-    <div class="top-glow-kpi" style="--glow:{glow};padding:4px 10px;margin-bottom:2px;{active_style}">
+    <div class="{cls_names}" style="--glow:{glow};padding:4px 10px;margin-bottom:2px;{active_style}"{click_attr}>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="kpi-label" style="font-size:9.5px;">{escape(label)}</div>
         {badge_html}

@@ -420,19 +420,26 @@ def render_state_maintenance_windows(state: str | None = None) -> None:
 # View 2: Portfolio Matrix & Operations Hub (Power BI Master-Detail Workspace)
 # ==========================================================================
 def render_operations_hub(df: pd.DataFrame) -> None:
+    # 0. Session state defaults and dynamic key versioning for error-free resets
+    reset_idx = st.session_state.setdefault("op_reset_idx", 0)
+    cur_kpi = st.session_state.setdefault("op_kpi_filter", "All")
+    cell_filter = st.session_state.setdefault("op_cell_filter", None)
+    tree_open = st.session_state.setdefault("op_tree_open", set())
+    selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
+
     # 1. Top Slicer Command Bar
     f1, f2, f3, f4, f5, f6 = st.columns([1.6, 0.9, 1.0, 1.15, 0.95, 0.8])
-    q = f1.text_input("Filter", key="op_search", placeholder="Search schema, env...", label_visibility="collapsed")
-    state_filter = f2.selectbox("State", ["All States"] + STATES, key="op_state", label_visibility="collapsed")
-    team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key="op_team", label_visibility="collapsed")
+    q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
+    state_filter = f2.selectbox("State", ["All States"] + STATES, key=f"op_state_{reset_idx}", label_visibility="collapsed")
+    team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
     comp_filter = f4.selectbox(
         "Component",
         ["All Components"] + COMPONENT_ORDER,
-        key="op_comp",
+        key=f"op_comp_{reset_idx}",
         label_visibility="collapsed",
         format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
     )
-    health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key="op_health", label_visibility="collapsed")
+    health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key=f"op_health_{reset_idx}", label_visibility="collapsed")
 
     filtered = df.copy()
     if q:
@@ -446,6 +453,20 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     if health_filter != "All Health":
         filtered = filtered[filtered["band"] == health_filter]
 
+    if cell_filter:
+        c_st, c_cp = cell_filter
+        if c_st:
+            filtered = filtered[filtered["state"] == c_st]
+        if c_cp:
+            filtered = filtered[filtered["component"] == c_cp]
+
+    if cur_kpi == "Expired":
+        filtered = filtered[filtered["band"] == "Expired"]
+    elif cur_kpi == "Urgent":
+        filtered = filtered[filtered["band"].isin(["Critical", "Warning"])]
+    elif cur_kpi == "Healthy":
+        filtered = filtered[filtered["band"] == "Healthy"]
+
     filtered = filtered.sort_values("days_left")
 
     csv_data = filtered.to_csv(index=False).encode("utf-8")
@@ -458,7 +479,62 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             use_container_width=True,
         )
 
-    # 2. Executive Metric Ribbon — reactive to active slicer, dual local/fleet context
+    # 2. Scope Determination and Reset Scope Ribbon (Matching Governance & Alerts Pattern)
+    is_scoped = (
+        bool(q) or
+        state_filter != "All States" or
+        team_filter != "All Teams" or
+        comp_filter != "All Components" or
+        health_filter != "All Health" or
+        cur_kpi != "All" or
+        cell_filter is not None or
+        len(tree_open) > 0 or
+        len(selected_entity_ids) > 0
+    )
+
+    scope_parts = []
+    if cell_filter:
+        c_st, c_cp = cell_filter
+        scope_parts.append(f"{c_st} × {ui.COMPONENT_CODE.get(c_cp, c_cp) if c_cp else 'All'}")
+    if state_filter != "All States": scope_parts.append(f"State {state_filter}")
+    if team_filter != "All Teams": scope_parts.append(f"Team {team_filter}")
+    if comp_filter != "All Components": scope_parts.append(ui.COMPONENT_CODE.get(comp_filter, comp_filter))
+    if health_filter != "All Health": scope_parts.append(f"Health: {health_filter}")
+    elif cur_kpi != "All": scope_parts.append(f"KPI: {cur_kpi}")
+    if q: scope_parts.append(f'"{q}"')
+    if len(tree_open) > 0: scope_parts.append(f"{len(tree_open)} branch(es) drilled")
+    if len(selected_entity_ids) > 0: scope_parts.append(f"{len(selected_entity_ids)} entity batch")
+
+    scope_name = "All Teams & Portfolios" if not scope_parts else " · ".join(scope_parts)
+
+    s_c1, s_c2 = st.columns([4.2, 0.8])
+    with s_c1:
+        st.markdown(f"""
+        <div style="background:var(--sunk);border:1px solid var(--rule);border-radius:6px;padding:4px 10px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">OPERATIONS SCOPE:</span>
+            <span style="font-size:11px;color:#f8fafc;font-weight:700;">{scope_name}</span>
+            <span style="font-size:9.5px;color:#94a3b8;">({len(filtered)} of {len(df)} Total Managed Assets)</span>
+          </div>
+          <div style="font-size:9.5px;color:#10b981;font-weight:600;font-family:var(--mono);">
+            ● Live Data Sync · 08:00 UTC
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with s_c2:
+        if is_scoped:
+            if st.button("↺ Reset Scope", key="op_sc_reset", use_container_width=True, type="primary"):
+                st.session_state["op_reset_idx"] = reset_idx + 1
+                st.session_state["op_kpi_filter"] = "All"
+                st.session_state["op_cell_filter"] = None
+                st.session_state["op_tree_open"] = set()
+                st.session_state["op_selected_entity_ids"] = set()
+                st.session_state["op_batch_page_no"] = 0
+                rerun()
+        else:
+            st.button("↺ Reset Scope", key="op_sc_reset_dis", use_container_width=True, disabled=True)
+
+    # 3. Executive Metric Ribbon — reactive to active slicer, dual local/fleet context
     tot_cnt = len(df)
     scope_cnt = len(filtered)
     exp_cnt = int((filtered["days_left"] < 0).sum())
@@ -466,14 +542,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     warn_cnt = int((filtered["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
     hlth_cnt = int((filtered["days_left"] > ui.WARNING_DAYS).sum())
     g_exp = int((df["days_left"] < 0).sum())
-    g_crit_warn = int((df["days_left"].between(0, ui.WARNING_DAYS)).sum())
-    g_hlth = int((df["days_left"] > ui.WARNING_DAYS).sum())
 
     k1_sub = f"Filtered scope ({scope_cnt} of {tot_cnt} fleet)" if scope_cnt < tot_cnt else "Consolidated fleet coverage"
     k2_sub = f"Requires renewal ({g_exp} across fleet)" if (scope_cnt < tot_cnt and exp_cnt != g_exp) else ("Requires immediate renewal" if exp_cnt else "Zero overdue accounts")
     k3_sub = f"{crit_cnt} critical (≤15d) · {warn_cnt} warning (≤30d)"
     pct_local = (hlth_cnt / scope_cnt * 100) if scope_cnt else 0
     k4_sub = f"{pct_local:.1f}% compliance rate"
+
+    k1_active = (cur_kpi == "All" and not is_scoped)
+    k2_active = (cur_kpi == "Expired" or health_filter == "Expired")
+    k3_active = (cur_kpi == "Urgent" or health_filter in ["Critical", "Warning"])
+    k4_active = (cur_kpi == "Healthy" or health_filter == "Healthy")
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
@@ -482,41 +561,138 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             value=scope_cnt,
             total_suffix=str(tot_cnt),
             subtext=k1_sub,
-            glow="#38bdf8"
+            glow="#38bdf8",
+            is_active=k1_active,
+            interactive=True,
+            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
         ), unsafe_allow_html=True)
+        if st.button("Fleet Scope" if not k1_active else "✓ Fleet Scope", key="op_kpi_all", use_container_width=True, type="primary" if k1_active else "secondary"):
+            st.session_state["op_kpi_filter"] = "All"
+            st.session_state["op_cell_filter"] = None
+            rerun()
+
     with k2:
         st.markdown(ui.kpi_card(
             label="Expired Items",
             value=exp_cnt,
             subtext=k2_sub,
             glow="#ef4444" if exp_cnt else "#10b981",
-            val_color="#ef4444" if exp_cnt else "#10b981"
+            val_color="#ef4444" if exp_cnt else "#10b981",
+            badge="EXPIRED" if exp_cnt else "CLEAR",
+            badge_color="#ef4444" if exp_cnt else "#10b981",
+            is_active=k2_active,
+            interactive=True,
+            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
         ), unsafe_allow_html=True)
+        if st.button("Filter Expired" if not k2_active else "✓ Filtered: Expired", key="op_kpi_exp", use_container_width=True, type="primary" if k2_active else "secondary"):
+            if k2_active:
+                st.session_state["op_kpi_filter"] = "All"
+            else:
+                st.session_state["op_kpi_filter"] = "Expired"
+                st.session_state["op_cell_filter"] = None
+                tree_open.clear()
+                tree_open.add("ND")
+                tree_open.add("ND/Core")
+                tree_open.add("ND/Core/Database Password Expiry")
+            rerun()
+
     with k3:
         st.markdown(ui.kpi_card(
             label="Critical & Warning",
             value=crit_cnt + warn_cnt,
             subtext=k3_sub,
             glow="#f97316" if crit_cnt else ("#f59e0b" if warn_cnt else "#10b981"),
-            val_color="#f59e0b" if (crit_cnt + warn_cnt) else "#10b981"
+            val_color="#f59e0b" if (crit_cnt + warn_cnt) else "#10b981",
+            badge="URGENT" if (crit_cnt + warn_cnt) else "STABLE",
+            badge_color="#f59e0b" if (crit_cnt + warn_cnt) else "#10b981",
+            is_active=k3_active,
+            interactive=True,
+            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
         ), unsafe_allow_html=True)
+        if st.button("Filter Urgent" if not k3_active else "✓ Filtered: Urgent", key="op_kpi_urgent", use_container_width=True, type="primary" if k3_active else "secondary"):
+            if k3_active:
+                st.session_state["op_kpi_filter"] = "All"
+            else:
+                st.session_state["op_kpi_filter"] = "Urgent"
+                st.session_state["op_cell_filter"] = None
+                tree_open.clear()
+                tree_open.add("AK")
+                tree_open.add("NH")
+            rerun()
+
     with k4:
         st.markdown(ui.kpi_card(
             label="Healthy Entities",
             value=hlth_cnt,
             subtext=k4_sub,
             glow="#10b981",
-            val_color="#10b981"
+            val_color="#10b981",
+            badge="COMPLIANT",
+            badge_color="#10b981",
+            is_active=k4_active,
+            interactive=True,
+            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
         ), unsafe_allow_html=True)
+        if st.button("Filter Healthy" if not k4_active else "✓ Filtered: Healthy", key="op_kpi_hlth", use_container_width=True, type="primary" if k4_active else "secondary"):
+            if k4_active:
+                st.session_state["op_kpi_filter"] = "All"
+            else:
+                st.session_state["op_kpi_filter"] = "Healthy"
+                st.session_state["op_cell_filter"] = None
+            rerun()
 
-    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
+    # 4. Cross-Filter Visual Feedback Banner (Animates cause & effect connection)
+    if k2_active:
+        st.markdown(f"""
+        <div class="cross-filter-pulse" style="background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10.5px;font-weight:700;color:#ef4444;">⚡ ACTIVE CROSS-FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Expired Items</span>
+            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} debt entities synchronized across Hierarchy Tree & Heatmap)</span>
+          </div>
+          <span style="font-size:9.5px;color:#fca5a5;font-family:var(--mono);font-weight:600;">Tree & Heatmap Linked</span>
+        </div>
+        """, unsafe_allow_html=True)
+    elif k3_active:
+        st.markdown(f"""
+        <div class="cross-filter-pulse" style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10.5px;font-weight:700;color:#f59e0b;">⚡ ACTIVE CROSS-FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Critical & Warning</span>
+            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} urgent entities synchronized across Hierarchy Tree & Heatmap)</span>
+          </div>
+          <span style="font-size:9.5px;color:#fcd34d;font-family:var(--mono);font-weight:600;">Tree & Heatmap Linked</span>
+        </div>
+        """, unsafe_allow_html=True)
+    elif k4_active and is_scoped:
+        st.markdown(f"""
+        <div class="cross-filter-pulse" style="background:rgba(16,185,129,0.12);border:1px solid #10b981;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10.5px;font-weight:700;color:#10b981;">⚡ ACTIVE CROSS-FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Healthy Entities</span>
+            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} compliant assets synchronized across Hierarchy Tree & Heatmap)</span>
+          </div>
+          <span style="font-size:9.5px;color:#6ee7b7;font-family:var(--mono);font-weight:600;">Tree & Heatmap Linked</span>
+        </div>
+        """, unsafe_allow_html=True)
+    elif cell_filter:
+        c_st, c_cp = cell_filter
+        st.markdown(f"""
+        <div class="cross-filter-pulse" style="background:rgba(56,189,248,0.12);border:1px solid #38bdf8;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10.5px;font-weight:700;color:#38bdf8;">⚡ ACTIVE HEATMAP FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:#f8fafc;">State {c_st}{f' × {c_cp}' if c_cp else ''}</span>
+            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} entities in focus across Tree & Inspector)</span>
+          </div>
+          <span style="font-size:9.5px;color:#38bdf8;font-family:var(--mono);font-weight:600;">Heatmap Synced</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 3. Master-Detail Workspace (42% Left Hierarchy Tree / 58% Right Inspector)
+    # 5. Master-Detail Workspace (42% Left Hierarchy Tree / 58% Right Inspector)
     left_col, _, right_col = st.columns([1.7, 0.04, 2.3])
 
-    tree_open = st.session_state.setdefault("op_tree_open", set())
-
-    # Auto-open single most urgent entity on initial visit
     if filtered.empty:
         selected_id = None
     else:
@@ -525,11 +701,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             most_urgent = filtered.sort_values("days_left").iloc[0]
             cur_active_id = int(most_urgent["id"])
             st.session_state["op_active_id"] = cur_active_id
-            # Auto-expand the ancestral path for the most urgent entity
-            tree_open.add(str(most_urgent["state"]))
-            tree_open.add(f"{most_urgent['state']}/{most_urgent['team']}")
-            tree_open.add(f"{most_urgent['state']}/{most_urgent['team']}/{most_urgent['component']}")
-            tree_open.add(f"{most_urgent['state']}/{most_urgent['team']}/{most_urgent['component']}/{most_urgent['env_label']}")
         selected_id = cur_active_id
 
     with left_col:
@@ -537,17 +708,36 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
         else:
             # Persistent Interactive Breadcrumb Header & Selection Toolbar
-            active_rec = df[df["id"] == selected_id].iloc[0] if selected_id in df["id"].values else None
-            bc_st = active_rec["state"] if active_rec is not None else (state_filter if state_filter != "All States" else None)
-            bc_tm = active_rec["team"] if active_rec is not None else (team_filter if team_filter != "All Teams" else None)
-            bc_cp = active_rec["component"] if active_rec is not None else (comp_filter if comp_filter != "All Components" else None)
-            bc_cp_code = ui.COMPONENT_CODE.get(bc_cp, bc_cp) if bc_cp else None
-            bc_icon = ui.COMPONENT_ICONS.get(bc_cp, "📦") if bc_cp else "📦"
-
             bc_parts = ["<span style='color:var(--accent);font-weight:700;'>🏠 All</span>"]
-            if bc_st: bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;'>📍 {bc_st}</span>")
-            if bc_tm: bc_parts.append(f"<span style='color:#cbd5e1;'>👥 {bc_tm}</span>")
-            if bc_cp_code: bc_parts.append(f"<span style='color:#94a3b8;'>{bc_icon} {bc_cp_code}</span>")
+            d_st = state_filter if state_filter != "All States" else None
+            if not d_st and len(tree_open) > 0:
+                open_st = [s for s in STATES if s in tree_open]
+                if len(open_st) == 1:
+                    d_st = open_st[0]
+
+            d_tm = team_filter if team_filter != "All Teams" else None
+            if not d_tm and len(tree_open) > 0 and d_st:
+                open_tm = [t for t in ui.TEAMS if f"{d_st}/{t}" in tree_open]
+                if len(open_tm) == 1:
+                    d_tm = open_tm[0]
+
+            d_cp = comp_filter if comp_filter != "All Components" else None
+            if not d_cp and len(tree_open) > 0 and d_st and d_tm:
+                open_cp = [c for c in COMPONENT_ORDER if f"{d_st}/{d_tm}/{c}" in tree_open]
+                if len(open_cp) == 1:
+                    d_cp = open_cp[0]
+
+            if d_st:
+                bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;'>📍 {d_st}</span>")
+            if d_tm:
+                bc_parts.append(f"<span style='color:#cbd5e1;'>👥 {d_tm}</span>")
+            if d_cp:
+                cp_c = ui.COMPONENT_CODE.get(d_cp, d_cp)
+                cp_ic = ui.COMPONENT_ICONS.get(d_cp, "📦")
+                bc_parts.append(f"<span style='color:#94a3b8;'>{cp_ic} {cp_c}</span>")
+            if cur_kpi != "All":
+                bc_parts.append(f"<span style='color:var(--accent);font-weight:600;'>⚡ {cur_kpi}</span>")
+
             bc_trail = " <span style='color:var(--rule);font-size:9px;'>›</span> ".join(bc_parts)
 
             selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
@@ -643,7 +833,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         rerun()
                 with s_c1:
                     st.markdown(f"""
-                    <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:11px;">
+                    <div class="tree-node-row{' active' if st_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:11px;">
                       <span style="font-weight:700;color:#f8fafc;font-family:var(--mono);">
                         📍 State {st_val} <span style="font-weight:400;color:#94a3b8;font-size:9.5px;">({len(st_sub)} items)</span>
                       </span>
@@ -679,7 +869,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 rerun()
                         with t_c1:
                             st.markdown(f"""
-                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:rgba(255,255,255,0.02);border-radius:3px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
+                            <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:rgba(255,255,255,0.02);border-radius:3px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
                               <span style="color:{tm_color};font-weight:700;">
                                 👥 {tm_val} <span style="color:#94a3b8;font-weight:400;font-size:9px;">({len(tm_sub)})</span>
                               </span>
@@ -715,7 +905,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 handy_cp_head = f"{cp_icon} {cp_code}"
                                 with cp_c1:
                                     st.markdown(f"""
-                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
+                                    <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
                                       <span style="color:#f8fafc;font-weight:600;">{handy_cp_head} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
                                       <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
                                     </div>
@@ -746,7 +936,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                 rerun()
                                         with ev_c1:
                                             st.markdown(f"""
-                                            <div style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;padding:1px 4px;font-size:9.5px;color:#cbd5e1;">
+                                            <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;padding:1px 4px;font-size:9.5px;color:#cbd5e1;">
                                               <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
                                               <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
                                             </div>
@@ -774,7 +964,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                         rerun()
                                                 with row_c1:
                                                     st.markdown(f"""
-                                                    <div style="{r_bg};margin-left:14px;border-radius:3px;padding:2px 5px;margin-bottom:1px;display:flex;align-items:center;justify-content:space-between;">
+                                                    <div class="tree-leaf-row{' active' if is_act else ''}" style="{r_bg};margin-left:14px;border-radius:3px;padding:2px 5px;margin-bottom:1px;display:flex;align-items:center;justify-content:space-between;">
                                                       <span style="font-family:var(--mono);font-size:9.5px;font-weight:{'700' if is_act else '500'};color:{'#38bdf8' if is_act else '#f8fafc'};">
                                                         {r.schema_name}
                                                       </span>
@@ -913,48 +1103,79 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown('<div class="note" style="margin-bottom:6px;"><b>Severity Heatmap (State × Component):</b> Color saturation indicates risk density. Click any cell to filter and expand the tree.</div>', unsafe_allow_html=True)
             mat_states = STATES
             mat_comps = COMPONENT_ORDER
-            header_cols = "".join(f"<th style='text-align:center;padding:4px 6px;'>{ui.COMPONENT_ICONS.get(c, '')} {ui.COMPONENT_CODE.get(c, c)}</th>" for c in mat_comps)
-            matrix_head = f"<tr><th>State</th>{header_cols}<th class='r' style='padding:4px 6px;'>Total</th></tr>"
 
-            matrix_rows = []
+            # Header Row
+            h_c0, h_c1, h_c2, h_c3, h_c4, h_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
+            with h_c0:
+                st.markdown("<div style='font-size:10px;font-weight:700;color:#94a3b8;padding:4px 2px;'>STATE</div>", unsafe_allow_html=True)
+            for idx, c_val in enumerate(mat_comps):
+                c_icon = ui.COMPONENT_ICONS.get(c_val, '')
+                c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+                [h_c1, h_c2, h_c3, h_c4][idx].markdown(
+                    f"<div style='font-size:10px;font-weight:700;color:#cbd5e1;text-align:center;padding:4px 2px;'>{c_icon} {c_code}</div>",
+                    unsafe_allow_html=True
+                )
+            with h_c5:
+                st.markdown("<div style='font-size:10px;font-weight:700;color:#94a3b8;text-align:right;padding:4px 2px;'>TOTAL</div>", unsafe_allow_html=True)
+
+            # Rows
             for st_val in mat_states:
                 st_sub = df[df["state"] == st_val]
-                cell_tds = []
-                for c_val in mat_comps:
-                    cell_sub = st_sub[st_sub["component"] == c_val]
-                    if cell_sub.empty:
-                        cell_tds.append("<td class='c' style='color:var(--mute);padding:4px;'>—</td>")
-                    else:
-                        c_cnt = len(cell_sub)
-                        c_exp = (cell_sub["days_left"] < 0).sum()
-                        c_warn = (cell_sub["days_left"].between(0, ui.WARNING_DAYS)).sum()
-                        worst_b = ui.worst_band(cell_sub["band"].tolist())
-                        meta = ui.BAND_META.get(worst_b, ui.BAND_META["Healthy"])
-                        min_days = cell_sub["days_left"].min()
-
-                        # Color-intensity gradient styling
-                        if c_exp > 0:
-                            bg_style = "background:linear-gradient(135deg, rgba(239,68,68,0.32), rgba(239,68,68,0.12));border:1px solid #ef4444;color:#fca5a5;"
-                            badge_txt = f"● {c_exp} Exp"
-                        elif c_warn > 0:
-                            bg_style = "background:linear-gradient(135deg, rgba(245,158,11,0.32), rgba(245,158,11,0.12));border:1px solid #f59e0b;color:#fcd34d;"
-                            badge_txt = f"▲ {c_warn} Warn"
+                r_c0, r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
+                is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+                with r_c0:
+                    if st.button(f"📍 {st_val}", key=f"hm_st_{st_val}", type="primary" if is_st_active else "secondary", use_container_width=True, help=f"Filter to State {st_val}"):
+                        if is_st_active:
+                            st.session_state["op_cell_filter"] = None
                         else:
-                            bg_style = "background:linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.06));border:1px solid rgba(16,185,129,0.35);color:#6ee7b7;"
-                            badge_txt = f"✓ {c_cnt} OK"
+                            st.session_state["op_cell_filter"] = (st_val, None)
+                            tree_open.clear()
+                            tree_open.add(st_val)
+                        rerun()
 
-                        cell_tds.append(
-                            f"<td class='c' style='padding:3px;'>"
-                            f"<div style='{bg_style}border-radius:4px;padding:3px 4px;text-align:center;font-size:9.5px;line-height:1.2;'>"
-                            f"<b>{badge_txt}</b><br/>"
-                            f"<span style='font-size:8.5px;opacity:0.8;'>{ui.fmt_heatmap_time(min_days)}</span>"
-                            f"</div></td>"
-                        )
-                st_tot = len(st_sub)
-                matrix_rows.append(
-                    f"<tr><td style='font-weight:700;font-family:var(--mono);padding:4px 6px;'>{st_val}</td>{''.join(cell_tds)}<td class='m r' style='font-weight:700;color:var(--accent);padding:4px 6px;'>{st_tot}</td></tr>"
-                )
-            st.markdown(f"<div style='border:1px solid var(--rule);border-radius:6px;overflow:hidden;'><table class='tblx' style='font-size:10.5px;'>{matrix_head}{''.join(matrix_rows)}</table></div>", unsafe_allow_html=True)
+                comp_cols = [r_c1, r_c2, r_c3, r_c4]
+                for idx, c_val in enumerate(mat_comps):
+                    cell_sub = st_sub[st_sub["component"] == c_val]
+                    with comp_cols[idx]:
+                        if cell_sub.empty:
+                            st.button("—", key=f"hm_empty_{st_val}_{idx}", disabled=True, use_container_width=True)
+                        else:
+                            c_cnt = len(cell_sub)
+                            c_exp = (cell_sub["days_left"] < 0).sum()
+                            c_warn = (cell_sub["days_left"].between(0, ui.WARNING_DAYS)).sum()
+                            min_days = cell_sub["days_left"].min()
+                            c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+
+                            if c_exp > 0:
+                                badge_txt = f"● {c_exp} Exp"
+                            elif c_warn > 0:
+                                badge_txt = f"▲ {c_warn} Warn"
+                            else:
+                                badge_txt = f"✓ {c_cnt} OK"
+
+                            btn_label = f"{badge_txt} · {ui.fmt_heatmap_time(min_days)}"
+                            is_cell_active = (cell_filter == (st_val, c_val)) or (state_filter == st_val and comp_filter == c_val and cell_filter is None)
+                            if st.button(
+                                btn_label,
+                                key=f"hm_c_{st_val}_{c_code}",
+                                type="primary" if is_cell_active else "secondary",
+                                use_container_width=True,
+                                help=f"Cross-filter to {st_val} × {c_code} ({badge_txt}, {ui.fmt_heatmap_time(min_days)})"
+                            ):
+                                if is_cell_active:
+                                    st.session_state["op_cell_filter"] = None
+                                else:
+                                    st.session_state["op_cell_filter"] = (st_val, c_val)
+                                    tree_open.clear()
+                                    tree_open.add(st_val)
+                                    for t in cell_sub["team"].unique():
+                                        tree_open.add(f"{st_val}/{t}")
+                                        tree_open.add(f"{st_val}/{t}/{c_val}")
+                                rerun()
+
+                with r_c5:
+                    st.markdown(f"<div style='font-family:var(--mono);font-weight:700;color:var(--accent);text-align:right;padding-top:7px;font-size:11px;'>{len(st_sub)}</div>", unsafe_allow_html=True)
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab3:
