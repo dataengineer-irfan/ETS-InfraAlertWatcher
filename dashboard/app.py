@@ -976,12 +976,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
             bg_c1, bg_c2, bg_c3 = st.columns([2.5, 1.4, 1.1])
             with bg_c1:
+                cur_page_n = len(page_slice)
                 if selected_entity_ids:
-                    st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;font-weight:700;padding-top:3px;'>⚡ Showing {b_from}–{b_to} of {total_batch_n} selected items</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;font-weight:700;padding-top:3px;'>⚡ Showing {cur_page_n} of {total_batch_n} selected items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
                 elif total_batch_n == len(df):
-                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing all {total_batch_n} items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {cur_page_n} of {total_batch_n} items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {b_from}–{b_to} of {total_batch_n} items</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {cur_page_n} of {total_batch_n} items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
             with bg_c2:
                 if b_pages > 1:
                     p_c1, p_c2, p_c3 = st.columns([1, 1.6, 1])
@@ -1156,72 +1157,64 @@ def render_governance_center() -> None:
 
     with kpi_c1:
         is_active = (gov_drill == "urgent")
-        border_css = "border:1px solid #ef4444;box-shadow:0 0 6px rgba(239,68,68,0.25);" if is_active else "border:1px solid var(--rule);"
-        st.markdown(f"""
-        <div class="card" style="{border_css};padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#ef4444;border-radius:2px;margin-bottom:3px;"></div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#ef4444;line-height:1.0;">{n_total_risk_fleet}</div>
-            <span style="font-size:8.5px;color:#ef4444;font-weight:700;font-family:var(--mono);">RISK</span>
-          </div>
-          <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Actionable Risk Assets</div>
-          <div style="font-size:9px;color:#94a3b8;">10 Expired + 10 Critical (≤15d)</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Actionable Risk Assets",
+            value=n_total_risk_fleet,
+            subtext="10 Expired + 10 Critical (≤15d)",
+            glow="#ef4444",
+            val_color="#ef4444",
+            badge="RISK",
+            badge_color="#ef4444",
+            is_active=is_active,
+        ), unsafe_allow_html=True)
         if st.button("Filter Risk Assets" if not is_active else "✓ Filtering Risk", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "urgent" if gov_drill != "urgent" else "all"
             rerun()
 
     with kpi_c2:
         is_active = (gov_team_filter != "All")
-        border_css = "border:1px solid #f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.25);" if is_active else "border:1px solid var(--rule);"
-        st.markdown(f"""
-        <div class="card" style="{border_css};padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#f59e0b;border-radius:2px;margin-bottom:3px;"></div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#f59e0b;line-height:1.0;">3 / 5</div>
-            <span style="font-size:8.5px;color:#f59e0b;font-weight:700;font-family:var(--mono);">IMPACT</span>
-          </div>
-          <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Teams Impacted</div>
-          <div style="font-size:9px;color:#94a3b8;">Core, Letters, Cognos attention</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Teams Impacted",
+            value="3 / 5",
+            subtext="Core, Letters, Cognos attention",
+            glow="#f59e0b",
+            val_color="#f59e0b",
+            badge="IMPACT",
+            badge_color="#f59e0b",
+            is_active=is_active,
+        ), unsafe_allow_html=True)
         if st.button("Focus Impacted" if not is_active else f"✓ Focused: {gov_team_filter}", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_team_filter"] = "Core" if gov_team_filter == "All" else "All"
             rerun()
 
     with kpi_c3:
         is_active = (gov_drill == "maintenance")
-        border_css = "border:1px solid var(--accent);box-shadow:0 0 6px rgba(56,189,248,0.25);" if is_active else "border:1px solid var(--rule);"
-        st.markdown(f"""
-        <div class="card" style="{border_css};padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:var(--accent);border-radius:2px;margin-bottom:3px;"></div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:var(--accent);line-height:1.0;">{stats.get('maintenance_schedules', 0)}</div>
-            <span style="font-size:8.5px;color:var(--accent);font-weight:700;font-family:var(--mono);">SCHEDULE</span>
-          </div>
-          <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Maintenance Windows</div>
-          <div style="font-size:9px;color:#94a3b8;">100% Synced across 4 cadences</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Maintenance Windows",
+            value=stats.get('maintenance_schedules', 0),
+            subtext="100% Synced across 4 cadences",
+            glow="#38bdf8",
+            val_color="#f8fafc",
+            badge="SCHEDULE",
+            badge_color="#38bdf8",
+            is_active=is_active,
+        ), unsafe_allow_html=True)
         if st.button("View Maintenance" if not is_active else "✓ Maintenance Scope", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "maintenance" if gov_drill != "maintenance" else "all"
             rerun()
 
     with kpi_c4:
         is_active = (gov_drill == "reminders")
-        border_css = "border:1px solid var(--accent);box-shadow:0 0 6px rgba(56,189,248,0.25);" if is_active else "border:1px solid var(--rule);"
-        st.markdown(f"""
-        <div class="card" style="{border_css};padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:var(--accent);border-radius:2px;margin-bottom:3px;"></div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:var(--accent);line-height:1.0;">{stats['reminder_log']} Runs</div>
-            <span style="font-size:8.5px;color:var(--accent);font-weight:700;font-family:var(--mono);">AUTOMATION</span>
-          </div>
-          <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Automated Dispatches</div>
-          <div style="font-size:9px;color:#94a3b8;">Daily audit logged @ 08:00 UTC</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Automated Dispatches",
+            value=f"{stats['reminder_log']} Runs",
+            subtext="Daily audit logged @ 08:00 UTC",
+            glow="#38bdf8",
+            val_color="#f8fafc",
+            badge="AUTOMATION",
+            badge_color="#38bdf8",
+            is_active=is_active,
+        ), unsafe_allow_html=True)
         if st.button("Reminder Logs" if not is_active else "✓ Reminder Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
             rerun()

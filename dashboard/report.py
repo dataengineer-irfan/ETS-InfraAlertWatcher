@@ -1542,8 +1542,8 @@ function layoutTimelineAnnotations(items, bounds){
   return results;
 }
 
-const GRID = [[30, "30d"], [90, "90d"], [180, "6mo"], [365, "1yr"],
-              [730, "2yr"], [1095, "3yr"], [1460, "4yr"], [1825, "5yr"]];
+const GRID_DAYS = [30, 90, 180, 365, 730, 1095, 1460, 1825];
+const GRID = GRID_DAYS.map(d => [d, span(d)]);
 
 function renderHorizon(S){
   const rs = rows(S);
@@ -1589,9 +1589,9 @@ function renderHorizon(S){
 
   // Guideline vertical reference lines
   const guideLines = [
-    [30, "30d Warning", META.Warning.color],
-    [90, "90d Quarter", T.accent],
-    [365, "1yr Horizon", T.slate]
+    [30, span(30) + " Warning", META.Warning.color],
+    [90, span(90) + " Quarter", T.accent],
+    [365, span(365) + " Horizon", T.slate]
   ];
   const annotationsToPlace = [];
 
@@ -1616,14 +1616,17 @@ function renderHorizon(S){
     }
   });
 
-  GRID.filter(g => g[0] <= horizon * 0.985).concat(horizon > 90 ? [[horizon, fmtDays(horizon)]] : [])
-    .forEach(g => {
-      const x = px(g[0]);
-      o.push('<line x1="' + x.toFixed(1) + '" y1="' + (top + 14) + '" x2="' + x.toFixed(1)
-        + '" y2="' + base + '" stroke="' + T.ruleSoft + '" stroke-width="1" stroke-dasharray="2 4"/>');
-      o.push('<text x="' + x.toFixed(1) + '" y="' + (base + 16) + '" fill="' + T.mute + '" font-size="11"'
-        + ' text-anchor="middle">' + esc(g[1]) + "</text>");
-    });
+  const axisTicks = GRID.filter(g => g[0] <= horizon * 0.90);
+  if (horizon > 30){
+    axisTicks.push([horizon, span(horizon)]);
+  }
+  axisTicks.forEach(g => {
+    const x = px(g[0]);
+    o.push('<line x1="' + x.toFixed(1) + '" y1="' + (top + 14) + '" x2="' + x.toFixed(1)
+      + '" y2="' + base + '" stroke="' + T.ruleSoft + '" stroke-width="1" stroke-dasharray="2 4"/>');
+    o.push('<text x="' + x.toFixed(1) + '" y="' + (base + 16) + '" fill="' + T.mute + '" font-size="11"'
+      + ' text-anchor="middle">' + esc(g[1]) + "</text>");
+  });
 
   o.push('<line x1="' + x0 + '" y1="' + (top - 8) + '" x2="' + x0 + '" y2="' + (base + 5)
     + '" stroke="' + T.accent + '" stroke-width="1.8"/>');
@@ -1651,7 +1654,7 @@ function renderHorizon(S){
         + '" height="' + (STEP - 1.4).toFixed(1) + '" rx="1.2" fill="' + META[r.band].color
         + '" data-hl-comp="' + esc(r.component) + '" data-hl-env="' + esc(r.environment) + '"'
         + ' data-tip="' + esc(r.schema + " &middot; " + r.environment + " &middot; " + r.component
-        + " &middot; " + fmtDate(r.exp) + " (" + fmtDaysLong(r.days) + ")") + '"/>');
+        + " &middot; " + fmtDate(r.exp) + " (" + fmtDays(r.days) + ")") + '"/>');
     });
     if (bucket.length > room){
       const extra = bucket.length - room;

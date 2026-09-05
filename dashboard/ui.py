@@ -722,7 +722,8 @@ def kpi_card(
     val_color: str | None = None,
     total_suffix: str | None = None,
     badge: str | None = None,
-    badge_color: str | None = None
+    badge_color: str | None = None,
+    is_active: bool = False,
 ) -> str:
     """
     Canonical shared KPI card component used across the application.
@@ -733,9 +734,10 @@ def kpi_card(
     v_col = f"color:{val_color};" if val_color else ""
     val_suffix_html = f' <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {total_suffix}</span>' if total_suffix else ""
     badge_html = f'<span style="font-size:8.5px;color:{badge_color or glow};font-weight:700;font-family:var(--mono);">{badge}</span>' if badge else ""
+    active_style = f"border:1px solid {glow};box-shadow:0 0 6px {glow}40;" if is_active else "border:1px solid var(--rule);"
 
     return f"""
-    <div class="top-glow-kpi" style="--glow:{glow};padding:4px 10px;margin-bottom:2px;">
+    <div class="top-glow-kpi" style="--glow:{glow};padding:4px 10px;margin-bottom:2px;{active_style}">
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="kpi-label" style="font-size:9.5px;">{escape(label)}</div>
         {badge_html}
