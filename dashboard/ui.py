@@ -262,6 +262,30 @@ def fmt_days(days) -> str:
     return f"{d / 365:.1f} yrs left"
 
 
+def fmt_heatmap_time(days) -> str:
+    """
+    Uniform duration format for Severity Heatmap:
+    - Exact days for < 60 days ('14d left', '1d overdue')
+    - 'Xm Yd' format for >= 60 days ('6m 5d left', '10m 2d overdue')
+    """
+    if days is None:
+        return "--"
+    try:
+        d = int(days)
+    except (TypeError, ValueError):
+        return "--"
+    if d < 0:
+        n = -d
+        if n < 60:
+            return f"{n}d overdue"
+        m, rd = divmod(n, 30)
+        return f"{m}m {rd}d overdue" if rd else f"{m}m 0d overdue"
+    if d < 60:
+        return f"{d}d left"
+    m, rd = divmod(d, 30)
+    return f"{m}m {rd}d left" if rd else f"{m}m 0d left"
+
+
 def _span_long(days: int) -> str:
     """The same duration as a phrase."""
     if days == 1:

@@ -218,7 +218,7 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
       <div class="state-kpi-card">
         <div class="state-kpi-label">Local Overrides</div>
         <div class="state-kpi-val">{overrides}</div>
-        <div class="state-kpi-hint">{'Modified in SQLite' if overrides else '100% in sync with Excel'}</div>
+        <div class="state-kpi-hint">{'Modified locally' if overrides else '100% in sync with Excel'}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -469,13 +469,19 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     g_crit_warn = int((df["days_left"].between(0, ui.WARNING_DAYS)).sum())
     g_hlth = int((df["days_left"] > ui.WARNING_DAYS).sum())
 
+    k1_sub = f"Filtered scope ({scope_cnt} of {tot_cnt} fleet)" if scope_cnt < tot_cnt else "Consolidated fleet coverage"
+    k2_sub = f"Requires renewal ({g_exp} across fleet)" if (scope_cnt < tot_cnt and exp_cnt != g_exp) else ("Requires immediate renewal" if exp_cnt else "Zero overdue accounts")
+    k3_sub = f"{crit_cnt} critical (≤15d) · {warn_cnt} warning (≤30d)"
+    pct_local = (hlth_cnt / scope_cnt * 100) if scope_cnt else 0
+    k4_sub = f"{pct_local:.1f}% compliance rate"
+
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#38bdf8;padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Portfolio Scope</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;">{scope_cnt} <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {tot_cnt}</span></div>
-          <div class="kpi-sub" style="font-size:9.5px;">of {tot_cnt} total fleet</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{k1_sub}</div>
         </div>
         """, unsafe_allow_html=True)
     with k2:
@@ -483,7 +489,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Expired Items</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#ef4444' if exp_cnt else '#10b981'};">{exp_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{'Requires renewal' if exp_cnt else 'None in view'} · {g_exp} fleet total</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{k2_sub}</div>
         </div>
         """, unsafe_allow_html=True)
     with k3:
@@ -491,16 +497,15 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Critical &amp; Warning</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#f59e0b' if (crit_cnt + warn_cnt) else '#10b981'};">{crit_cnt + warn_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{crit_cnt} crit · {warn_cnt} warn · {g_crit_warn} fleet total</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{k3_sub}</div>
         </div>
         """, unsafe_allow_html=True)
     with k4:
-        pct_local = (hlth_cnt / scope_cnt * 100) if scope_cnt else 0
         st.markdown(f"""
         <div class="top-glow-kpi" style="--glow:#10b981;padding:4px 10px;margin-bottom:2px;">
           <div class="kpi-label" style="font-size:9.5px;">Healthy Entities</div>
           <div class="kpi-value" style="font-size:17px;line-height:1.1;color:#10b981;">{hlth_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{pct_local:.0f}% in view · {g_hlth} fleet total</div>
+          <div class="kpi-sub" style="font-size:9.5px;">{k4_sub}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -942,7 +947,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             f"<td class='c' style='padding:3px;'>"
                             f"<div style='{bg_style}border-radius:4px;padding:3px 4px;text-align:center;font-size:9.5px;line-height:1.2;'>"
                             f"<b>{badge_txt}</b><br/>"
-                            f"<span style='font-size:8.5px;opacity:0.8;'>{ui.fmt_days(min_days)}</span>"
+                            f"<span style='font-size:8.5px;opacity:0.8;'>{ui.fmt_heatmap_time(min_days)}</span>"
                             f"</div></td>"
                         )
                 st_tot = len(st_sub)
@@ -960,7 +965,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 batch_work = filtered.copy()
 
             total_batch_n = len(batch_work)
-            b_per_page = 8
+            b_per_page = 4
             b_pages = max(1, (total_batch_n + b_per_page - 1) // b_per_page)
             b_page = st.session_state.setdefault("op_batch_page_no", 0)
             b_page = max(0, min(b_page, b_pages - 1))
@@ -973,6 +978,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             with bg_c1:
                 if selected_entity_ids:
                     st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;font-weight:700;padding-top:3px;'>⚡ Showing {b_from}–{b_to} of {total_batch_n} selected items</div>", unsafe_allow_html=True)
+                elif total_batch_n == len(df):
+                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing all {total_batch_n} items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
                 else:
                     st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {b_from}–{b_to} of {total_batch_n} items</div>", unsafe_allow_html=True)
             with bg_c2:
@@ -1039,7 +1046,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown(ui.note(f"<b>{len(active_edits)}</b> override(s) in SQLite:"), unsafe_allow_html=True)
+                st.markdown(ui.note(f"<b>{len(active_edits)}</b> local override(s):"), unsafe_allow_html=True)
                 for er in active_edits.itertuples():
                     ec1, ec2 = st.columns([3, 1])
                     ec1.markdown(f"<span style='font-size:11px;'><b>{er.schema_name}</b> ({er.state}) — <code>{er.exp_date}</code></span>", unsafe_allow_html=True)
@@ -1101,7 +1108,7 @@ def render_governance_center() -> None:
             <span style="font-size:9.5px;color:#94a3b8;">({len(scoped_records)} of {len(records)} Total Managed Assets)</span>
           </div>
           <div style="font-size:9.5px;color:#10b981;font-weight:600;font-family:var(--mono);">
-            ● Live SQLite Reconciliation · 08:00 UTC
+            ● Live Data Sync · 08:00 UTC
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1122,7 +1129,7 @@ def render_governance_center() -> None:
           <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.22);font-size:9px;font-weight:700;">URGENT ESCALATION</span>
         </div>
         <div style="font-size:10.5px;color:#cbd5e1;margin-top:2px;">
-          <b>{n_expired_fleet} Expired Overdue</b> (-5.7yr debt in Core ND) · <b>{n_critical_fleet} Critical</b> (≤15d in Letters AK & Cognos NH) · <b>{n_healthy_fleet} Assets ({pct_healthy:.1f}%)</b> 100% Healthy.
+          <b>{n_expired_fleet} Expired Overdue</b> (-5.7yr debt in Core ND) · <b>{n_critical_fleet} Critical</b> (≤15d in Letters AK & Cognos NH) · <b>{n_healthy_fleet} Healthy Assets ({pct_healthy:.1f}%)</b>.
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;">
@@ -1161,7 +1168,7 @@ def render_governance_center() -> None:
           <div style="font-size:9px;color:#94a3b8;">10 Expired + 10 Critical (≤15d)</div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🔴 Filter Risk Assets" if not is_active else "✓ Filtering Risk", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button("Filter Risk Assets" if not is_active else "✓ Filtering Risk", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "urgent" if gov_drill != "urgent" else "all"
             rerun()
 
@@ -1179,43 +1186,43 @@ def render_governance_center() -> None:
           <div style="font-size:9px;color:#94a3b8;">Core, Letters, Cognos attention</div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🟠 Focus Impacted" if not is_active else f"✓ Focused: {gov_team_filter}", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button("Focus Impacted" if not is_active else f"✓ Focused: {gov_team_filter}", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_team_filter"] = "Core" if gov_team_filter == "All" else "All"
             rerun()
 
     with kpi_c3:
         is_active = (gov_drill == "maintenance")
-        border_css = "border:1px solid #10b981;box-shadow:0 0 6px rgba(16,185,129,0.25);" if is_active else "border:1px solid var(--rule);"
+        border_css = "border:1px solid var(--accent);box-shadow:0 0 6px rgba(56,189,248,0.25);" if is_active else "border:1px solid var(--rule);"
         st.markdown(f"""
         <div class="card" style="{border_css};padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#10b981;border-radius:2px;margin-bottom:3px;"></div>
+          <div style="height:3px;width:100%;background:var(--accent);border-radius:2px;margin-bottom:3px;"></div>
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#10b981;line-height:1.0;">{stats.get('maintenance_schedules', 0)}</div>
-            <span style="font-size:8.5px;color:#10b981;font-weight:700;font-family:var(--mono);">SCHEDULE</span>
+            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:var(--accent);line-height:1.0;">{stats.get('maintenance_schedules', 0)}</div>
+            <span style="font-size:8.5px;color:var(--accent);font-weight:700;font-family:var(--mono);">SCHEDULE</span>
           </div>
           <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Maintenance Windows</div>
           <div style="font-size:9px;color:#94a3b8;">100% Synced across 4 cadences</div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🟢 View Maintenance" if not is_active else "✓ Maintenance Scope", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button("View Maintenance" if not is_active else "✓ Maintenance Scope", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "maintenance" if gov_drill != "maintenance" else "all"
             rerun()
 
     with kpi_c4:
         is_active = (gov_drill == "reminders")
-        border_css = "border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if is_active else "border:1px solid var(--rule);"
+        border_css = "border:1px solid var(--accent);box-shadow:0 0 6px rgba(56,189,248,0.25);" if is_active else "border:1px solid var(--rule);"
         st.markdown(f"""
         <div class="card" style="{border_css};padding:6px 10px;margin-bottom:2px;border-radius:6px;">
-          <div style="height:3px;width:100%;background:#38bdf8;border-radius:2px;margin-bottom:3px;"></div>
+          <div style="height:3px;width:100%;background:var(--accent);border-radius:2px;margin-bottom:3px;"></div>
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:#38bdf8;line-height:1.0;">{stats['reminder_log']} Runs</div>
-            <span style="font-size:8.5px;color:#38bdf8;font-weight:700;font-family:var(--mono);">AUTOMATION</span>
+            <div style="font-family:var(--mono);font-size:30px;font-weight:800;color:var(--accent);line-height:1.0;">{stats['reminder_log']} Runs</div>
+            <span style="font-size:8.5px;color:var(--accent);font-weight:700;font-family:var(--mono);">AUTOMATION</span>
           </div>
           <div style="font-size:11px;font-weight:700;color:#cbd5e1;margin-top:1px;">Automated Dispatches</div>
           <div style="font-size:9px;color:#94a3b8;">Daily audit logged @ 08:00 UTC</div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("🔵 Reminder Logs" if not is_active else "✓ Reminder Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button("Reminder Logs" if not is_active else "✓ Reminder Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
             rerun()
 
@@ -1371,7 +1378,7 @@ def render_governance_center() -> None:
         <div style="font-family:var(--mono);font-size:17px;font-weight:800;color:#f8fafc;line-height:1.1;">{len(records)}</div>
         <div style="font-size:8.5px;color:#10b981;font-weight:600;">{pct_healthy:.1f}% Compliant</div>
         <div style="font-size:8px;color:#ef4444;font-weight:700;margin-top:1px;">{n_total_risk_fleet} at risk</div>
-        <div style="font-size:7.5px;color:#475569;margin-top:3px;">● Live SQLite · 08:00 UTC</div>
+        <div style="font-size:7.5px;color:#475569;margin-top:3px;">● Live Sync · 08:00 UTC</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
