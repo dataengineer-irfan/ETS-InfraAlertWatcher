@@ -227,46 +227,9 @@ def _span(days: int) -> str:
 
 def fmt_days(days) -> str:
     """
-    Days remaining -> enterprise-quality duration label.
-
-    Examples: '14 days overdue', '5.7 yrs overdue', 'Expires today',
-              '14 days left', '2.1 yrs left'
-    """
-    if days is None:
-        return "--"
-    try:
-        d = int(days)
-    except (TypeError, ValueError):
-        return "--"
-    if d < 0:
-        n = -d
-        if n == 1:
-            return "1 day overdue"
-        if n < 60:
-            return f"{n} days overdue"
-        if n < 730:
-            m, rem = divmod(n, 30)
-            rd = rem
-            return f"{m}m {rd}d overdue" if rd else f"{m} mo overdue"
-        return f"{n / 365:.1f} yrs overdue"
-    if d == 0:
-        return "Expires today"
-    if d == 1:
-        return "1 day left"
-    if d < 60:
-        return f"{d} days left"
-    if d < 730:
-        m, rem = divmod(d, 30)
-        rd = rem
-        return f"{m}m {rd}d left" if rd else f"{m} mo left"
-    return f"{d / 365:.1f} yrs left"
-
-
-def fmt_heatmap_time(days) -> str:
-    """
-    Uniform duration format for Severity Heatmap:
-    - Exact days for < 60 days ('14d left', '1d overdue')
-    - 'Xm Yd' format for >= 60 days ('6m 5d left', '10m 2d overdue')
+    Canonical enterprise duration format across the entire application:
+    - Exact days under 60 days: '14d left', '0d left', '1d overdue'
+    - 'Xm Yd' format at 60+ days: '6m 5d left', '10m 2d overdue', '69m 8d overdue'
     """
     if days is None:
         return "--"
@@ -284,6 +247,11 @@ def fmt_heatmap_time(days) -> str:
         return f"{d}d left"
     m, rd = divmod(d, 30)
     return f"{m}m {rd}d left" if rd else f"{m}m 0d left"
+
+
+def fmt_heatmap_time(days) -> str:
+    """Alias for backwards compatibility; delegates to canonical fmt_days."""
+    return fmt_days(days)
 
 
 def _span_long(days: int) -> str:
@@ -705,3 +673,74 @@ def edits_table(rows: list) -> str:
         for r in rows
     )
     return f'<table class="tblx">{head}{body}</table>'
+
+
+def sanitize_kpi_subtext(value: str | int | float, subtext: str | None) -> str:
+    """
+    Guarantees subtext never duplicates the headline number verbatim.
+    Shows genuinely complementary context only, or returns an empty string.
+    """
+    if not subtext:
+        return ""
+    sub = str(subtext).strip()
+    val_str = str(value).strip()
+
+    # If the subtext is purely the value
+    if sub == val_str:
+        return ""
+
+    # Strip verbatim repetition like "{value} of ...", "{value} / ..."
+    if sub.startswith(f"{val_str} of "):
+        sub = sub[len(f"{val_str} of "):].strip()
+    elif sub.startswith(f"{val_str} / "):
+        sub = sub[len(f"{val_str} / "):].strip()
+
+    # Strip verbatim repetition like "{value} fleet total", "of {value} total fleet", etc.
+    patterns_to_clean = [
+        f"of {val_str} total fleet",
+        f"of {val_str} total",
+        f"{val_str} fleet total",
+        f"{val_str} total fleet",
+        f"{val_str} fleet",
+        f"{val_str} total",
+    ]
+    for p in patterns_to_clean:
+        if p in sub:
+            sub = sub.replace(p, "").strip(" ·,-")
+
+    # If after cleaning the subtext is empty or just punctuation
+    if not sub or sub in ["·", "-", ",", ""]:
+        return ""
+    return sub
+
+
+def kpi_card(
+    label: str,
+    value: str | int | float,
+    subtext: str | None = None,
+    glow: str = "#38bdf8",
+    val_color: str | None = None,
+    total_suffix: str | None = None,
+    badge: str | None = None,
+    badge_color: str | None = None
+) -> str:
+    """
+    Canonical shared KPI card component used across the application.
+    Enforces that subtext never restates the headline number verbatim.
+    """
+    clean_sub = sanitize_kpi_subtext(value, subtext)
+    sub_html = f'<div class="kpi-sub" style="font-size:9.5px;">{clean_sub}</div>' if clean_sub else '<div class="kpi-sub" style="font-size:9.5px;min-height:13px;"></div>'
+    v_col = f"color:{val_color};" if val_color else ""
+    val_suffix_html = f' <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {total_suffix}</span>' if total_suffix else ""
+    badge_html = f'<span style="font-size:8.5px;color:{badge_color or glow};font-weight:700;font-family:var(--mono);">{badge}</span>' if badge else ""
+
+    return f"""
+    <div class="top-glow-kpi" style="--glow:{glow};padding:4px 10px;margin-bottom:2px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="kpi-label" style="font-size:9.5px;">{escape(label)}</div>
+        {badge_html}
+      </div>
+      <div class="kpi-value" style="font-size:17px;line-height:1.1;{v_col}">{escape(str(value))}{val_suffix_html}</div>
+      {sub_html}
+    </div>
+    """

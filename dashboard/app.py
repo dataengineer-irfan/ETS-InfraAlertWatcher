@@ -477,37 +477,37 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#38bdf8;padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Portfolio Scope</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;">{scope_cnt} <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {tot_cnt}</span></div>
-          <div class="kpi-sub" style="font-size:9.5px;">{k1_sub}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Portfolio Scope",
+            value=scope_cnt,
+            total_suffix=str(tot_cnt),
+            subtext=k1_sub,
+            glow="#38bdf8"
+        ), unsafe_allow_html=True)
     with k2:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#ef4444' if exp_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Expired Items</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#ef4444' if exp_cnt else '#10b981'};">{exp_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{k2_sub}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Expired Items",
+            value=exp_cnt,
+            subtext=k2_sub,
+            glow="#ef4444" if exp_cnt else "#10b981",
+            val_color="#ef4444" if exp_cnt else "#10b981"
+        ), unsafe_allow_html=True)
     with k3:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:{'#f97316' if crit_cnt else '#f59e0b' if warn_cnt else '#10b981'};padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Critical &amp; Warning</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;color:{'#f59e0b' if (crit_cnt + warn_cnt) else '#10b981'};">{crit_cnt + warn_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{k3_sub}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Critical & Warning",
+            value=crit_cnt + warn_cnt,
+            subtext=k3_sub,
+            glow="#f97316" if crit_cnt else ("#f59e0b" if warn_cnt else "#10b981"),
+            val_color="#f59e0b" if (crit_cnt + warn_cnt) else "#10b981"
+        ), unsafe_allow_html=True)
     with k4:
-        st.markdown(f"""
-        <div class="top-glow-kpi" style="--glow:#10b981;padding:4px 10px;margin-bottom:2px;">
-          <div class="kpi-label" style="font-size:9.5px;">Healthy Entities</div>
-          <div class="kpi-value" style="font-size:17px;line-height:1.1;color:#10b981;">{hlth_cnt}</div>
-          <div class="kpi-sub" style="font-size:9.5px;">{k4_sub}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.kpi_card(
+            label="Healthy Entities",
+            value=hlth_cnt,
+            subtext=k4_sub,
+            glow="#10b981",
+            val_color="#10b981"
+        ), unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 

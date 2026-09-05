@@ -451,10 +451,10 @@ body{
 .cc .nx{ font-family:var(--mono); font-size:9px; color:var(--slate); text-align:right;
          white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .cc .nx b{ color:var(--val,var(--ink)); font-weight:700; }
-.meter{ display:flex; height:6px; border-radius:3px; overflow:hidden; background:var(--rule-soft);
-        margin:3px 0 2px; flex:none; }
+.meter{ display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--rule-soft);
+        margin:3px 0 3px; flex:none; gap:2px; }
 .meter-label{ font-size:9px; color:var(--slate); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--mono); }
-.meter i{ display:block; height:100%; min-width:3px; }
+.meter i{ display:block; height:100%; min-width:6px; border-radius:2px; }
 
 /* ---- segmented control ----------------------------------------------- */
 .seg{ display:inline-flex; background:var(--sunk); border:1px solid var(--rule);
@@ -789,14 +789,20 @@ function fmtDate(iso){
 function fmtDays(d){
   if (d === null || d === undefined) return "--";
   d = Math.trunc(d);
-  if (d < 0) return span(-d) + " overdue";
-  if (d === 0) return "today";
-  return span(d);
+  if (d < 0){
+    const n = -d;
+    if (n < 60) return n + "d overdue";
+    const m = Math.floor(n / 30), rd = n % 30;
+    return rd ? m + "m " + rd + "d overdue" : m + "m 0d overdue";
+  }
+  if (d < 60) return d + "d left";
+  const m = Math.floor(d / 30), rd = d % 30;
+  return rd ? m + "m " + rd + "d left" : m + "m 0d left";
 }
 function span(d){
-  if (d < 90) return d + "d";
-  if (d < 730) return Math.floor(d / 30) + "mo";
-  return (d / 365).toFixed(1) + "yr";
+  if (d < 60) return d + "d";
+  const m = Math.floor(d / 30), rd = d % 30;
+  return rd ? m + "m " + rd + "d" : m + "m 0d";
 }
 
 function fmtDaysLong(d){
@@ -1230,7 +1236,7 @@ function renderKpis(S){
   ];
 
   BANDS.forEach(b => {
-    const pct = total ? Math.round(c[b] / total * 100) + "% of " + total : "--";
+    const pct = total ? Math.round(c[b] / total * 100) + "% of fleet" : "--";
     const isDom = b === "Expired" && hasExpired;
     const key = b.toLowerCase();
     const bSpark = sparklineSvg(snaps.map(s => s[key] || 0), META[b].color);
@@ -1686,8 +1692,10 @@ function renderHorizon(S){
     }
     const tipAttr = ann.tip ? ' data-tip="' + esc(ann.tip) + '"' : '';
     const opAttr = ann.opacity ? ' opacity="' + ann.opacity + '"' : '';
+    const fontAttr = ' font-family="var(--ui), -apple-system, sans-serif"';
+    const letterAttr = ann.type === 'guide' ? ' letter-spacing="0.04em"' : '';
     o.push('<text x="' + ann.x.toFixed(1) + '" y="' + ann.y.toFixed(1) + '" fill="' + ann.clr + '" font-size="'
-      + ann.size + '" font-weight="' + ann.weight + '" text-anchor="middle"' + opAttr + tipAttr + '>'
+      + ann.size + '" font-weight="' + ann.weight + '"' + fontAttr + letterAttr + ' text-anchor="middle"' + opAttr + tipAttr + '>'
       + esc(ann.text) + '</text>');
   });
 
