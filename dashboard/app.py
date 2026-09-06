@@ -1437,17 +1437,18 @@ def render_governance_center() -> None:
 
     with kpi_c4:
         is_active = (gov_drill == "reminders")
+        smtp_live = bool(os.environ.get("SMTP_HOST"))
         st.markdown(ui.kpi_card(
-            label="Automated Dispatches",
-            value=f"{stats['reminder_log']} Runs",
-            subtext="Daily audit logged @ 08:00 UTC",
+            label="Alert Dispatch Audit",
+            value=f"{stats['reminder_log']} Logged",
+            subtext="Live SMTP Configured" if smtp_live else "Daily dry-run audit @ 08:00 UTC",
             glow="#38bdf8",
             val_color="#f8fafc",
-            badge="AUTOMATION",
-            badge_color="#38bdf8",
+            badge="LIVE SMTP" if smtp_live else "SIMULATED",
+            badge_color="#10b981" if smtp_live else "#f59e0b",
             is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button("Reminder Logs" if not is_active else "✓ Reminder Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button("Audit Logs" if not is_active else "✓ Audit Log Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
             rerun()
 
@@ -1555,7 +1556,7 @@ def render_governance_center() -> None:
         q_count_label = f" ({len(urgent_records)})" if not urgent_records.empty else " (0)"
         act_tab1, act_tab2, act_tab3 = st.tabs([
             f"⚡ Actionable Risk Queue{q_count_label}",
-            "📧 Email Dispatch Inspector",
+            "📧 Alert Dispatch Preview (Simulator)",
             "📋 Compliance & Audit Ledger"
         ])
 
@@ -1616,11 +1617,16 @@ def render_governance_center() -> None:
             sim_team_default = gov_team_filter if gov_team_filter in ui.TEAMS else ui.TEAMS[0]
             sim_team_idx = ui.TEAMS.index(sim_team_default) if sim_team_default in ui.TEAMS else 0
 
-            sim_c1, sim_c2, sim_c3 = st.columns([1, 1.2, 2.2])
+            sim_c1, sim_c2 = st.columns([1, 1.2])
             sim_st = sim_c1.selectbox("State", STATES, key="sim_state", label_visibility="collapsed")
             sim_tm = sim_c2.selectbox("Team", ui.TEAMS, index=sim_team_idx, key="sim_team", label_visibility="collapsed")
 
             conn = get_connection(DB_PATH)
+            # Look up state owner from database (configured in config/owners.csv)
+            cur_owner = conn.execute("SELECT owner_name, owner_email FROM owners WHERE state = ?", (sim_st,)).fetchone()
+            st_owner_email = cur_owner["owner_email"] if cur_owner else "basha.shaikirfan@gmail.com"
+            st_owner_name = cur_owner["owner_name"] if cur_owner else f"{sim_tm} Operations Lead"
+
             cur_sim = conn.execute(
                 "SELECT * FROM component_records WHERE state = ? AND team = ? ORDER BY CAST(env_no AS INTEGER)",
                 (sim_st, sim_tm)
@@ -1630,18 +1636,24 @@ def render_governance_center() -> None:
 
             if sim_recs:
                 sim_opts = {f"{r['schema_name']} ({r['environment']}) · {ui.COMPONENT_CODE.get(r['component'], r['component'])}": r for r in sim_recs}
+                
+                sim_c3, sim_c4 = st.columns([1.8, 1.6])
                 sim_pick_lbl = sim_c3.selectbox("Target Entity", list(sim_opts), key="sim_entity_pick", label_visibility="collapsed")
                 sim_chosen = sim_opts[sim_pick_lbl]
+
+                # User validation emails
+                valid_emails = ["basha.shaikirfan@gmail.com", "dataengineerib@gmail.com"]
+                recip_idx = valid_emails.index(st_owner_email) if st_owner_email in valid_emails else 0
+                selected_recip = sim_c4.selectbox("Audit Recipient", valid_emails, index=recip_idx, key="sim_recip", label_visibility="collapsed")
 
                 exp_dt = pd.to_datetime(sim_chosen["exp_date"]).date()
                 days_left = (exp_dt - date.today()).days
                 team_meta = ui.TEAM_META.get(sim_tm, ui.TEAM_META["Core"])
-                owner_email = f"{sim_tm.lower().replace(' ', '')}-team@ets.internal"
-                cp_code = ui.COMPONENT_CODE.get(sim_chosen["component"], sim_chosen["component"])
-                cp_icon = ui.COMPONENT_ICONS.get(sim_chosen["component"], "📦")
+                recip_name = st_owner_name if selected_recip == st_owner_email else ("Irfan Shaik" if "irfan" in selected_recip.lower() else "Data Engineer IB")
 
                 sim_mock = {
                     "id": sim_chosen["id"],
+                    "username": sim_chosen.get("schema_name", "sim_user"),
                     "schema_name": sim_chosen["schema_name"],
                     "state": sim_chosen["state"],
                     "environment": sim_chosen["environment"],
@@ -1650,8 +1662,8 @@ def render_governance_center() -> None:
                     "exp_date": str(exp_dt),
                     "days_left": days_left,
                     "team": sim_tm,
-                    "owner_email": owner_email,
-                    "owner_name": f"{sim_tm} Operations Lead",
+                    "owner_email": selected_recip,
+                    "owner_name": recip_name,
                     "team_color": team_meta["color"],
                     "team_lead": team_meta["lead"],
                     "frequency_blurb": "Production Operations Escalation",
@@ -1665,21 +1677,39 @@ def render_governance_center() -> None:
                 <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
                   <div style="background:#0b1120;border-bottom:1px solid var(--rule);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;">
                     <div style="display:flex;align-items:center;gap:6px;">
-                      <span style="font-size:10px;font-weight:700;color:#38bdf8;font-family:var(--mono);letter-spacing:0.06em;">EMAIL DISPATCH PREVIEW</span>
+                      <span style="font-size:10px;font-weight:700;color:#38bdf8;font-family:var(--mono);letter-spacing:0.06em;">EMAIL ALERT DISPATCH PREVIEW &amp; SIMULATOR</span>
                     </div>
-                    <span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:8.5px;font-weight:700;">● Production Template</span>
+                    <span class="pill" style="color:#f59e0b;background:rgba(245,158,11,0.15);font-size:8.5px;font-weight:700;">● Simulation Mode (No Live SMTP)</span>
                   </div>
                   <div style="background:#0f172a;border-bottom:1px solid rgba(255,255,255,0.06);padding:5px 10px;font-size:10px;display:flex;flex-direction:column;gap:3px;">
-                    <div><span style="color:#64748b;font-weight:600;">To:</span> <code style="color:#f8fafc;font-size:10.5px;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:3px;">{sim_mock['owner_email']}</code></div>
+                    <div><span style="color:#64748b;font-weight:600;">To:</span> <b style="color:#f8fafc;">{sim_mock['owner_name']}</b> &lt;<code style="color:#38bdf8;font-size:10px;background:rgba(56,189,248,0.1);padding:1px 6px;border-radius:3px;">{sim_mock['owner_email']}</code>&gt;</div>
                     <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:#64748b;font-weight:600;">Subject:</span> <span style="color:#38bdf8;font-weight:600;font-size:10.5px;">{email_subject}</span></div>
                   </div>
                   <div style="background:#070b14;padding:7px;">
-                    <div style="max-height:165px;overflow-y:auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:5px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.15);">
+                    <div style="max-height:160px;overflow-y:auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:5px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.15);">
                       {email_html}
                     </div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                disp_c1, disp_c2 = st.columns([2.5, 1.5])
+                with disp_c1:
+                    st.markdown("<div style='font-size:9.5px;color:#94a3b8;padding-top:4px;'>Simulate automated dispatch and log to compliance ledger:</div>", unsafe_allow_html=True)
+                with disp_c2:
+                    if st.button("▶ Trigger Dry-Run Dispatch", key="gov_trigger_dispatch", type="secondary", use_container_width=True):
+                        conn_disp = get_connection(DB_PATH)
+                        sim_rec_log = {
+                            "state": sim_mock["state"],
+                            "username": sim_chosen.get("schema_name", "sim_user"),
+                            "schema_name": sim_mock["schema_name"],
+                            "exp_date": sim_mock["exp_date"],
+                        }
+                        mark_sent(conn_disp, sim_rec_log)
+                        conn_disp.close()
+                        bust_cache()
+                        st.toast(f"Simulated dispatch logged for {sim_mock['owner_email']}", icon="📧")
+                        rerun()
 
         with act_tab3:
             st.markdown(f"""
@@ -1698,6 +1728,26 @@ def render_governance_center() -> None:
               </table>
             </div>
             """, unsafe_allow_html=True)
+
+            conn_audit = get_connection(DB_PATH)
+            recent_logs = conn_audit.execute(
+                "SELECT state, schema_name, last_sent_at, times_sent FROM reminder_log ORDER BY last_sent_at DESC LIMIT 4"
+            ).fetchall()
+            conn_audit.close()
+            if recent_logs:
+                rl_rows = "".join(
+                    f"<tr><td class='m'><b>{r['state']}</b></td><td class='m'><code>{r['schema_name']}</code></td><td class='m'>{r['last_sent_at']}</td><td class='m r'><b>{r['times_sent']}</b></td></tr>"
+                    for r in recent_logs
+                )
+                st.markdown(f"""
+                <div style="border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-bottom:6px;">
+                  <table class="tblx" style="font-size:9.5px;">
+                    <tr><th>State</th><th>Entity Audited</th><th>Last Audit Date</th><th class="r">Dispatches</th></tr>
+                    {rl_rows}
+                  </table>
+                </div>
+                """, unsafe_allow_html=True)
+
             if st.button("⚡ Trigger Immediate Re-ingest (AST Parser)", key="gov_reingest_tab", type="primary", use_container_width=True):
                 t_start = datetime.now()
                 with st.spinner("Executing workbook parser..."):

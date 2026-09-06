@@ -379,14 +379,24 @@ button[data-baseweb="tab"][aria-selected="true"] span {{
 .stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus-visible {{
   outline:2px solid var(--accent); outline-offset:1px;
 }}
-.stButton > button[kind="primary"] {{
-  background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
-  border:1px solid #38bdf8 !important; color:#fff !important; font-weight:700;
-  box-shadow:0 0 10px rgba(56,189,248,0.25);
+.stButton > button[kind="primary"]:not(:disabled) {{
+  background:linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+  border:1px solid #38bdf8 !important; color:#ffffff !important; font-weight:700 !important;
+  box-shadow:0 0 12px rgba(56,189,248,0.35) !important;
 }}
-.stButton > button[kind="primary"]:hover {{
-  background:linear-gradient(135deg, #38bdf8 0%, #0284c7 100%) !important;
-  color:#fff !important; box-shadow:0 0 14px rgba(56,189,248,0.4);
+.stButton > button[kind="primary"]:not(:disabled):hover {{
+  background:linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%) !important;
+  color:#000000 !important; box-shadow:0 0 16px rgba(56,189,248,0.55) !important;
+}}
+.stButton > button:disabled,
+.stButton > button[kind="primary"]:disabled,
+.stButton > button[disabled] {{
+  background:rgba(30, 41, 59, 0.6) !important;
+  border:1px solid rgba(255, 255, 255, 0.08) !important;
+  color:#64748b !important;
+  box-shadow:none !important;
+  cursor:not-allowed !important;
+  opacity:0.65 !important;
 }}
 
 /* ---- state chooser ----------------------------------------------------- */

@@ -1302,14 +1302,14 @@ function renderKpis(S){
     if (b === "Expired" && c["Expired"] > 0){
       const expCnt = c["Expired"];
       const expNoun = expCnt === 1 ? "stale credential" : "stale credentials";
-      soWhatHtml = '<div class="so-what" style="color:#fca5a5;font-weight:700;font-size:8.5px;" title="Action: ' + expCnt + ' ' + expNoun + ' violate security policy. Rotate immediately.">ACTION: Rotate ' + expCnt + ' ' + expNoun + '</div>';
+      soWhatHtml = '<div class="so-what" style="color:#fca5a5;font-weight:700;font-size:8.5px;" title="Rotate ' + expCnt + ' ' + expNoun + ' immediately to restore security compliance.">Rotate ' + expCnt + ' ' + expNoun + '</div>';
     } else if (b === "Critical" && c["Critical"] > 0){
       const critCnt = c["Critical"];
       const critNoun = critCnt === 1 ? "renewal" : "renewals";
       soWhatHtml = '<div class="so-what" style="font-size:8.5px;" title="Stage: ' + critCnt + ' ' + critNoun + ' due within 15 days.">Stage: ' + critCnt + ' ' + critNoun + ' due in 15d</div>';
     }
 
-    const domBadge = isDom ? '<span style="color:#fff;background:#ef4444;font-size:8px;font-weight:800;padding:1.5px 5px;border-radius:3px;margin-left:5px;letter-spacing:0.05em;box-shadow:0 0 8px rgba(239,68,68,0.6);">ACTION REQUIRED</span>' : '';
+    const domBadge = isDom ? '<span style="color:#fff;background:#ef4444;font-size:8px;font-weight:800;padding:1.5px 5px;border-radius:3px;margin-left:5px;letter-spacing:0.05em;box-shadow:0 0 8px rgba(239,68,68,0.6);">CRITICAL RISK</span>' : '';
 
     tiles.push('<button class="kpi" type="button" data-act="band" data-val="' + esc(b)
       + '" aria-pressed="' + (S.band === b ? "true" : "false")
