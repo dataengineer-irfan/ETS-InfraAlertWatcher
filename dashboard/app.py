@@ -708,7 +708,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
         else:
             # Persistent Interactive Breadcrumb Header & Selection Toolbar
-            bc_parts = ["<span style='color:var(--accent);font-weight:700;'>🏠 All</span>"]
+            bc_parts = ["<span style='color:var(--accent);font-weight:700;font-size:10px;'>All</span>"]
             d_st = state_filter if state_filter != "All States" else None
             if not d_st and len(tree_open) > 0:
                 open_st = [s for s in STATES if s in tree_open]
@@ -728,17 +728,16 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     d_cp = open_cp[0]
 
             if d_st:
-                bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;'>📍 {d_st}</span>")
+                bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;font-size:10px;'>State: {d_st}</span>")
             if d_tm:
-                bc_parts.append(f"<span style='color:#cbd5e1;'>👥 {d_tm}</span>")
+                bc_parts.append(f"<span style='color:#cbd5e1;font-size:10px;'>Team: {d_tm}</span>")
             if d_cp:
                 cp_c = ui.COMPONENT_CODE.get(d_cp, d_cp)
-                cp_ic = ui.COMPONENT_ICONS.get(d_cp, "📦")
-                bc_parts.append(f"<span style='color:#94a3b8;'>{cp_ic} {cp_c}</span>")
+                bc_parts.append(f"<span style='color:#94a3b8;font-size:10px;'>Comp: {cp_c}</span>")
             if cur_kpi != "All":
-                bc_parts.append(f"<span style='color:var(--accent);font-weight:600;'>⚡ {cur_kpi}</span>")
+                bc_parts.append(f"<span style='color:var(--accent);font-weight:600;font-size:10px;'>Status: {cur_kpi}</span>")
 
-            bc_trail = " <span style='color:var(--rule);font-size:9px;'>›</span> ".join(bc_parts)
+            bc_trail = " <span style='color:var(--rule);font-size:10px;margin:0 2px;'>›</span> ".join(bc_parts)
 
             selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
@@ -768,13 +767,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tree_open.clear()
                     tree_open.add(path)
 
-            bc_c1, bc_c2 = st.columns([2.0, 2.4])
+            bc_c1, bc_c2 = st.columns([1.1, 2.9])
             with bc_c1:
-                st.markdown(f"<div style='font-size:10px;padding:2px 2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:10px;padding:5px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
             with bc_c2:
-                tc1, tc2, tc3, tc4 = st.columns([0.7, 0.7, 1.6, 2.0])
+                tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.4])
                 with tc1:
-                    if st.button("＋", key="tree_exp_all", help="Expand All Branches"):
+                    if st.button("Expand", key="tree_exp_all", use_container_width=True):
                         for s_val in filtered["state"].unique():
                             tree_open.add(str(s_val))
                             st_sub = filtered[filtered["state"] == s_val]
@@ -788,24 +787,24 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                         tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
                         rerun()
                 with tc2:
-                    if st.button("－", key="tree_col_all", help="Collapse All Branches"):
+                    if st.button("Collapse", key="tree_col_all", use_container_width=True):
                         tree_open.clear()
                         rerun()
                 with tc3:
                     all_f_ids = set(filtered["id"].tolist())
                     n_sel = len(selected_entity_ids)
                     if n_sel > 0:
-                        if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", help="Clear selection"):
+                        if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
                             selected_entity_ids.clear()
                             rerun()
                     else:
-                        if st.button("Select All", key="tree_select_all_btn", help="Select all filtered entities"):
+                        if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
                             selected_entity_ids.update(all_f_ids)
                             rerun()
                 with tc4:
                     n_sel = len(selected_entity_ids)
-                    btn_txt = f"⚡ Batch ({n_sel})" if n_sel > 0 else "⚡ Batch Editor"
-                    if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True, help="Send selected entities to Batch Grid Editor"):
+                    btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
+                    if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
                         st.session_state["op_target_tab"] = "batch"
                         rerun()
 
@@ -825,7 +824,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 # Level 1: State Node
                 s_c0, s_c1, s_c2 = st.columns([0.6, 3.8, 0.6])
                 with s_c0:
-                    if st.button(st_sym, key=f"sel_st_{st_val}", use_container_width=True, help=f"Toggle all {len(st_child_ids)} entities in State {st_val}"):
+                    if st.button(st_sym, key=f"sel_st_{st_val}", use_container_width=True):
                         if st_uncheck:
                             selected_entity_ids.difference_update(st_child_ids)
                         else:
@@ -861,7 +860,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         # Level 2: Team Node
                         t_c0, t_c1, t_c2 = st.columns([0.6, 3.8, 0.6])
                         with t_c0:
-                            if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True, help=f"Toggle all {len(tm_child_ids)} entities in Team {tm_val}"):
+                            if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True):
                                 if tm_uncheck:
                                     selected_entity_ids.difference_update(tm_child_ids)
                                 else:
@@ -896,11 +895,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 # Level 3: Component Node
                                 cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
                                 with cp_c0:
-                                    if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True, help=f"Toggle all {len(cp_child_ids)} entities in {cp_code}"):
+                                    if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
                                         if cp_uncheck:
-                                            selected_entity_ids.difference_update(cp_child_ids)
+                                             selected_entity_ids.difference_update(cp_child_ids)
                                         else:
-                                            selected_entity_ids.update(cp_child_ids)
+                                             selected_entity_ids.update(cp_child_ids)
                                         rerun()
                                 handy_cp_head = f"{cp_icon} {cp_code}"
                                 with cp_c1:
@@ -928,7 +927,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                         # Level 4: Environment Node
                                         ev_c0, ev_c1, ev_c2 = st.columns([0.6, 3.8, 0.6])
                                         with ev_c0:
-                                            if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True, help=f"Toggle all {len(ev_child_ids)} entities in {ev_val}"):
+                                            if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
                                                 if ev_uncheck:
                                                     selected_entity_ids.difference_update(ev_child_ids)
                                                 else:
@@ -1069,11 +1068,12 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 </div>
                 """, unsafe_allow_html=True)
             with c_b:
+                exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
                 st.markdown(f"""
                 <div class="card" style="font-size:11px;line-height:1.45;padding:5px 8px;">
                   <div><b>Current Expiry:</b> <code style="font-weight:700;color:{meta['color']}">{rec['exp_date']}</code></div>
                   <div><b>Workbook Source:</b> <code>{rec['source_exp_date']}</code></div>
-                  <div><b>Life Remaining:</b> <b>{ui.fmt_days(rec['days_left'])}</b> ({rec['days_left']} days)</div>
+                  <div><b>Life Remaining:</b> <b style="color:{meta['color']};">{ui.fmt_days(rec['days_left'])}</b> <span style="color:#94a3b8;font-size:10px;">{exp_detail}</span></div>
                   <div><b>Quarter Horizon:</b> <code>{rec['quarter']}</code></div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1710,16 +1710,22 @@ def render_governance_center() -> None:
                 email_html = render_email(sim_mock)
 
                 st.markdown(f"""
-                <div style="border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--card);">
-                  <div style="background:#0f172a;border-bottom:1px solid var(--rule);padding:5px 8px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px;">
-                    <span><b>To:</b> <code style="color:#f8fafc;">{sim_mock['owner_email']}</code></span>
-                    <span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:9px;">● Production Rendering</span>
+                <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+                  <div style="background:#0b1120;border-bottom:1px solid var(--rule);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ef4444;opacity:0.85;"></span>
+                      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f59e0b;opacity:0.85;"></span>
+                      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#10b981;opacity:0.85;"></span>
+                      <span style="font-size:10px;font-weight:700;color:#94a3b8;margin-left:6px;font-family:var(--mono);letter-spacing:0.04em;">EMAIL DISPATCH PREVIEW</span>
+                    </div>
+                    <span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:8.5px;font-weight:700;">● Production Template</span>
                   </div>
-                  <div style="background:#0f172a;padding:8px 10px;border-bottom:1px solid var(--rule);font-size:10.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    <b>Subject:</b> <span style="color:#38bdf8;font-weight:600;">{email_subject}</span>
+                  <div style="background:#0f172a;border-bottom:1px solid rgba(255,255,255,0.06);padding:5px 10px;font-size:10px;display:flex;flex-direction:column;gap:3px;">
+                    <div><span style="color:#64748b;font-weight:600;">To:</span> <code style="color:#f8fafc;font-size:10.5px;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:3px;">{sim_mock['owner_email']}</code></div>
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:#64748b;font-weight:600;">Subject:</span> <span style="color:#38bdf8;font-weight:600;font-size:10.5px;">{email_subject}</span></div>
                   </div>
-                  <div style="background:#f8fafc;padding:6px;">
-                    <div style="max-height:175px;overflow-y:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:4px;">
+                  <div style="background:#070b14;padding:7px;">
+                    <div style="max-height:165px;overflow-y:auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:5px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.15);">
                       {email_html}
                     </div>
                   </div>

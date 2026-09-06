@@ -1042,14 +1042,23 @@ function renderNarrative(S){
 
 // ---- activity comparison strip ---------------------------------------
 function renderSinceVisit(snaps){
-  if (!snaps || snaps.length < 2){
-    return "<b>" + DATA.records.length + "</b> tracked as of <b>" + esc(DATA.asOf) + "</b>";
+  const tot = DATA.records.length;
+  const hlth = DATA.records.filter(r => r.band === "Healthy").length;
+  const pct = tot ? (hlth / tot * 100).toFixed(1) : "100.0";
+  let deltaText = '<span style="color:var(--healthy)">0 new overdue</span>';
+  if (snaps && snaps.length >= 2){
+    const curr = snaps[snaps.length - 1], prev = snaps[snaps.length - 2];
+    const dExp = curr.expired - prev.expired;
+    if (dExp > 0) deltaText = '<b style="color:var(--expired)">+' + dExp + " overdue</b>";
   }
-  const curr = snaps[snaps.length - 1], prev = snaps[snaps.length - 2];
-  const dExp = curr.expired - prev.expired;
-  const deltaText = dExp > 0 ? ('<b style="color:var(--expired)">+' + dExp + " overdue</b>") : '<span style="color:var(--healthy)">0 new overdue</span>';
-  return "<b>" + DATA.records.length + "</b> items as of <b>" + esc(DATA.asOf) + "</b><br/>"
-    + '<span style="color:var(--slate)">Last check: ' + deltaText + "</span>";
+  return '<div style="display:inline-flex;align-items:center;gap:8px;text-align:right;">'
+    + '<div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.45);border-radius:4px;padding:2px 7px;font-family:var(--mono);text-align:center;line-height:1.2;">'
+    + '<span style="font-size:10.5px;font-weight:700;color:#10b981;">' + pct + '% COMPLIANT</span>'
+    + '<span style="font-size:8px;color:#94a3b8;display:block;">' + hlth + '/' + tot + ' Fleet Health</span>'
+    + '</div>'
+    + '<div><b>' + tot + '</b> items as of <b>' + esc(DATA.asOf) + '</b><br/>'
+    + '<span style="color:var(--slate)">Last check: ' + deltaText + '</span></div>'
+    + '</div>';
 }
 
 // ---- guided story mode step generator (hard cap <= 80 chars per step) --

@@ -368,8 +368,8 @@ button[data-baseweb="tab"][aria-selected="true"] span {{
 /* ---- buttons ----------------------------------------------------------- */
 .stButton > button, [data-testid="stDownloadButton"] > button {{
   width:100%; background:var(--card) !important; color:#f8fafc !important;
-  border:none !important; border-radius:6px; padding:.3rem .6rem; min-height:30px;
-  font-family:var(--ui); font-size:11.5px; font-weight:600;
+  border:none !important; border-radius:6px; padding:.3rem .5rem; min-height:30px;
+  font-family:var(--ui); font-size:11.5px; font-weight:600; white-space:nowrap !important;
   box-shadow:0 1px 3px rgba(0,0,0,0.35);
   transition:all .15s ease;
 }}
