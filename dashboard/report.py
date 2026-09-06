@@ -404,7 +404,8 @@ body{
               color:var(--mute); font-size:11px; line-height:1; padding:0 2px; }
 
 /* ---- KPI strip ------------------------------------------------------- */
-.kpis{ display:grid; gap:var(--gap); grid-template-columns:1fr 1.85fr 1fr 1fr 1fr 1.05fr; min-height:0; min-width:0; }
+.kpis{ display:grid; gap:var(--gap); grid-template-columns:repeat(5,minmax(0,1fr)) minmax(0,1.05fr); min-height:0; min-width:0; }
+.kpis:has(.kpi[data-dom]){ grid-template-columns:minmax(0,1fr) minmax(0,1.9fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.05fr); }
 .kpi{
   background:var(--card); border:none; border-left:3px solid var(--edge,transparent);
   border-radius:7px; box-shadow:var(--shadow); padding:5px 8px 5px; cursor:pointer;
@@ -445,14 +446,23 @@ body{
 }
 
 .kpi[data-dom]{
-  background: linear-gradient(135deg, rgba(239,68,68,0.24), rgba(15,23,42,0.95)) !important;
-  border: 1px solid rgba(239,68,68,0.55) !important;
-  border-left: 5px solid #ef4444 !important;
-  box-shadow: 0 0 14px rgba(239,68,68,0.25) !important;
+  background: linear-gradient(135deg, rgba(239,68,68,0.28) 0%, rgba(30,12,16,0.96) 100%) !important;
+  border: 2px solid #ef4444 !important;
+  border-left: 6px solid #ef4444 !important;
+  box-shadow: 0 4px 20px rgba(239,68,68,0.35), inset 0 0 16px rgba(239,68,68,0.18) !important;
 }
-.kpi[data-dom] .v{ font-size:clamp(24px,4.6vh,34px); font-weight:800; color:#f87171 !important; }
-.kpi[data-dom] .k{ font-size:11px; font-weight:700; color:#fecaca !important; }
-.kpis:has(.kpi[data-dom]) .kpi:not([data-dom]){ opacity:0.86; }
+.kpi[data-dom] .v{
+  font-size: clamp(26px,5vh,38px) !important;
+  font-weight: 800 !important;
+  color: #fca5a5 !important;
+  text-shadow: 0 0 16px rgba(239,68,68,0.5);
+}
+.kpi[data-dom] .k{
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  color: #fecaca !important;
+}
+.kpis:has(.kpi[data-dom]) .kpi:not([data-dom]){ opacity:0.82; }
 .kpis:has(.kpi[data-dom]) .kpi:not([data-dom]):hover{ opacity:1; }
 
 /* ---- component cards ------------------------------------------------- */
@@ -698,7 +708,7 @@ body{
 .rowC .ptitle{ font-size:10px; }
 
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
-@media (max-width:1150px){
+@media (max-width:920px){
   .kpis{ grid-template-columns:repeat(3,minmax(0,1fr)); }
   .shell{ grid-template-rows:auto auto minmax(96px,.9fr) minmax(132px,1.5fr) minmax(142px,1.8fr); }
 }
@@ -1274,7 +1284,6 @@ function renderKpis(S){
   const tiles = [
     '<button class="kpi" type="button" data-act="band" data-val="" aria-pressed="'
     + (S.band ? "false" : "true") + '"'
-    + (!hasExpired ? ' data-dom="1"' : "")
     + ' data-tip="Show every health status">'
     + '<div class="kpi-row1"><div class="v">' + total + '</div>' + trackedSpark + '</div>'
     + '<div class="k">Tracked items</div>'
@@ -1291,12 +1300,16 @@ function renderKpis(S){
 
     let soWhatHtml = "";
     if (b === "Expired" && c["Expired"] > 0){
-      soWhatHtml = '<div class="so-what" title="So what: Stale credentials violate policy. Now what: Rotate today.">So what: Stale credentials. Now what: Rotate today.</div>';
+      const expCnt = c["Expired"];
+      const expNoun = expCnt === 1 ? "stale credential" : "stale credentials";
+      soWhatHtml = '<div class="so-what" style="color:#fca5a5;font-weight:700;font-size:8.5px;" title="Action: ' + expCnt + ' ' + expNoun + ' violate security policy. Rotate immediately.">ACTION: Rotate ' + expCnt + ' ' + expNoun + '</div>';
     } else if (b === "Critical" && c["Critical"] > 0){
-      soWhatHtml = '<div class="so-what" title="So what: Expiry within 15 days. Now what: Stage renewal workflow.">So what: Expiry in 15d. Now what: Stage renewal workflow.</div>';
+      const critCnt = c["Critical"];
+      const critNoun = critCnt === 1 ? "renewal" : "renewals";
+      soWhatHtml = '<div class="so-what" style="font-size:8.5px;" title="Stage: ' + critCnt + ' ' + critNoun + ' due within 15 days.">Stage: ' + critCnt + ' ' + critNoun + ' due in 15d</div>';
     }
 
-    const domBadge = isDom ? '<span style="color:#ef4444;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.4);font-size:7.5px;font-weight:800;padding:1px 4px;border-radius:3px;margin-left:4px;letter-spacing:0.04em;">ACTION</span>' : '';
+    const domBadge = isDom ? '<span style="color:#fff;background:#ef4444;font-size:8px;font-weight:800;padding:1.5px 5px;border-radius:3px;margin-left:5px;letter-spacing:0.05em;box-shadow:0 0 8px rgba(239,68,68,0.6);">ACTION REQUIRED</span>' : '';
 
     tiles.push('<button class="kpi" type="button" data-act="band" data-val="' + esc(b)
       + '" aria-pressed="' + (S.band === b ? "true" : "false")
@@ -1379,15 +1392,15 @@ function focusHint(S){
   const overdueN = rs.filter(r => r.days < 0).length;
   const in90 = rs.filter(r => r.days >= 0 && r.days <= 90).length;
   if (nx.days < 0){
-    return overdueN === 1 ? "1 overdue item requires credential rotation" : overdueN + " overdue items require credential rotation";
+    return overdueN === 1 ? "1 overdue item requires rotation" : overdueN + " overdue items require rotation";
   }
-  let msg = "Next renewal in " + (nx.days === 0 ? "today" : nx.days + (nx.days === 1 ? " day" : " days")) + " (" + fmtDate(nx.exp) + ")";
+  let msg = "Next: " + fmtDate(nx.exp) + " (" + fmtDays(nx.days) + ")";
   if (in90 > 1){
     const rem = in90 - 1;
-    msg += ", then " + rem + (rem === 1 ? " more within 90 days" : " more within 90 days");
+    msg += " · " + rem + (rem === 1 ? " more in 90d" : " more in 90d");
   }
   if (overdueN > 0){
-    msg += " · " + (overdueN === 1 ? "1 overdue item requires rotation" : overdueN + " overdue items require rotation");
+    msg += " · " + (overdueN === 1 ? "1 overdue" : overdueN + " overdue");
   }
   return msg;
 }
@@ -2220,7 +2233,9 @@ function apply(){
   put("mKpis", renderKpis(S));
   put("mComps", renderComps(S));
   put("mFocusSeg", seg("focus", FOCUS_VIEWS, S.focus));
-  put("mFocusHint", focusHint(S));
+  const fHint = focusHint(S);
+  put("mFocusHint", esc(fHint));
+  if (MOUNTS.mFocusHint) MOUNTS.mFocusHint.title = fHint;
   put("mFocus", renderFocus(S));
   put("mTableHint", tableHint(S));
   put("mTableSeg", seg("tview", [

@@ -693,8 +693,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     else:
         st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 5. Master-Detail Workspace (53% Left Hierarchy Tree / 47% Right Inspector)
-    left_col, _, right_col = st.columns([2.15, 0.04, 1.85])
+    # 5. Master-Detail Workspace (49% Left Hierarchy Tree / 51% Right Inspector)
+    left_col, _, right_col = st.columns([1.98, 0.04, 2.02])
 
     if filtered.empty:
         selected_id = None
@@ -956,7 +956,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                 is_leaf_sel = r.id in selected_entity_ids
                                                 r_bg = "background:rgba(56,189,248,0.2);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_act else "background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.04);"
 
-                                                row_c0, row_c1 = st.columns([0.6, 4.4])
+                                                row_c0, row_c1, row_c2 = st.columns([0.6, 3.0, 1.4])
                                                 with row_c0:
                                                     if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True):
                                                         if is_leaf_sel:
@@ -965,10 +965,16 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                             selected_entity_ids.add(r.id)
                                                         rerun()
                                                 with row_c1:
-                                                    leaf_label = f"{r.schema_name}   ·   {ui.fmt_days(r.days_left)}"
-                                                    if st.button(leaf_label, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                                                    if st.button(r.schema_name, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
                                                         st.session_state["op_active_id"] = r.id
                                                         rerun()
+                                                with row_c2:
+                                                    r_c = r_meta["color"]
+                                                    r_s = r_meta["symbol"]
+                                                    st.markdown(
+                                                        f"<div style='text-align:right;padding-top:6px;padding-right:4px;font-family:var(--mono,monospace);font-size:10px;font-weight:600;color:{r_c};white-space:nowrap;'>{r_s} {ui.fmt_days(r.days_left)}</div>",
+                                                        unsafe_allow_html=True
+                                                    )
             st.markdown("</div>", unsafe_allow_html=True)
 
     with right_col:
@@ -1235,9 +1241,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     column_config={
                         "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
                         "env_label": st.column_config.TextColumn("Env", disabled=True, width="small"),
-                        "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width="medium"),
+                        "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width="small"),
                         "band": st.column_config.TextColumn("Status", disabled=True, width="small"),
-                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="small"),
+                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="medium"),
                     },
                 )
 
