@@ -161,7 +161,7 @@ body{
 }
 .rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
        min-height:0; }
-.rowC{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);
+.rowC{ display:grid; gap:var(--gap); grid-template-columns:1fr;
        min-height:0; }
 
 /* ---- header / unified command bar ----------------------------------- */
@@ -176,6 +176,36 @@ body{
 .head-slicers{
   justify-content:space-between; padding-bottom:3px; border-bottom:1px solid var(--rule-soft);
 }
+.head-dominant{
+  padding:3px 8px;
+  background:linear-gradient(90deg, rgba(16,185,129,0.14) 0%, rgba(15,23,42,0.6) 100%);
+  border:1px solid rgba(16,185,129,0.32);
+  border-radius:5px;
+  display:flex; align-items:center; min-height:22px;
+}
+.dominant-compliance-inner{
+  display:inline-flex; align-items:baseline; gap:8px; width:100%; min-width:0;
+  overflow:hidden; white-space:nowrap;
+}
+.dom-badge{
+  font-family:var(--mono); font-size:11.5px; font-weight:800; letter-spacing:.05em;
+  color:#10b981; text-shadow:0 0 10px rgba(16,185,129,0.3); flex:none;
+}
+.dom-divider{ color:var(--rule-soft); font-weight:400; flex:none; }
+.dom-stat{ font-size:10.5px; font-weight:600; color:#f1f5f9; flex:none; }
+.dom-overdue{
+  font-size:10.5px; font-weight:700; color:#f87171; background:rgba(239,68,68,0.18);
+  border:1px solid rgba(239,68,68,0.4); padding:1px 6px; border-radius:4px; flex:none;
+}
+.dom-warn{
+  font-size:10.5px; font-weight:700; color:#fbbf24; background:rgba(245,158,11,0.18);
+  border:1px solid rgba(245,158,11,0.4); padding:1px 6px; border-radius:4px; flex:none;
+}
+.dom-ok{ font-size:10.5px; font-weight:600; color:#34d399; flex:none; }
+.head-secondary{
+  justify-content:space-between; opacity:0.88; padding-top:1px;
+}
+.head-secondary:hover{ opacity:1; }
 .head-status{
   justify-content:space-between;
 }
@@ -374,13 +404,13 @@ body{
               color:var(--mute); font-size:11px; line-height:1; padding:0 2px; }
 
 /* ---- KPI strip ------------------------------------------------------- */
-.kpis{ display:grid; gap:var(--gap); grid-template-columns:repeat(6,minmax(0,1fr)); min-height:0; min-width:0; }
+.kpis{ display:grid; gap:var(--gap); grid-template-columns:1fr 1.85fr 1fr 1fr 1fr 1.05fr; min-height:0; min-width:0; }
 .kpi{
   background:var(--card); border:none; border-left:3px solid var(--edge,transparent);
   border-radius:7px; box-shadow:var(--shadow); padding:5px 8px 5px; cursor:pointer;
   display:flex; flex-direction:column; justify-content:space-between;
   text-align:left; font:inherit; min-width:0; max-width:100%; overflow:hidden;
-  transition:background .12s ease, box-shadow .12s ease; position:relative;
+  transition:background .12s ease, box-shadow .12s ease, opacity .12s ease; position:relative;
 }
 .kpi:hover{ background:var(--sunk); }
 .kpi[aria-pressed="true"]{ background:var(--accent-tint);
@@ -415,13 +445,15 @@ body{
 }
 
 .kpi[data-dom]{
-  background: linear-gradient(135deg, rgba(239,68,68,0.18), rgba(15,23,42,0.92)) !important;
-  border: 1px solid rgba(239,68,68,0.45) !important;
-  border-left: 4px solid #ef4444 !important;
-  box-shadow: 0 0 10px rgba(239,68,68,0.2) !important;
+  background: linear-gradient(135deg, rgba(239,68,68,0.24), rgba(15,23,42,0.95)) !important;
+  border: 1px solid rgba(239,68,68,0.55) !important;
+  border-left: 5px solid #ef4444 !important;
+  box-shadow: 0 0 14px rgba(239,68,68,0.25) !important;
 }
-.kpi[data-dom] .v{ font-size:clamp(22px,4.2vh,32px); font-weight:800; color:#f87171 !important; }
-.kpi[data-dom] .k{ font-size:10.5px; font-weight:700; color:#fecaca !important; }
+.kpi[data-dom] .v{ font-size:clamp(24px,4.6vh,34px); font-weight:800; color:#f87171 !important; }
+.kpi[data-dom] .k{ font-size:11px; font-weight:700; color:#fecaca !important; }
+.kpis:has(.kpi[data-dom]) .kpi:not([data-dom]){ opacity:0.86; }
+.kpis:has(.kpi[data-dom]) .kpi:not([data-dom]):hover{ opacity:1; }
 
 /* ---- component cards ------------------------------------------------- */
 .comps{ display:grid; gap:var(--gap); grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
@@ -687,7 +719,10 @@ _BODY = r"""
       <div class="search-bar" id="mSearch"></div>
       <div class="views" id="mViews"></div>
     </div>
-    <div class="head-row head-status">
+    <div class="head-row head-dominant">
+      <div class="dominant-compliance-inner" id="mDominantCompliance"></div>
+    </div>
+    <div class="head-row head-secondary head-status">
       <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
       <div class="intel-strip" id="mAlertBanner"></div>
       <div class="crumbs" id="mCrumbs"></div>
@@ -711,16 +746,6 @@ _BODY = r"""
   </div>
 
   <div class="rowC">
-    <div class="panel" id="mTablePanel">
-      <div class="phead">
-        <span class="ptitle">Environment &amp; schema detail</span>
-        <span class="phint" id="mTableHint"></span>
-        <div class="seg" id="mTableSeg"></div>
-      </div>
-      <div class="pbody" id="mTable"></div>
-      <div class="pg" id="mPager"></div>
-    </div>
-
     <div class="panel">
       <div class="phead">
         <span class="ptitle">Workload by quarter</span>
@@ -1040,24 +1065,37 @@ function renderNarrative(S){
   return tag + '<span class="narrative-text" title="' + esc(plain) + '">' + text + '</span>';
 }
 
+// ---- dominant north-star compliance banner ----------------------------
+function renderDominantCompliance(S){
+  const rs = rows(S);
+  const tot = rs.length;
+  const hlth = rs.filter(r => r.band === "Healthy").length;
+  const exp = rs.filter(r => r.band === "Expired").length;
+  const crit = rs.filter(r => r.band === "Critical").length;
+  const pct = tot ? (hlth / tot * 100).toFixed(1) : "100.0";
+  const urgentText = exp > 0
+    ? (exp === 1 ? '<span class="dom-overdue">1 Overdue Requires Immediate Renewal</span>' : '<span class="dom-overdue">' + exp + ' Overdue Require Immediate Renewal</span>')
+    : (crit > 0 ? '<span class="dom-warn">' + crit + ' Critical Due in 15d</span>' : '<span class="dom-ok">&#10003; All Systems Operational</span>');
+  return '<span class="dom-badge">' + pct + '% FLEET COMPLIANT</span>'
+    + '<span class="dom-divider">&middot;</span>'
+    + '<span class="dom-stat">' + hlth + '/' + tot + ' Healthy Assets</span>'
+    + '<span class="dom-divider">&middot;</span>'
+    + urgentText;
+}
+
 // ---- activity comparison strip ---------------------------------------
 function renderSinceVisit(snaps){
   const tot = DATA.records.length;
-  const hlth = DATA.records.filter(r => r.band === "Healthy").length;
-  const pct = tot ? (hlth / tot * 100).toFixed(1) : "100.0";
   let deltaText = '<span style="color:var(--healthy)">0 new overdue</span>';
   if (snaps && snaps.length >= 2){
     const curr = snaps[snaps.length - 1], prev = snaps[snaps.length - 2];
     const dExp = curr.expired - prev.expired;
     if (dExp > 0) deltaText = '<b style="color:var(--expired)">+' + dExp + " overdue</b>";
   }
-  return '<div style="display:inline-flex;align-items:center;gap:8px;text-align:right;">'
-    + '<div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.45);border-radius:4px;padding:2px 7px;font-family:var(--mono);text-align:center;line-height:1.2;">'
-    + '<span style="font-size:10.5px;font-weight:700;color:#10b981;">' + pct + '% COMPLIANT</span>'
-    + '<span style="font-size:8px;color:#94a3b8;display:block;">' + hlth + '/' + tot + ' Fleet Health</span>'
-    + '</div>'
-    + '<div><b>' + tot + '</b> items as of <b>' + esc(DATA.asOf) + '</b><br/>'
-    + '<span style="color:var(--slate)">Last check: ' + deltaText + '</span></div>'
+  return '<div style="display:inline-flex;align-items:center;gap:6px;text-align:right;">'
+    + '<span><b>' + tot + '</b> items as of <b>' + esc(DATA.asOf) + '</b></span>'
+    + '<span style="color:var(--rule-soft)">&middot;</span>'
+    + '<span style="color:var(--slate)">Last check: ' + deltaText + '</span>'
     + '</div>';
 }
 
@@ -1078,7 +1116,7 @@ function storySteps(S){
       target: "mKpis",
       title: "2. Immediate Risk",
       desc: expired.length
-        ? "Risk Profile: " + expired.length + " overdue item(s) detected; credential rotation required."
+        ? "Risk Profile: " + expired.length + (expired.length === 1 ? " overdue item detected; credential rotation required." : " overdue items detected; credential rotation required.")
         : "Risk Profile: Zero expired items detected across all environments.",
       hint: "Filter by 'Needs Attention' anytime to isolate these items."
     },
@@ -1338,8 +1376,20 @@ function focusHint(S){
     return "Operational maintenance windows and recurrence cadence per State and Team";
   const rs = rows(S), nx = soonest(rs.filter(r => r.days >= 0)) || soonest(rs);
   if (!nx) return "Nothing in scope";
-  return (nx.days < 0 ? "Oldest overdue item lapsed " + fmtDays(nx.days)
-                      : "Next expiry " + fmtDaysLong(nx.days)) + " - " + fmtDate(nx.exp);
+  const overdueN = rs.filter(r => r.days < 0).length;
+  const in90 = rs.filter(r => r.days >= 0 && r.days <= 90).length;
+  if (nx.days < 0){
+    return overdueN === 1 ? "1 overdue item requires credential rotation" : overdueN + " overdue items require credential rotation";
+  }
+  let msg = "Next renewal in " + (nx.days === 0 ? "today" : nx.days + (nx.days === 1 ? " day" : " days")) + " (" + fmtDate(nx.exp) + ")";
+  if (in90 > 1){
+    const rem = in90 - 1;
+    msg += ", then " + rem + (rem === 1 ? " more within 90 days" : " more within 90 days");
+  }
+  if (overdueN > 0){
+    msg += " · " + (overdueN === 1 ? "1 overdue item requires rotation" : overdueN + " overdue items require rotation");
+  }
+  return msg;
 }
 
 const TEAM_COLOR = {
@@ -1752,7 +1802,7 @@ function renderEnvs(S){
       + '" data-hl-env="' + esc(env) + '"'
       + ' aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc(env + " - " + (DATA.envBlurb[env] || env) + ". " + g.n
-      + " item(s) [" + (expN ? expN + " Expired, " : "") + (warnN ? warnN + " Warning, " : "") + hlthN + " Healthy]. Soonest " + fmtDaysLong(g.min) + ". "
+      + (g.n === 1 ? " item [" : " items [") + (expN ? expN + " Expired, " : "") + (warnN ? warnN + " Warning, " : "") + hlthN + " Healthy]. Soonest " + fmtDaysLong(g.min) + ". "
       + (on ? "Click again to clear." : "Click to focus environments."))
       + '"><div class="en">' + esc(env) + '</div><div class="eb">'
       + esc(DATA.envBlurb[env] || "") + '</div>' + bar + '<div class="er"><span>' + g.n + " item"
@@ -1791,7 +1841,7 @@ function renderCoverage(S){
         + esc(key + "|" + CODE[comp]) + '" style="background:' + (solid ? META[band].color : META[band].tint)
         + ";color:" + (solid ? "#fff" : META[band].color) + ";border-color:" + META[band].color
         + (solid ? "" : ";border-color:rgba(0,0,0,0)") + '" data-tip="'
-        + esc(key + " / " + comp + ": " + c.n + " item(s), soonest " + fmtDaysLong(c.min)
+        + esc(key + " / " + comp + ": " + c.n + (c.n === 1 ? " item, soonest " : " items, soonest ") + fmtDaysLong(c.min)
         + ". Click to filter.") + '">' + esc(fmtDays(c.min)) + "</button></td>";
     }).join("");
     const sub = rowKey === "state" ? "" : ' <u>' + esc([...meta.nos].sort((a, b) => a - b).join("/")) + "</u>";
@@ -2133,7 +2183,7 @@ const S = {
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
-["mWhere", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
+["mWhere", "mDominantCompliance", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenHint",
  "mWhenSeg", "mWhen", "mStoryModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
@@ -2151,6 +2201,7 @@ function animateNumbers(){
 
 function apply(){
   put("mWhere", esc(whereLabel(S)));
+  put("mDominantCompliance", renderDominantCompliance(S));
   put("mCascades", renderCascades(S));
   put("mAlertBanner", renderAlertBanner(S));
   put("mNarrative", renderNarrative(S));
@@ -2495,7 +2546,7 @@ function relayout(){
 apply();
 relayout();
 addEventListener("resize", relayout);
-if (window.ResizeObserver) new ResizeObserver(() => { if (fitRows()) apply(); })
+if (window.ResizeObserver && MOUNTS.mTable) new ResizeObserver(() => { if (fitRows()) apply(); })
   .observe(MOUNTS.mTable);
 setTimeout(relayout, 250);
 

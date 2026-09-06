@@ -255,8 +255,9 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
         work = MANAGE_WINDOWS[window](work).sort_values("days_left")
 
         counts = work["band"].value_counts().to_dict()
+        n_work = len(work)
         st.markdown(ui.note(
-            f"<b>{len(work)}</b> record(s) in view — {int(counts.get('Expired', 0))} expired, "
+            f"<b>{n_work}</b> {'record' if n_work == 1 else 'records'} in view — {int(counts.get('Expired', 0))} expired, "
             f"{int(counts.get('Critical', 0))} critical, {int(counts.get('Warning', 0))} warning, "
             f"{int(counts.get('Healthy', 0))} healthy."), unsafe_allow_html=True)
 
@@ -304,8 +305,9 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                 apply_edits(changes)
                 st.session_state["mg_saved"] = len(changes)
                 rerun()
+            n_chg = len(changes)
             note_col.markdown(ui.note(
-                f"<b>{len(changes)}</b> unsaved change(s) — press Save changes to apply."
+                f"<b>{n_chg}</b> unsaved {'change' if n_chg == 1 else 'changes'} — press Save changes to apply."
                 if changes else
                 "Change a date above to enable saving."), unsafe_allow_html=True)
         else:
@@ -340,8 +342,9 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
             edits["edited_dt"] = pd.to_datetime(edits["edited_at"], format="mixed", utc=True)
             edits = edits.sort_values("edited_dt", ascending=False)
 
+            n_edt = len(edits)
             st.markdown(ui.note(
-                f"<b>{len(edits)}</b> record(s) differ from the workbook. Reverting restores the "
+                f"<b>{n_edt}</b> {'record' if n_edt == 1 else 'records'} differ from the workbook. Reverting restores the "
                 "workbook date."), unsafe_allow_html=True)
             st.markdown(ui.edits_table([
                 {"schema_name": r.schema_name, "environment": r.env_label,
@@ -502,7 +505,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     if health_filter != "All Health": scope_parts.append(f"Health: {health_filter}")
     elif cur_kpi != "All": scope_parts.append(f"KPI: {cur_kpi}")
     if q: scope_parts.append(f'"{q}"')
-    if len(tree_open) > 0: scope_parts.append(f"{len(tree_open)} branch(es) drilled")
+    if len(tree_open) > 0: scope_parts.append(f"{len(tree_open)} {'branch' if len(tree_open) == 1 else 'branches'} drilled")
     if len(selected_entity_ids) > 0: scope_parts.append(f"{len(selected_entity_ids)} entity batch")
 
     scope_name = "All Teams & Portfolios" if not scope_parts else " · ".join(scope_parts)
@@ -566,7 +569,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             interactive=True,
             onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
         ), unsafe_allow_html=True)
-        if st.button("Fleet Scope" if not k1_active else "✓ Fleet Scope", key="op_kpi_all", use_container_width=True, type="primary" if k1_active else "secondary"):
+        if st.button("Show All Fleet (500)" if not k1_active else "✓ Showing All Fleet", key="op_kpi_all", use_container_width=True, type="primary" if k1_active else "secondary"):
             st.session_state["op_kpi_filter"] = "All"
             st.session_state["op_cell_filter"] = None
             rerun()
@@ -690,8 +693,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     else:
         st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 5. Master-Detail Workspace (42% Left Hierarchy Tree / 58% Right Inspector)
-    left_col, _, right_col = st.columns([1.7, 0.04, 2.3])
+    # 5. Master-Detail Workspace (53% Left Hierarchy Tree / 47% Right Inspector)
+    left_col, _, right_col = st.columns([2.15, 0.04, 1.85])
 
     if filtered.empty:
         selected_id = None
@@ -953,25 +956,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                 is_leaf_sel = r.id in selected_entity_ids
                                                 r_bg = "background:rgba(56,189,248,0.2);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_act else "background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.04);"
 
-                                                row_c0, row_c1, row_c2 = st.columns([0.6, 3.2, 1.2])
+                                                row_c0, row_c1 = st.columns([0.6, 4.4])
                                                 with row_c0:
-                                                    if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True, help="Toggle selection for Batch Editor"):
+                                                    if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True):
                                                         if is_leaf_sel:
                                                             selected_entity_ids.discard(r.id)
                                                         else:
                                                             selected_entity_ids.add(r.id)
                                                         rerun()
                                                 with row_c1:
-                                                    st.markdown(f"""
-                                                    <div class="tree-leaf-row{' active' if is_act else ''}" style="{r_bg};margin-left:14px;border-radius:3px;padding:2px 5px;margin-bottom:1px;display:flex;align-items:center;justify-content:space-between;">
-                                                      <span style="font-family:var(--mono);font-size:9.5px;font-weight:{'700' if is_act else '500'};color:{'#38bdf8' if is_act else '#f8fafc'};">
-                                                        {r.schema_name}
-                                                      </span>
-                                                      <span style="color:{r_meta['color']};font-size:9px;font-family:var(--mono);font-weight:700;">{ui.fmt_days(r.days_left)}</span>
-                                                    </div>
-                                                    """, unsafe_allow_html=True)
-                                                with row_c2:
-                                                    if st.button("Inspect", key=f"t_leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                                                    leaf_label = f"{r.schema_name}   ·   {ui.fmt_days(r.days_left)}"
+                                                    if st.button(leaf_label, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
                                                         st.session_state["op_active_id"] = r.id
                                                         rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -1195,29 +1190,37 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             b_to = min(total_batch_n, (b_page + 1) * b_per_page)
             page_slice = batch_work.iloc[b_from - 1:b_to].copy() if total_batch_n > 0 else batch_work.copy()
 
-            bg_c1, bg_c2, bg_c3 = st.columns([2.5, 1.4, 1.1])
+            all_filtered_ids = set(filtered["id"].tolist())
+            is_all_filtered_selected = (len(all_filtered_ids) > 0 and all_filtered_ids.issubset(selected_entity_ids))
+
+            bg_c1, bg_c2, bg_c3, bg_c4 = st.columns([1.6, 1.3, 0.9, 0.6])
             with bg_c1:
-                cur_page_n = len(page_slice)
                 if selected_entity_ids:
-                    st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;font-weight:700;padding-top:3px;'>⚡ Showing {cur_page_n} of {total_batch_n} selected items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
-                elif total_batch_n == len(df):
-                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {cur_page_n} of {total_batch_n} items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:10px;color:#38bdf8;font-weight:700;padding-top:4px;'>⚡ {len(selected_entity_ids)} selected · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div style='font-size:10.5px;color:#cbd5e1;font-weight:600;padding-top:3px;'>Showing {cur_page_n} of {total_batch_n} items (Page {b_page + 1}/{b_pages})</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:10px;color:#cbd5e1;font-weight:600;padding-top:4px;'>Scope: {total_batch_n} items · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
             with bg_c2:
+                if is_all_filtered_selected:
+                    st.button("✓ All In Filter Selected", key="op_batch_sel_all_flt", use_container_width=True, disabled=True)
+                else:
+                    if st.button(f"Select All {len(filtered)} in Filter", key="op_batch_sel_all_flt", type="primary", use_container_width=True):
+                        selected_entity_ids.update(all_filtered_ids)
+                        st.session_state["op_batch_page_no"] = 0
+                        rerun()
+            with bg_c3:
                 if b_pages > 1:
-                    p_c1, p_c2, p_c3 = st.columns([1, 1.6, 1])
+                    p_c1, p_c2 = st.columns(2)
                     if p_c1.button("‹", key="op_batch_p_prev", disabled=(b_page == 0), use_container_width=True):
                         st.session_state["op_batch_page_no"] = b_page - 1
                         rerun()
-                    p_c2.markdown(f"<div style='font-size:10px;text-align:center;padding-top:4px;color:#94a3b8;'>Page {b_page+1}/{b_pages}</div>", unsafe_allow_html=True)
-                    if p_c3.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
+                    if p_c2.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
                         st.session_state["op_batch_page_no"] = b_page + 1
                         rerun()
-            with bg_c3:
+            with bg_c4:
                 if selected_entity_ids:
                     if st.button("Clear", key="op_batch_clear_sel", use_container_width=True):
                         selected_entity_ids.clear()
+                        st.session_state["op_batch_page_no"] = 0
                         rerun()
 
             if hasattr(st, "data_editor") and hasattr(st, "column_config") and not page_slice.empty:
@@ -1253,7 +1256,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     apply_edits(b_changes)
                     st.success(f"Saved {len(b_changes)} batch updates!")
                     rerun()
-                b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{len(b_changes)}</b> unsaved change(s) on current page</div>", unsafe_allow_html=True)
+                n_bchg = len(b_changes)
+                b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{n_bchg}</b> unsaved {'change' if n_bchg == 1 else 'changes'} on current page</div>", unsafe_allow_html=True)
             elif page_slice.empty:
                 st.markdown("<div style='font-size:11px;color:#94a3b8;padding:12px 0;'>No entities selected. Select items from the tree or filters.</div>", unsafe_allow_html=True)
 
@@ -1268,7 +1272,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown(ui.note(f"<b>{len(active_edits)}</b> local override(s):"), unsafe_allow_html=True)
+                n_ovr = len(active_edits)
+                st.markdown(ui.note(f"<b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'}:"), unsafe_allow_html=True)
                 for er in active_edits.itertuples():
                     ec1, ec2 = st.columns([3, 1])
                     ec1.markdown(f"<span style='font-size:11px;'><b>{er.schema_name}</b> ({er.state}) — <code>{er.exp_date}</code></span>", unsafe_allow_html=True)
@@ -1342,16 +1347,16 @@ def render_governance_center() -> None:
 
     st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 2. Level 10: Dominant Hero Situation Card (The 3-Second Executive Verdict)
+    # 2. Level 10: Dominant Hero Situation Card (The 3-Second Executive Directive)
     st.markdown(f"""
     <div style="background:linear-gradient(135deg, rgba(239,68,68,0.14), rgba(15,23,42,0.85));border:1px solid rgba(239,68,68,0.35);border-left:5px solid #ef4444;border-radius:8px;padding:8px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
       <div style="flex:1;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:13px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">🔴 ACTION REQUIRED: {n_total_risk_fleet} Risk Entities Threaten Fleet Reliability</span>
-          <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.22);font-size:9px;font-weight:700;">URGENT ESCALATION</span>
+          <span style="font-size:12.5px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">🔴 EXECUTIVE ACTION DIRECTIVE: Critical Credential Rotation Required Across 3 Functional Domains</span>
+          <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.22);font-size:9px;font-weight:700;">POLICY ESCALATION</span>
         </div>
         <div style="font-size:10.5px;color:#cbd5e1;margin-top:2px;">
-          <b>{n_expired_fleet} Expired Overdue</b> (-5.7yr debt in Core ND) · <b>{n_critical_fleet} Critical</b> (≤15d in Letters AK & Cognos NH) · <b>{n_healthy_fleet} Healthy Assets ({pct_healthy:.1f}%)</b>.
+          Escalate overdue credential rotation for <b>Core (ND)</b> and stage 15-day renewals for <b>Letters (AK)</b> and <b>Cognos (NH)</b> to eliminate operational disruption risks.
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;">
@@ -1539,72 +1544,13 @@ def render_governance_center() -> None:
                     st.session_state["gov_team_filter"] = "All"
                 rerun()
 
-    # ── Bottom: Fleet-Wide Compliance Summary Strip ────────────────────────
-    # Fills the void below the two content columns with real fleet data.
-    st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
-
-    # Per-team mini health bars
-    team_bar_data = []
-    for p in [
-        {"team": "Core",        "assets": 160, "expired": int(n_expired_fleet), "critical": 0,  "healthy": 160 - int(n_expired_fleet)},
-        {"team": "Letters",     "assets": 96,  "expired": 0, "critical": 5,  "healthy": 91},
-        {"team": "Cognos",      "assets": 96,  "expired": 0, "critical": 5,  "healthy": 91},
-        {"team": "Informatica", "assets": 96,  "expired": 0, "critical": 0,  "healthy": 96},
-        {"team": "App Server",  "assets": 96,  "expired": 0, "critical": 0,  "healthy": 96},
-    ]:
-        total_t = p["assets"]
-        pct_exp  = round(p["expired"]  / total_t * 100, 1)
-        pct_crit = round(p["critical"] / total_t * 100, 1)
-        pct_ok   = round(p["healthy"]  / total_t * 100, 1)
-        bar_html = (
-            f"<div style='height:5px;width:100%;border-radius:3px;overflow:hidden;display:flex;margin-top:3px;'>"
-            f"<div style='width:{pct_exp}%;background:#ef4444;'></div>"
-            f"<div style='width:{pct_crit}%;background:#f97316;'></div>"
-            f"<div style='width:{pct_ok}%;background:#10b981;'></div>"
-            f"</div>"
-        )
-        risk_label = ""
-        if p["expired"] > 0:
-            risk_label = f"<span style='color:#ef4444;font-size:8.5px;font-weight:700;'>{p['expired']} overdue</span>"
-        elif p["critical"] > 0:
-            risk_label = f"<span style='color:#f97316;font-size:8.5px;font-weight:700;'>{p['critical']} critical</span>"
-        else:
-            risk_label = f"<span style='color:#10b981;font-size:8.5px;font-weight:600;'>✓ Clean</span>"
-        is_active_bar = (gov_team_filter == p["team"])
-        bar_border = "border:1px solid #38bdf8;" if is_active_bar else "border:1px solid var(--rule);"
-        team_bar_data.append(
-            f"<div style='flex:1;min-width:0;background:var(--card);{bar_border}border-radius:5px;padding:5px 7px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:baseline;'>"
-            f"<span style='font-size:9.5px;font-weight:700;color:#f8fafc;'>{p['team']}</span>"
-            f"{risk_label}"
-            f"</div>"
-            f"{bar_html}"
-            f"<div style='font-size:8px;color:#64748b;margin-top:2px;'>{p['assets']} assets</div>"
-            f"</div>"
-        )
-
-    fleet_summary_cols = "".join(team_bar_data)
-    st.markdown(f"""
-    <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:4px;">
-      {fleet_summary_cols}
-      <div style="flex:0 0 auto;background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:5px 10px;min-width:110px;display:flex;flex-direction:column;justify-content:space-between;">
-        <div style="font-size:9px;font-weight:700;color:#64748b;letter-spacing:0.05em;margin-bottom:2px;">FLEET TOTAL</div>
-        <div style="font-family:var(--mono);font-size:17px;font-weight:800;color:#f8fafc;line-height:1.1;">{len(records)}</div>
-        <div style="font-size:8.5px;color:#10b981;font-weight:600;">{pct_healthy:.1f}% Compliant</div>
-        <div style="font-size:8px;color:#ef4444;font-weight:700;margin-top:1px;">{n_total_risk_fleet} at risk</div>
-        <div style="font-size:7.5px;color:#475569;margin-top:3px;">● Live Sync · 08:00 UTC</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
     with g_col2:
         # Right Pane: Structured Action Console & Synchronized Email Inspector
         q_count_label = f" ({len(urgent_records)})" if not urgent_records.empty else " (0)"
         act_tab1, act_tab2, act_tab3 = st.tabs([
             f"⚡ Actionable Risk Queue{q_count_label}",
             "📧 Email Dispatch Inspector",
-            "⚙️ Lineage Diagnostics"
+            "📋 Compliance & Audit Ledger"
         ])
 
         with act_tab1:
@@ -1712,11 +1658,8 @@ def render_governance_center() -> None:
                 st.markdown(f"""
                 <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
                   <div style="background:#0b1120;border-bottom:1px solid var(--rule);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;">
-                    <div style="display:flex;align-items:center;gap:5px;">
-                      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ef4444;opacity:0.85;"></span>
-                      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f59e0b;opacity:0.85;"></span>
-                      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#10b981;opacity:0.85;"></span>
-                      <span style="font-size:10px;font-weight:700;color:#94a3b8;margin-left:6px;font-family:var(--mono);letter-spacing:0.04em;">EMAIL DISPATCH PREVIEW</span>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <span style="font-size:10px;font-weight:700;color:#38bdf8;font-family:var(--mono);letter-spacing:0.06em;">EMAIL DISPATCH PREVIEW</span>
                     </div>
                     <span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:8.5px;font-weight:700;">● Production Template</span>
                   </div>
