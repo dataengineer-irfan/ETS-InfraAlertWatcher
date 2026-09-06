@@ -1296,6 +1296,60 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 # ==========================================================================
 # View 3: Pipeline Governance & Alert Center (Power BI / Fabric Executive Hub)
 # ==========================================================================
+TEAM_GOVERNANCE_PROFILES = {
+    "Core": {
+        "team": "Core",
+        "lead": "DB & Infrastructure Lead",
+        "channel": "core-dba@example.com",
+        "cadence": "Quarterly",
+        "assets": 160,
+        "status": "🔴 10 Expired",
+        "status_color": "#ef4444",
+        "status_bg": "rgba(239,68,68,0.18)"
+    },
+    "Letters": {
+        "team": "Letters",
+        "lead": "Correspondence Lead",
+        "channel": "letters-ops@example.com",
+        "cadence": "Monthly (1st Sun)",
+        "assets": 96,
+        "status": "▲ 5 Critical (15d)",
+        "status_color": "#f97316",
+        "status_bg": "rgba(249,115,22,0.18)"
+    },
+    "Cognos": {
+        "team": "Cognos",
+        "lead": "BI & Analytics Lead",
+        "channel": "cognos-dba@example.com",
+        "cadence": "3× Weekly",
+        "assets": 96,
+        "status": "▲ 5 Critical (15d)",
+        "status_color": "#f97316",
+        "status_bg": "rgba(249,115,22,0.18)"
+    },
+    "Informatica": {
+        "team": "Informatica",
+        "lead": "ETL Operations Lead",
+        "channel": "infa-etl@example.com",
+        "cadence": "Weekly (Sun)",
+        "assets": 96,
+        "status": "✓ 100% Healthy",
+        "status_color": "#10b981",
+        "status_bg": "rgba(16,185,129,0.15)"
+    },
+    "App Server": {
+        "team": "App Server",
+        "lead": "JVM Containers Lead",
+        "channel": "appserver-admin@example.com",
+        "cadence": "Weekly (Sun)",
+        "assets": 96,
+        "status": "✓ 100% Healthy",
+        "status_color": "#10b981",
+        "status_bg": "rgba(16,185,129,0.15)"
+    },
+}
+
+
 def render_governance_center() -> None:
     conn = get_connection(DB_PATH)
     tables = ["component_records", "expiry_records", "maintenance_schedules", "owners", "reminder_log"]
@@ -1338,25 +1392,26 @@ def render_governance_center() -> None:
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">GOVERNANCE SCOPE:</span>
             <span style="font-size:11px;color:#f8fafc;font-weight:700;">{scope_name}</span>
-            <span style="font-size:9.5px;color:#94a3b8;">({len(scoped_records)} of {len(records)} Total Managed Assets)</span>
+            <span style="font-size:9.5px;color:var(--slate);">({len(scoped_records)} of 500 Total Managed Assets)</span>
           </div>
-          <div style="font-size:9.5px;color:#10b981;font-weight:600;font-family:var(--mono);">
-            ● Live Data Sync · 08:00 UTC
+          <div style="display:flex;align-items:center;gap:12px;font-size:9.5px;font-family:var(--mono);">
+            <span style="color:#10b981;">● Live Data Sync</span>
+            <span style="color:var(--slate);">08:00 UTC</span>
           </div>
         </div>
         """, unsafe_allow_html=True)
     with s_c2:
-        if st.button("↺ Reset Scope", key="gov_sc_reset", use_container_width=True):
+        if st.button("↺ Reset Scope", key="gov_reset_scope", use_container_width=True):
             st.session_state["gov_drill_scope"] = "all"
             st.session_state["gov_team_filter"] = "All"
             rerun()
 
-    st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
 
-    # 2. Level 10: Dominant Hero Situation Card (The 3-Second Executive Directive)
+    # 2. Level 1: Authoritative Action Directive (High Impact, Zero Ambiguity)
     st.markdown(f"""
-    <div style="background:linear-gradient(135deg, rgba(239,68,68,0.14), rgba(15,23,42,0.85));border:1px solid rgba(239,68,68,0.35);border-left:5px solid #ef4444;border-radius:8px;padding:8px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
-      <div style="flex:1;">
+    <div class="card" style="border-left:4px solid #ef4444;background:linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(15,23,42,0.6) 100%);padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:12.5px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">🔴 EXECUTIVE ACTION DIRECTIVE: Critical Credential Rotation Required Across 3 Functional Domains</span>
           <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.22);font-size:9px;font-weight:700;">POLICY ESCALATION</span>
@@ -1461,58 +1516,7 @@ def render_governance_center() -> None:
         # Team Governance & Risk Distribution Matrix (ALWAYS DISPLAYS ALL 5 TEAMS TO PREVENT EMPTY CAVITY)
         st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:10.5px;color:#cbd5e1;">Team Governance & Risk Distribution Matrix</div>', unsafe_allow_html=True)
 
-        team_profiles = [
-            {
-                "team": "Core",
-                "lead": "DB & Infrastructure Lead",
-                "channel": "core-dba@example.com",
-                "cadence": "Quarterly",
-                "assets": 160,
-                "status": "🔴 10 Expired",
-                "status_color": "#ef4444",
-                "status_bg": "rgba(239,68,68,0.18)"
-            },
-            {
-                "team": "Letters",
-                "lead": "Correspondence Lead",
-                "channel": "letters-ops@example.com",
-                "cadence": "Monthly (1st Sun)",
-                "assets": 96,
-                "status": "▲ 5 Critical (15d)",
-                "status_color": "#f97316",
-                "status_bg": "rgba(249,115,22,0.18)"
-            },
-            {
-                "team": "Cognos",
-                "lead": "BI & Analytics Lead",
-                "channel": "cognos-dba@example.com",
-                "cadence": "3× Weekly",
-                "assets": 96,
-                "status": "▲ 5 Critical (15d)",
-                "status_color": "#f97316",
-                "status_bg": "rgba(249,115,22,0.18)"
-            },
-            {
-                "team": "Informatica",
-                "lead": "ETL Operations Lead",
-                "channel": "infa-etl@example.com",
-                "cadence": "Weekly (Sun)",
-                "assets": 96,
-                "status": "✓ 100% Healthy",
-                "status_color": "#10b981",
-                "status_bg": "rgba(16,185,129,0.15)"
-            },
-            {
-                "team": "App Server",
-                "lead": "JVM Containers Lead",
-                "channel": "appserver-admin@example.com",
-                "cadence": "Weekly (Sun)",
-                "assets": 96,
-                "status": "✓ 100% Healthy",
-                "status_color": "#10b981",
-                "status_bg": "rgba(16,185,129,0.15)"
-            },
-        ]
+        team_profiles = list(TEAM_GOVERNANCE_PROFILES.values())
 
         t_rows = []
         for p in team_profiles:
@@ -1617,16 +1621,16 @@ def render_governance_center() -> None:
             sim_team_default = gov_team_filter if gov_team_filter in ui.TEAMS else ui.TEAMS[0]
             sim_team_idx = ui.TEAMS.index(sim_team_default) if sim_team_default in ui.TEAMS else 0
 
-            sim_c1, sim_c2 = st.columns([1, 1.2])
+            sim_c1, sim_c2, sim_c3 = st.columns([0.9, 1.1, 2.0])
             sim_st = sim_c1.selectbox("State", STATES, key="sim_state", label_visibility="collapsed")
             sim_tm = sim_c2.selectbox("Team", ui.TEAMS, index=sim_team_idx, key="sim_team", label_visibility="collapsed")
 
-            conn = get_connection(DB_PATH)
-            # Look up state owner from database (configured in config/owners.csv)
-            cur_owner = conn.execute("SELECT owner_name, owner_email FROM owners WHERE state = ?", (sim_st,)).fetchone()
-            st_owner_email = cur_owner["owner_email"] if cur_owner else "basha.shaikirfan@gmail.com"
-            st_owner_name = cur_owner["owner_name"] if cur_owner else f"{sim_tm} Operations Lead"
+            # Source of Truth: resolve team ownership directly from Team Governance profiles
+            team_gov = TEAM_GOVERNANCE_PROFILES.get(sim_tm, TEAM_GOVERNANCE_PROFILES["Core"])
+            owner_role = team_gov["lead"]
+            owner_channel = team_gov["channel"]
 
+            conn = get_connection(DB_PATH)
             cur_sim = conn.execute(
                 "SELECT * FROM component_records WHERE state = ? AND team = ? ORDER BY CAST(env_no AS INTEGER)",
                 (sim_st, sim_tm)
@@ -1636,20 +1640,12 @@ def render_governance_center() -> None:
 
             if sim_recs:
                 sim_opts = {f"{r['schema_name']} ({r['environment']}) · {ui.COMPONENT_CODE.get(r['component'], r['component'])}": r for r in sim_recs}
-                
-                sim_c3, sim_c4 = st.columns([1.8, 1.6])
                 sim_pick_lbl = sim_c3.selectbox("Target Entity", list(sim_opts), key="sim_entity_pick", label_visibility="collapsed")
                 sim_chosen = sim_opts[sim_pick_lbl]
-
-                # User validation emails
-                valid_emails = ["basha.shaikirfan@gmail.com", "dataengineerib@gmail.com"]
-                recip_idx = valid_emails.index(st_owner_email) if st_owner_email in valid_emails else 0
-                selected_recip = sim_c4.selectbox("Audit Recipient", valid_emails, index=recip_idx, key="sim_recip", label_visibility="collapsed")
 
                 exp_dt = pd.to_datetime(sim_chosen["exp_date"]).date()
                 days_left = (exp_dt - date.today()).days
                 team_meta = ui.TEAM_META.get(sim_tm, ui.TEAM_META["Core"])
-                recip_name = st_owner_name if selected_recip == st_owner_email else ("Irfan Shaik" if "irfan" in selected_recip.lower() else "Data Engineer IB")
 
                 sim_mock = {
                     "id": sim_chosen["id"],
@@ -1662,11 +1658,11 @@ def render_governance_center() -> None:
                     "exp_date": str(exp_dt),
                     "days_left": days_left,
                     "team": sim_tm,
-                    "owner_email": selected_recip,
-                    "owner_name": recip_name,
+                    "owner_email": owner_channel,
+                    "owner_name": f"{owner_role} ({sim_tm})",
                     "team_color": team_meta["color"],
-                    "team_lead": team_meta["lead"],
-                    "frequency_blurb": "Production Operations Escalation",
+                    "team_lead": owner_role,
+                    "frequency_blurb": team_gov["cadence"],
                     "threshold_days": ui.CRITICAL_DAYS if days_left <= ui.CRITICAL_DAYS else ui.WARNING_DAYS,
                 }
 
@@ -1674,7 +1670,7 @@ def render_governance_center() -> None:
                 email_html = render_email(sim_mock)
 
                 st.markdown(f"""
-                <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+                <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:6px;margin-bottom:8px;">
                   <div style="background:#0b1120;border-bottom:1px solid var(--rule);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;">
                     <div style="display:flex;align-items:center;gap:6px;">
                       <span style="font-size:10px;font-weight:700;color:#38bdf8;font-family:var(--mono);letter-spacing:0.06em;">EMAIL ALERT DISPATCH PREVIEW &amp; SIMULATOR</span>
@@ -1693,9 +1689,13 @@ def render_governance_center() -> None:
                 </div>
                 """, unsafe_allow_html=True)
 
-                disp_c1, disp_c2 = st.columns([2.5, 1.5])
+                disp_c1, disp_c2 = st.columns([2.6, 1.4])
                 with disp_c1:
-                    st.markdown("<div style='font-size:9.5px;color:#94a3b8;padding-top:4px;'>Simulate automated dispatch and log to compliance ledger:</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='font-size:10px;color:#94a3b8;line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                        f"Simulate dispatch to <code style='color:#38bdf8;font-size:9.5px;'>{sim_mock['owner_email']}</code> &amp; log audit:</div>",
+                        unsafe_allow_html=True
+                    )
                 with disp_c2:
                     if st.button("▶ Trigger Dry-Run Dispatch", key="gov_trigger_dispatch", type="secondary", use_container_width=True):
                         conn_disp = get_connection(DB_PATH)
