@@ -330,11 +330,21 @@ body{
 
 /* Maintenance Cadence Visualizer */
 .cadence-wrap{ height:100%; overflow-y:auto; }
-.cadence-tbl{ width:100%; border-collapse:collapse; font-size:10px; }
-.cadence-tbl th{ padding:3px 6px; font-size:8.5px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); }
+.cadence-tbl{ width:100%; border-collapse:collapse; table-layout:auto !important; font-size:10px; }
+.cadence-tbl th{ padding:3px 4px; font-size:8.5px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); white-space:nowrap; }
 .cadence-tbl th.cur-th{ color:#38BDF8; font-weight:700; background:rgba(56,189,248,0.1); }
-.cadence-tbl td{ padding:4px 6px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+.cadence-tbl td{ padding:4px 5px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; white-space:nowrap; }
 .cadence-tbl tr.hot-maint{ background:rgba(56,189,248,0.08); }
+
+.cadence-tbl .c-st{ width:34px; max-width:38px; }
+.cadence-tbl .c-env{ width:44px; max-width:48px; }
+.cadence-tbl .c-tier{ width:42px; max-width:46px; }
+.cadence-tbl .c-team{ min-width:85px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+.cadence-tbl .c-cadence{ min-width:85px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+.cadence-tbl .c-win{ min-width:68px; max-width:80px; }
+.cadence-tbl .c-day{ width:18px !important; min-width:18px !important; max-width:20px !important; padding:3px 0 !important; text-align:center !important; }
+.cadence-tbl .c-status{ min-width:92px; white-space:nowrap; }
+
 .cadence-cell{ text-align:center; font-size:11px; color:var(--mute); }
 .cadence-cell.active{ color:#38BDF8; font-weight:700; }
 .cadence-cell.today-active{ color:#10B981; font-weight:700; background:rgba(16,185,129,0.15); border-radius:3px; }
@@ -342,11 +352,11 @@ body{
 .st-tag{ background:var(--accent-tint); color:var(--accent); border:1px solid var(--accent-line); border-radius:3px; padding:1px 4px; font-size:9px; }
 .badge-maint-active{
   background:rgba(16,185,129,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4);
-  border-radius:3px; padding:1px 5px; font-size:8.5px; font-weight:700; text-transform:uppercase;
+  border-radius:3px; padding:1px 5px; font-size:8.5px; font-weight:700; text-transform:uppercase; display:inline-block;
 }
 .badge-maint-sched{
   background:var(--sunk); color:var(--slate); border:1px solid var(--rule);
-  border-radius:3px; padding:1px 5px; font-size:8.5px;
+  border-radius:3px; padding:1px 5px; font-size:8.5px; display:inline-block;
 }
 
 /* ---- chips ----------------------------------------------------------- */
@@ -1438,30 +1448,33 @@ function renderCadence(S){
     const dayCells = fullDayNames.map((d, i) => {
       const active = daysStr.includes(d);
       const isCur = i === todayIdx;
-      let cls = "cadence-cell";
+      let cls = "cadence-cell c-day";
       if (active) cls += isCur ? " today-active" : " active";
       else if (isCur) cls += " cur-day";
-      return '<td class="' + cls + '">' + (active ? (isCur ? "🟢" : "●") : "·") + '</td>';
+      const dayTip = dayNames[i] + ': ' + (active ? (isCur ? 'Active Today' : 'Scheduled Maintenance') : 'No Maintenance');
+      return '<td class="' + cls + '" title="' + esc(dayTip) + '">' + (active ? (isCur ? "🟢" : "●") : "·") + '</td>';
     }).join("");
 
     const tClr = TEAM_COLOR[sch.team] || "var(--ink)";
+    const statusLabel = isToday ? 'ACTIVE TODAY' : ('Upcoming (' + (sch.next_run_date || 'Sun') + ')');
+    const statusTip = isToday ? ('Active maintenance window today: ' + (sch.time_window || '') + ' UTC') : ('Next scheduled run: ' + (sch.next_run_date || 'Sun') + ' at ' + (sch.time_window || '') + ' UTC');
 
     return '<tr class="' + (isToday ? "hot-maint" : "") + '" data-tip="' + esc(sch.notes || (sch.state + ' ENV' + sch.env_no + ' (' + sch.environment + ') ' + sch.team)) + '">'
-      + '<td class="mono font-bold"><span class="st-tag">' + esc(sch.state) + '</span></td>'
-      + '<td class="mono font-bold" style="color:var(--ink);font-size:9.5px;">ENV' + esc(sch.env_no) + '</td>'
-      + '<td><span class="env-pill" style="font-size:8.5px;padding:1px 4px;">' + esc(sch.environment) + '</span></td>'
-      + '<td style="font-weight:700;color:' + tClr + ';font-size:9.5px;">' + esc(sch.team) + '</td>'
-      + '<td style="color:var(--slate);font-size:9px;">' + esc(sch.frequency_blurb) + '</td>'
-      + '<td class="mono" style="color:var(--mute);font-size:9px;">' + esc(sch.time_window) + '</td>'
+      + '<td class="c-st mono font-bold" title="' + esc(sch.state) + '"><span class="st-tag">' + esc(sch.state) + '</span></td>'
+      + '<td class="c-env mono font-bold" style="color:var(--ink);font-size:9.5px;" title="Environment ' + esc(sch.env_no) + '">ENV' + esc(sch.env_no) + '</td>'
+      + '<td class="c-tier" title="Tier: ' + esc(sch.environment) + '"><span class="env-pill" style="font-size:8.5px;padding:1px 4px;">' + esc(sch.environment) + '</span></td>'
+      + '<td class="c-team" style="font-weight:700;color:' + tClr + ';font-size:9.5px;" title="' + esc(sch.team) + '">' + esc(sch.team) + '</td>'
+      + '<td class="c-cadence" style="color:var(--slate);font-size:9px;" title="' + esc(sch.frequency_blurb) + '">' + esc(sch.frequency_blurb) + '</td>'
+      + '<td class="c-win mono" style="color:var(--mute);font-size:9px;" title="Window: ' + esc(sch.time_window) + ' UTC">' + esc(sch.time_window) + '</td>'
       + dayCells
-      + '<td>' + (isToday ? '<span class="badge-maint-active">ACTIVE TODAY</span>' : '<span class="badge-maint-sched">Upcoming (' + esc(sch.next_run_date || "Sun") + ')</span>') + '</td>'
+      + '<td class="c-status" title="' + esc(statusTip) + '">' + (isToday ? '<span class="badge-maint-active">ACTIVE TODAY</span>' : '<span class="badge-maint-sched">' + esc(statusLabel) + '</span>') + '</td>'
       + '</tr>';
   }).join("");
 
   return '<div class="cadence-wrap"><table class="tbl cadence-tbl"><thead><tr>'
-    + '<th>State</th><th>Env</th><th>Tier</th><th>Team</th><th>Cadence</th><th>Window (UTC)</th>'
-    + dayNames.map((d, i) => '<th class="' + (i === todayIdx ? "cur-th" : "") + '">' + d + '</th>').join("")
-    + '<th>Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+    + '<th class="c-st">State</th><th class="c-env">Env</th><th class="c-tier">Tier</th><th class="c-team">Team</th><th class="c-cadence">Cadence</th><th class="c-win">Window (UTC)</th>'
+    + dayNames.map((d, i) => '<th class="c-day ' + (i === todayIdx ? "cur-th" : "") + '" title="' + fullDayNames[i].toUpperCase() + '">' + d + '</th>').join("")
+    + '<th class="c-status">Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
 }
 
 function renderFocus(S){
