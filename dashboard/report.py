@@ -1092,10 +1092,13 @@ function renderDominantCompliance(S){
   const hlth = rs.filter(r => r.band === "Healthy").length;
   const exp = rs.filter(r => r.band === "Expired").length;
   const crit = rs.filter(r => r.band === "Critical").length;
+  const warn = rs.filter(r => r.band === "Warning").length;
   const pct = tot ? (hlth / tot * 100).toFixed(1) : "100.0";
   const urgentText = exp > 0
     ? (exp === 1 ? '<span class="dom-overdue">1 Overdue Requires Immediate Renewal</span>' : '<span class="dom-overdue">' + exp + ' Overdue Require Immediate Renewal</span>')
-    : (crit > 0 ? '<span class="dom-warn">' + crit + ' Critical Due in 15d</span>' : '<span class="dom-ok">&#10003; All Systems Operational</span>');
+    : (crit > 0 ? '<span class="dom-warn">' + crit + ' Critical Due in 15d</span>'
+    : (warn > 0 ? '<span class="dom-warn" style="color:#f59e0b;background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.4);">' + warn + ' Warning Due in 30d</span>'
+    : '<span class="dom-ok">&#10003; All Systems Operational</span>'));
   return '<span class="dom-badge">' + pct + '% FLEET COMPLIANT</span>'
     + '<span class="dom-divider">&middot;</span>'
     + '<span class="dom-stat">' + hlth + '/' + tot + ' Healthy Assets</span>'
@@ -1354,13 +1357,15 @@ function renderComps(S){
     const band = worstBand(new Set(sub.map(r => r.band)));
     const on = S.component === comp;
     const icon = COMP_ICONS[comp] || "📦";
+    const parts = [];
+    if (c.Expired > 0) parts.push('<b style="color:#ef4444">' + c.Expired + ' Expired</b>');
+    if (c.Critical > 0) parts.push('<b style="color:#f97316">' + c.Critical + ' Critical</b>');
+    if (c.Warning > 0) parts.push('<b style="color:#f59e0b">' + c.Warning + ' Warning</b>');
+    if (c.Healthy > 0) parts.push((c.Healthy || 0) + ' OK');
+
     let mLabel = "100% Healthy";
-    if (c.Expired > 0) {
-      mLabel = '<b style="color:#ef4444">' + c.Expired + ' Expired</b> &middot; ' + (c.Healthy || 0) + ' OK';
-    } else if (c.Critical > 0) {
-      mLabel = '<b style="color:#f97316">' + c.Critical + ' Critical</b> &middot; ' + (c.Healthy || 0) + ' OK';
-    } else if (c.Warning > 0) {
-      mLabel = '<b style="color:#f59e0b">' + c.Warning + ' Due Soon</b> &middot; ' + (c.Healthy || 0) + ' OK';
+    if (parts.length > 0 && (c.Expired > 0 || c.Critical > 0 || c.Warning > 0)) {
+      mLabel = parts.join(" &middot; ");
     } else {
       mLabel = '<span style="color:#10b981">&#10003; 100% Compliant</span>';
     }
@@ -1828,7 +1833,7 @@ function renderEnvs(S){
       + '" data-hl-env="' + esc(env) + '"'
       + ' aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
       + '" data-tip="' + esc(env + " - " + (DATA.envBlurb[env] || env) + ". " + g.n
-      + (g.n === 1 ? " item [" : " items [") + (expN ? expN + " Expired, " : "") + (warnN ? warnN + " Warning, " : "") + hlthN + " Healthy]. Soonest " + fmtDaysLong(g.min) + ". "
+      + (g.n === 1 ? " item [" : " items [") + (expN ? expN + " Expired, " : "") + (critN ? critN + " Critical, " : "") + (warnN ? warnN + " Warning, " : "") + hlthN + " Healthy]. Soonest " + fmtDaysLong(g.min) + ". "
       + (on ? "Click again to clear." : "Click to focus environments."))
       + '"><div class="en">' + esc(env) + '</div><div class="eb">'
       + esc(DATA.envBlurb[env] || "") + '</div>' + bar + '<div class="er"><span>' + g.n + " item"

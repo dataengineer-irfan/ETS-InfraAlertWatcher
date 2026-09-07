@@ -1142,26 +1142,42 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             st.button("—", key=f"hm_empty_{st_val}_{idx}", disabled=True, use_container_width=True)
                         else:
                             c_cnt = len(cell_sub)
-                            c_exp = (cell_sub["days_left"] < 0).sum()
-                            c_warn = (cell_sub["days_left"].between(0, ui.WARNING_DAYS)).sum()
-                            min_days = cell_sub["days_left"].min()
+                            c_exp = int((cell_sub["days_left"] < 0).sum())
+                            c_crit = int((cell_sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                            c_warn = int((cell_sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                            c_hlth = int((cell_sub["days_left"] > ui.WARNING_DAYS).sum())
+                            min_days = int(cell_sub["days_left"].min())
                             c_code = ui.COMPONENT_CODE.get(c_val, c_val)
 
+                            risk_parts = []
                             if c_exp > 0:
-                                badge_txt = f"● {c_exp} Exp"
-                            elif c_warn > 0:
-                                badge_txt = f"▲ {c_warn} Warn"
+                                risk_parts.append(f"● {c_exp} Exp")
+                            if c_crit > 0:
+                                risk_parts.append(f"▲ {c_crit} Crit")
+                            if c_warn > 0:
+                                risk_parts.append(f"◆ {c_warn} Warn")
+
+                            if risk_parts:
+                                badge_txt = " + ".join(risk_parts)
                             else:
                                 badge_txt = f"✓ {c_cnt} OK"
 
                             btn_label = f"{badge_txt} · {ui.fmt_heatmap_time(min_days)}"
+
+                            breakdown_parts = []
+                            if c_exp: breakdown_parts.append(f"{c_exp} Expired")
+                            if c_crit: breakdown_parts.append(f"{c_crit} Critical (≤15d)")
+                            if c_warn: breakdown_parts.append(f"{c_warn} Warning (≤30d)")
+                            if c_hlth: breakdown_parts.append(f"{c_hlth} Healthy")
+                            help_desc = f"Cross-filter to {st_val} × {c_code} ({', '.join(breakdown_parts)} — soonest in {ui.fmt_heatmap_time(min_days)})"
+
                             is_cell_active = (cell_filter == (st_val, c_val)) or (state_filter == st_val and comp_filter == c_val and cell_filter is None)
                             if st.button(
                                 btn_label,
                                 key=f"hm_c_{st_val}_{c_code}",
                                 type="primary" if is_cell_active else "secondary",
                                 use_container_width=True,
-                                help=f"Cross-filter to {st_val} × {c_code} ({badge_txt}, {ui.fmt_heatmap_time(min_days)})"
+                                help=help_desc
                             ):
                                 if is_cell_active:
                                     st.session_state["op_cell_filter"] = None
@@ -1447,7 +1463,7 @@ def render_governance_center() -> None:
         st.markdown(ui.kpi_card(
             label="Actionable Risk Assets",
             value=n_total_risk_fleet,
-            subtext="10 Expired + 10 Critical (≤15d)",
+            subtext=f"{n_expired_fleet} Expired · {n_critical_fleet} Critical · {n_warning_fleet} Warning",
             glow="#ef4444",
             val_color="#ef4444",
             badge="RISK",
