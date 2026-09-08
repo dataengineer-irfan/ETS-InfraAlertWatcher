@@ -42,7 +42,14 @@ from db import (  # noqa: E402
 )
 from ingest_components import COMPONENTS, run as run_ingest  # noqa: E402
 from expiry_checker import get_due_reminders, mark_sent  # noqa: E402
-from notifier import render_email, subject_for, smtp_config_from_env  # noqa: E402
+from notifier import (  # noqa: E402
+    render_email,
+    subject_for,
+    smtp_config_from_env,
+    send_real_smtp_email,
+    render_expired_alert_email,
+    dispatch_expired_alert_real,
+)
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
 WORKBOOK_DIR = os.environ.get("EXPIRY_WORKBOOK_DIR", str(ROOT))
@@ -89,6 +96,8 @@ def load_records(db_path: str, _bust: int = 0) -> pd.DataFrame:
                      + " " + df["exp_dt"].dt.year.astype(str))
     df["env_label"] = df["environment"].fillna("UNMAPPED")
     df["team"] = df.apply(lambda r: ui.team_of(r.get("schema_name", ""), r.get("component", ""), r.get("env_no", ""), r.get("team", None)), axis=1)
+    df["sla_tier"] = df["env_label"].apply(lambda e: ui.env_tier(e)["tier"])
+    df["sla_weight"] = df["env_label"].apply(lambda e: ui.env_tier(e)["weight"])
     return df
 
 
@@ -174,9 +183,11 @@ MANAGE_WINDOWS = {
 def apply_edits(changes: list) -> None:
     conn = get_connection(DB_PATH)
     for record_id, new_date in changes:
-        update_component_exp_date(conn, int(record_id), new_date.isoformat())
+        dt_str = new_date.isoformat() if hasattr(new_date, "isoformat") else str(new_date)[:10]
+        update_component_exp_date(conn, int(record_id), dt_str)
     conn.close()
     bust_cache()
+
 
 
 def search(df: pd.DataFrame, query: str) -> pd.DataFrame:
@@ -430,8 +441,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     tree_open = st.session_state.setdefault("op_tree_open", set())
     selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
-    # 1. Top Slicer Command Bar
-    f1, f2, f3, f4, f5, f6 = st.columns([1.6, 0.9, 1.0, 1.15, 0.95, 0.8])
+    # 1. Top Slicer Command Bar (7 columns with inline CSV & Reset Scope)
+    f1, f2, f3, f4, f5, f6, f7 = st.columns([1.5, 0.85, 0.9, 1.05, 0.85, 0.55, 0.65])
     q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
     state_filter = f2.selectbox("State", ["All States"] + STATES, key=f"op_state_{reset_idx}", label_visibility="collapsed")
     team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
@@ -472,17 +483,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     filtered = filtered.sort_values("days_left")
 
-    csv_data = filtered.to_csv(index=False).encode("utf-8")
-    if hasattr(st, "download_button"):
-        f6.download_button(
-            label="📥 CSV",
-            data=csv_data,
-            file_name=f"expiry_operations_{date.today().isoformat()}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-    # 2. Scope Determination and Reset Scope Ribbon (Matching Governance & Alerts Pattern)
+    # Scope Determination
     is_scoped = (
         bool(q) or
         state_filter != "All States" or
@@ -495,6 +496,30 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         len(selected_entity_ids) > 0
     )
 
+    csv_data = filtered.to_csv(index=False).encode("utf-8")
+    if hasattr(st, "download_button"):
+        f6.download_button(
+            label="📥 CSV",
+            data=csv_data,
+            file_name=f"expiry_operations_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    with f7:
+        if is_scoped:
+            if st.button("↺ Reset", key="op_sc_reset", use_container_width=True, type="primary"):
+                st.session_state["op_reset_idx"] = reset_idx + 1
+                st.session_state["op_kpi_filter"] = "All"
+                st.session_state["op_cell_filter"] = None
+                st.session_state["op_tree_open"] = set()
+                st.session_state["op_selected_entity_ids"] = set()
+                st.session_state["op_batch_page_no"] = 0
+                rerun()
+        else:
+            st.button("↺ Reset", key="op_sc_reset_dis", use_container_width=True, disabled=True)
+
+    # 2. Scope Ribbon (Ultra-thin 18px single-line telemetry)
     scope_parts = []
     if cell_filter:
         c_st, c_cp = cell_filter
@@ -509,35 +534,42 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     if len(selected_entity_ids) > 0: scope_parts.append(f"{len(selected_entity_ids)} entity batch")
 
     scope_name = "All Teams & Portfolios" if not scope_parts else " · ".join(scope_parts)
+    _utc_now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 
-    s_c1, s_c2 = st.columns([4.2, 0.8])
-    with s_c1:
-        st.markdown(f"""
-        <div style="background:var(--sunk);border:1px solid var(--rule);border-radius:6px;padding:4px 10px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">OPERATIONS SCOPE:</span>
-            <span style="font-size:11px;color:#f8fafc;font-weight:700;">{scope_name}</span>
-            <span style="font-size:9.5px;color:#94a3b8;">({len(filtered)} of {len(df)} Total Managed Assets)</span>
-          </div>
-          <div style="font-size:9.5px;color:#10b981;font-weight:600;font-family:var(--mono);">
-            ● Live Data Sync · 08:00 UTC
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with s_c2:
-        if is_scoped:
-            if st.button("↺ Reset Scope", key="op_sc_reset", use_container_width=True, type="primary"):
-                st.session_state["op_reset_idx"] = reset_idx + 1
-                st.session_state["op_kpi_filter"] = "All"
-                st.session_state["op_cell_filter"] = None
-                st.session_state["op_tree_open"] = set()
-                st.session_state["op_selected_entity_ids"] = set()
-                st.session_state["op_batch_page_no"] = 0
-                rerun()
-        else:
-            st.button("↺ Reset Scope", key="op_sc_reset_dis", use_container_width=True, disabled=True)
+    # Production SLA Exposure & Operational Debt Breakdown
+    sc_prod_exp = int(((filtered["days_left"] < 0) & (filtered["env_label"] == "PROD")).sum())
+    sc_dr_exp = int(((filtered["days_left"] < 0) & (filtered["env_label"] == "DR")).sum())
+    sc_mo_exp = int(((filtered["days_left"] < 0) & (filtered["env_label"] == "MO")).sum())
+    sc_oth_exp = int(((filtered["days_left"] < 0) & (~filtered["env_label"].isin(["PROD", "DR", "MO"]))).sum())
 
-    # 3. Executive Metric Ribbon — reactive to active slicer, dual local/fleet context
+    if sc_prod_exp == 0:
+        sla_callout = '<span style="font-size:9px;font-weight:700;background:rgba(115,191,105,0.16);color:#73bf69;border:1px solid rgba(115,191,105,0.3);padding:1px 6px;border-radius:2px;">🛡️ PROD SLA: 100% RESILIENT (0 Breaches)</span>'
+    else:
+        sla_callout = f'<span style="font-size:9px;font-weight:700;background:rgba(242,73,92,0.18);color:#f2495c;border:1px solid rgba(242,73,92,0.4);padding:1px 6px;border-radius:2px;">⚠️ PROD SLA BREACH: {sc_prod_exp} Overdue</span>'
+
+    debt_sub = []
+    if sc_dr_exp > 0: debt_sub.append(f"{sc_dr_exp} DR")
+    if sc_mo_exp > 0: debt_sub.append(f"{sc_mo_exp} MO")
+    if sc_oth_exp > 0: debt_sub.append(f"{sc_oth_exp} Other")
+    debt_callout = f'<span style="font-size:9px;color:var(--warning);font-weight:600;">(Overdue Debt: {" · ".join(debt_sub)})</span>' if debt_sub else '<span style="font-size:9px;color:var(--healthy);font-weight:600;">(Debt Free)</span>'
+
+    st.markdown(f"""
+    <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;">
+        <span class="scope-label">SCOPE</span>
+        <span class="scope-val">{scope_name}</span>
+        <span class="scope-muted">({len(filtered)} of {len(df)} total managed assets)</span>
+        {sla_callout}
+        {debt_callout}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+        <div class="live-dot"></div>
+        <span class="scope-muted" style="font-variant-numeric:tabular-nums;font-size:11px;">Live Data Sync · {_utc_now}</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 3. Executive Metric Ribbon — Compact Grafana-style stat panels
     tot_cnt = len(df)
     scope_cnt = len(filtered)
     exp_cnt = int((filtered["days_left"] < 0).sum())
@@ -557,37 +589,49 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     k3_active = (cur_kpi == "Urgent" or health_filter in ["Critical", "Warning"])
     k4_active = (cur_kpi == "Healthy" or health_filter == "Healthy")
 
+    # Build sparkline trend from snapshot history
+    try:
+        conn_snap = get_connection(DB_PATH)
+        _snaps = get_metric_snapshots(conn_snap, limit=7)
+        conn_snap.close()
+        _exp_trend   = [int(s.get("expired", exp_cnt)) for s in _snaps] if _snaps else [exp_cnt]
+        _cw_trend    = [int(s.get("critical", 0)) + int(s.get("warning", 0)) for s in _snaps] if _snaps else [crit_cnt + warn_cnt]
+        _hlth_trend  = [int(s.get("healthy", hlth_cnt)) for s in _snaps] if _snaps else [hlth_cnt]
+        _scope_trend = [int(s.get("tracked", scope_cnt)) for s in _snaps] if _snaps else [scope_cnt]
+    except Exception:
+        _exp_trend = _cw_trend = _hlth_trend = _scope_trend = []
+
+
     k1, k2, k3, k4 = st.columns(4)
+
     with k1:
-        st.markdown(ui.kpi_card(
+        st.markdown(ui.grafana_stat_card(
             label="Portfolio Scope",
-            value=scope_cnt,
-            total_suffix=str(tot_cnt),
+            value=f"{scope_cnt} / {tot_cnt}",
+            color="#5794f2",
             subtext=k1_sub,
-            glow="#38bdf8",
-            is_active=k1_active,
-            interactive=True,
-            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
+            badge="ALL FLEET" if k1_active else "SCOPED",
+            sparkline_vals=_scope_trend,
+            state="ok",
         ), unsafe_allow_html=True)
-        if st.button("Show All Fleet (500)" if not k1_active else "✓ Showing All Fleet", key="op_kpi_all", use_container_width=True, type="primary" if k1_active else "secondary"):
+        if st.button("✓ Active: All Fleet" if k1_active else "Filter: All Fleet", key="op_kpi_all", use_container_width=True, type="primary" if k1_active else "secondary"):
             st.session_state["op_kpi_filter"] = "All"
             st.session_state["op_cell_filter"] = None
             rerun()
 
     with k2:
-        st.markdown(ui.kpi_card(
+        k2_state = "firing" if exp_cnt > 0 else "ok"
+        st.markdown(ui.grafana_stat_card(
             label="Expired Items",
             value=exp_cnt,
+            color="#f2495c" if exp_cnt else "#73bf69",
             subtext=k2_sub,
-            glow="#ef4444" if exp_cnt else "#10b981",
-            val_color="#ef4444" if exp_cnt else "#10b981",
-            badge="EXPIRED" if exp_cnt else "CLEAR",
-            badge_color="#ef4444" if exp_cnt else "#10b981",
-            is_active=k2_active,
-            interactive=True,
-            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
+            badge="FIRING" if exp_cnt else "CLEAR",
+            sparkline_vals=_exp_trend,
+            delta=f"▲ +{exp_cnt} vs baseline" if exp_cnt else "✓ None overdue",
+            state=k2_state,
         ), unsafe_allow_html=True)
-        if st.button("Filter Expired" if not k2_active else "✓ Filtered: Expired", key="op_kpi_exp", use_container_width=True, type="primary" if k2_active else "secondary"):
+        if st.button("✓ Active: Expired" if k2_active else "Filter: Expired", key="op_kpi_exp", use_container_width=True, type="primary" if k2_active else "secondary"):
             if k2_active:
                 st.session_state["op_kpi_filter"] = "All"
             else:
@@ -600,19 +644,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             rerun()
 
     with k3:
-        st.markdown(ui.kpi_card(
+        k3_state = "pending" if (crit_cnt + warn_cnt) > 0 else "ok"
+        st.markdown(ui.grafana_stat_card(
             label="Critical & Warning",
             value=crit_cnt + warn_cnt,
+            color="#f2495c" if crit_cnt else ("#ff9830" if warn_cnt else "#73bf69"),
             subtext=k3_sub,
-            glow="#f97316" if crit_cnt else ("#f59e0b" if warn_cnt else "#10b981"),
-            val_color="#f59e0b" if (crit_cnt + warn_cnt) else "#10b981",
-            badge="URGENT" if (crit_cnt + warn_cnt) else "STABLE",
-            badge_color="#f59e0b" if (crit_cnt + warn_cnt) else "#10b981",
-            is_active=k3_active,
-            interactive=True,
-            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
+            badge="PENDING" if (crit_cnt + warn_cnt) else "STABLE",
+            sparkline_vals=_cw_trend,
+            delta=f"▲ {crit_cnt}C + {warn_cnt}W" if (crit_cnt + warn_cnt) else "✓ All stable",
+            state=k3_state,
         ), unsafe_allow_html=True)
-        if st.button("Filter Urgent" if not k3_active else "✓ Filtered: Urgent", key="op_kpi_urgent", use_container_width=True, type="primary" if k3_active else "secondary"):
+        if st.button("✓ Active: Urgent" if k3_active else "Filter: Urgent", key="op_kpi_urgent", use_container_width=True, type="primary" if k3_active else "secondary"):
             if k3_active:
                 st.session_state["op_kpi_filter"] = "All"
             else:
@@ -624,19 +667,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             rerun()
 
     with k4:
-        st.markdown(ui.kpi_card(
+        st.markdown(ui.grafana_stat_card(
             label="Healthy Entities",
             value=hlth_cnt,
+            color="#73bf69",
             subtext=k4_sub,
-            glow="#10b981",
-            val_color="#10b981",
             badge="COMPLIANT",
-            badge_color="#10b981",
-            is_active=k4_active,
-            interactive=True,
-            onclick="const b = this.closest('[data-testid=stColumn], [data-testid=column]').querySelector('button'); if(b) b.click();",
+            donut_pct=pct_local,
+            delta=f"✓ {pct_local:.1f}% fleet OK",
+            state="ok",
         ), unsafe_allow_html=True)
-        if st.button("Filter Healthy" if not k4_active else "✓ Filtered: Healthy", key="op_kpi_hlth", use_container_width=True, type="primary" if k4_active else "secondary"):
+        if st.button("✓ Active: Healthy" if k4_active else "Filter: Healthy", key="op_kpi_hlth", use_container_width=True, type="primary" if k4_active else "secondary"):
             if k4_active:
                 st.session_state["op_kpi_filter"] = "All"
             else:
@@ -647,47 +688,47 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     # 4. Cross-Filter Visual Feedback Banner (Animates cause & effect connection)
     if k2_active:
         st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(239,68,68,0.12);border:1px solid #ef4444;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        <div class="cross-filter-pulse" style="background:rgba(242,73,92,0.12);border:1px solid #f2495c;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#ef4444;">⚡ ACTIVE CROSS-FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Expired Items</span>
-            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} debt entities synchronized across Hierarchy Tree & Heatmap)</span>
+            <span style="font-size:10.5px;font-weight:700;color:#f2495c;">⚡ ACTIVE CROSS-FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);">Expired Items</span>
+            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} debt entities synchronized across Hierarchy Tree & Heatmap)</span>
           </div>
-          <span style="font-size:9.5px;color:#fca5a5;font-family:var(--mono);font-weight:600;">Tree & Heatmap Linked</span>
+          <span style="font-size:9.5px;color:#f2495c;font-variant-numeric:tabular-nums;font-weight:600;">Tree & Heatmap Linked</span>
         </div>
         """, unsafe_allow_html=True)
     elif k3_active:
         st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        <div class="cross-filter-pulse" style="background:rgba(255,152,48,0.12);border:1px solid #ff9830;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#f59e0b;">⚡ ACTIVE CROSS-FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Critical & Warning</span>
-            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} urgent entities synchronized across Hierarchy Tree & Heatmap)</span>
+            <span style="font-size:10.5px;font-weight:700;color:#ff9830;">⚡ ACTIVE CROSS-FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);">Critical & Warning</span>
+            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} urgent entities synchronized across Hierarchy Tree & Heatmap)</span>
           </div>
-          <span style="font-size:9.5px;color:#fcd34d;font-family:var(--mono);font-weight:600;">Tree & Heatmap Linked</span>
+          <span style="font-size:9.5px;color:#ff9830;font-variant-numeric:tabular-nums;font-weight:600;">Tree & Heatmap Linked</span>
         </div>
         """, unsafe_allow_html=True)
     elif k4_active and is_scoped:
         st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(16,185,129,0.12);border:1px solid #10b981;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        <div class="cross-filter-pulse" style="background:rgba(115,191,105,0.12);border:1px solid #73bf69;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#10b981;">⚡ ACTIVE CROSS-FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:#f8fafc;">Healthy Entities</span>
-            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} compliant assets synchronized across Hierarchy Tree & Heatmap)</span>
+            <span style="font-size:10.5px;font-weight:700;color:#73bf69;">⚡ ACTIVE CROSS-FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);">Healthy Entities</span>
+            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} compliant assets synchronized across Hierarchy Tree & Heatmap)</span>
           </div>
-          <span style="font-size:9.5px;color:#6ee7b7;font-family:var(--mono);font-weight:600;">Tree & Heatmap Linked</span>
+          <span style="font-size:9.5px;color:#73bf69;font-variant-numeric:tabular-nums;font-weight:600;">Tree & Heatmap Linked</span>
         </div>
         """, unsafe_allow_html=True)
     elif cell_filter:
         c_st, c_cp = cell_filter
         st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(56,189,248,0.12);border:1px solid #38bdf8;border-radius:6px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        <div class="cross-filter-pulse" style="background:rgba(255,120,10,0.12);border:1px solid #ff780a;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#38bdf8;">⚡ ACTIVE HEATMAP FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:#f8fafc;">State {c_st}{f' × {c_cp}' if c_cp else ''}</span>
-            <span style="font-size:9.5px;color:#cbd5e1;">({scope_cnt} entities in focus across Tree & Inspector)</span>
+            <span style="font-size:10.5px;font-weight:700;color:#ff780a;">⚡ ACTIVE HEATMAP FILTER:</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text);">State {c_st}{f' × {c_cp}' if c_cp else ''}</span>
+            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} entities in focus across Tree & Inspector)</span>
           </div>
-          <span style="font-size:9.5px;color:#38bdf8;font-family:var(--mono);font-weight:600;">Heatmap Synced</span>
+          <span style="font-size:9.5px;color:#ff780a;font-variant-numeric:tabular-nums;font-weight:600;">Heatmap Synced</span>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -706,9 +747,122 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.session_state["op_active_id"] = cur_active_id
         selected_id = cur_active_id
 
+
     with left_col:
+        lt_c1, lt_c2 = st.columns([1.6, 1.4])
+        with lt_c1:
+            if hasattr(st, "radio"):
+                left_mode = st.radio(
+                    "Explorer Mode",
+                    ["🌳 Tree", "📋 Power Grid"],
+                    horizontal=True,
+                    label_visibility="collapsed",
+                    key="op_explorer_mode",
+                )
+            else:
+                left_mode = "🌳 Tree"
+        with lt_c2:
+            st.markdown(
+                f"<div style='text-align:right;font-size:9.5px;color:#94a3b8;padding-top:4px;font-family:var(--mono);'>"
+                f"<b>{len(filtered)}</b> of {len(df)} Assets</div>",
+                unsafe_allow_html=True,
+            )
+
         if filtered.empty:
             st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
+        elif left_mode == "📋 Power Grid":
+            selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
+
+            # Sort and Search Controls
+            pg_s_c1, pg_s_c2 = st.columns([1.8, 1.4])
+            with pg_s_c1:
+                pg_sort = st.selectbox(
+                    "Sort Grid",
+                    ["Days Left (Asc)", "Days Left (Desc)", "SLA Weight (High Risk First)", "Schema Name (A-Z)", "State (A-Z)"],
+                    label_visibility="collapsed",
+                    key="op_pg_sort",
+                )
+            with pg_s_c2:
+                all_pg_ids = set(filtered["id"].tolist())
+                n_sel = len(selected_entity_ids)
+                if n_sel > 0:
+                    if st.button(f"Clear ({n_sel})", key="pg_clear_all_sel", use_container_width=True):
+                        selected_entity_ids.clear()
+                        rerun()
+                else:
+                    if st.button("Select Filtered", key="pg_sel_all_filt", use_container_width=True):
+                        selected_entity_ids.update(all_pg_ids)
+                        rerun()
+
+            pg_work = filtered.copy()
+            if pg_sort == "Days Left (Asc)":
+                pg_work = pg_work.sort_values("days_left", ascending=True)
+            elif pg_sort == "Days Left (Desc)":
+                pg_work = pg_work.sort_values("days_left", ascending=False)
+            elif pg_sort == "SLA Weight (High Risk First)":
+                pg_work = pg_work.sort_values(["sla_weight", "days_left"], ascending=[False, True])
+            elif pg_sort == "Schema Name (A-Z)":
+                pg_work = pg_work.sort_values("schema_name", ascending=True)
+            elif pg_sort == "State (A-Z)":
+                pg_work = pg_work.sort_values(["state", "days_left"], ascending=[True, True])
+
+            PAGE_SIZE = 14
+            n_records = len(pg_work)
+            n_pages = max(1, (n_records + PAGE_SIZE - 1) // PAGE_SIZE)
+            cur_page = st.session_state.setdefault("op_pg_page_idx", 0)
+            if cur_page >= n_pages:
+                cur_page = n_pages - 1
+                st.session_state["op_pg_page_idx"] = cur_page
+
+            # Compact Pagination Bar
+            p_c1, p_c2, p_c3 = st.columns([1.0, 2.0, 1.0])
+            with p_c1:
+                if st.button("◀ Prev", key="op_pg_prev_btn", disabled=(cur_page <= 0), use_container_width=True):
+                    st.session_state["op_pg_page_idx"] = max(0, cur_page - 1)
+                    rerun()
+            with p_c2:
+                st.markdown(
+                    f"<div style='text-align:center;font-size:10px;font-weight:700;color:#f8fafc;padding-top:5px;font-family:var(--mono);'>"
+                    f"Page {cur_page + 1} of {n_pages} <span style='color:#94a3b8;font-weight:400;'>({n_records} assets)</span></div>",
+                    unsafe_allow_html=True,
+                )
+            with p_c3:
+                if st.button("Next ▶", key="op_pg_next_btn", disabled=(cur_page >= n_pages - 1), use_container_width=True):
+                    st.session_state["op_pg_page_idx"] = min(n_pages - 1, cur_page + 1)
+                    rerun()
+
+            # High-density entity list with zero-scroll budget
+            st.markdown("<div style='max-height:335px;overflow-y:auto;padding-right:2px;border-top:1px solid var(--rule);margin-top:4px;'>", unsafe_allow_html=True)
+            page_records = pg_work.iloc[cur_page * PAGE_SIZE : (cur_page + 1) * PAGE_SIZE]
+            for r in page_records.itertuples():
+                is_act = (r.id == selected_id)
+                is_sel = r.id in selected_entity_ids
+                r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                _sbar = ui.leaf_sparkbar(int(r.days_left))
+                sla_badge_str = ui.sla_badge(r.env_label)
+
+                pg_r0, pg_r1, pg_r2 = st.columns([0.5, 2.7, 1.4])
+                with pg_r0:
+                    if st.button("☑" if is_sel else "☐", key=f"pg_ck_{r.id}", use_container_width=True):
+                        if is_sel:
+                            selected_entity_ids.discard(r.id)
+                        else:
+                            selected_entity_ids.add(r.id)
+                        rerun()
+                with pg_r1:
+                    btn_txt = f"#{r.id} {r.schema_name} · {r.state}"
+                    if st.button(btn_txt, key=f"pg_act_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                        st.session_state["op_active_id"] = int(r.id)
+                        rerun()
+                with pg_r2:
+                    st.markdown(
+                        f"<div style='text-align:right;padding-top:2px;padding-right:2px;'>"
+                        f"<span style='font-family:var(--mono);font-size:9.5px;font-weight:700;color:{r_meta['color']};'>{r_meta['symbol']} {ui.fmt_days(r.days_left)}</span> {sla_badge_str}"
+                        f"{_sbar}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+            st.markdown("</div>", unsafe_allow_html=True)
         else:
             # Persistent Interactive Breadcrumb Header & Selection Toolbar
             bc_parts = ["<span style='color:var(--accent);font-weight:700;font-size:10px;'>All</span>"]
@@ -770,9 +924,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tree_open.clear()
                     tree_open.add(path)
 
+            st.markdown("""
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Hierarchy — State</span><span class="panel-menu">⋮</span></div>
+            """, unsafe_allow_html=True)
+
             bc_c1, bc_c2 = st.columns([1.1, 2.9])
             with bc_c1:
-                st.markdown(f"<div style='font-size:10px;padding:5px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:10px;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
             with bc_c2:
                 tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.4])
                 with tc1:
@@ -812,7 +971,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         rerun()
 
             # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Tri-State Multi-Select)
-            st.markdown("<div style='max-height:280px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;padding:2px 3px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:260px;overflow-y:auto;border-top:1px solid var(--rule);padding:2px 3px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
                 st_sub = filtered[filtered["state"] == st_val]
@@ -834,16 +993,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             selected_entity_ids.update(st_child_ids)
                         rerun()
                 with s_c1:
+                    _st_chip = ui.alert_chip(st_worst)
                     st.markdown(f"""
-                    <div class="tree-node-row{' active' if st_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border-radius:4px;padding:2px 6px;margin-bottom:2px;font-size:11px;">
-                      <span style="font-weight:700;color:#f8fafc;font-family:var(--mono);">
-                        📍 State {st_val} <span style="font-weight:400;color:#94a3b8;font-size:9.5px;">({len(st_sub)} items)</span>
+                    <div class="tree-node-row{' active' if st_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;background:#181b1f;border-left:3px solid {st_meta['color']};border-radius:2px;padding:3px 6px;margin-bottom:2px;font-size:11px;">
+                      <span style="font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;">
+                        📍 State {st_val} <span style="font-weight:400;color:var(--mute);font-size:9.5px;">({len(st_sub)} items)</span>
                       </span>
-                      <span class="pill" style="color:{st_meta['color']};background:{st_meta['tint']};font-size:9px;padding:1px 5px;">
-                        <b>{st_meta['symbol']}</b> {f'{st_exp_n} Expired' if st_exp_n else st_worst}
+                      <span style="display:flex;align-items:center;gap:5px;">
+                        {_st_chip}
+                        <span class="pill" style="color:{st_meta['color']};background:{st_meta['tint']};font-size:9px;padding:1px 5px;border-radius:2px;">
+                          <b>{st_meta['symbol']}</b> {f'{st_exp_n} Expired' if st_exp_n else st_worst}
+                        </span>
                       </span>
                     </div>
                     """, unsafe_allow_html=True)
+
                 with s_c2:
                     if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
                         toggle_tree_node(st_path, None)
@@ -856,7 +1020,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tm_is_open = tm_path in tree_open
                         tm_worst = ui.worst_band(tm_sub["band"].tolist())
                         tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
-                        tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#38bdf8")
+                        tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#5794f2")
                         tm_child_ids = set(tm_sub["id"].tolist())
                         tm_sym, tm_uncheck = tri_state_info(tm_child_ids, selected_entity_ids)
 
@@ -871,9 +1035,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 rerun()
                         with t_c1:
                             st.markdown(f"""
-                            <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:rgba(255,255,255,0.02);border-radius:3px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
-                              <span style="color:{tm_color};font-weight:700;">
-                                👥 {tm_val} <span style="color:#94a3b8;font-weight:400;font-size:9px;">({len(tm_sub)})</span>
+                            <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:#141619;border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
+                              <span style="color:{tm_color};font-weight:600;">
+                                👥 {tm_val} <span style="color:var(--mute);font-weight:400;font-size:9px;">({len(tm_sub)})</span>
                               </span>
                               <span style="color:{tm_meta['color']};font-weight:600;font-size:9px;">{tm_meta['symbol']} {tm_worst}</span>
                             </div>
@@ -897,6 +1061,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
                                 # Level 3: Component Node
                                 cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
+                                chip_head = f"{cp_icon} {cp_code}"
                                 with cp_c0:
                                     if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
                                         if cp_uncheck:
@@ -904,11 +1069,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                         else:
                                              selected_entity_ids.update(cp_child_ids)
                                         rerun()
-                                handy_cp_head = f"{cp_icon} {cp_code}"
                                 with cp_c1:
                                     st.markdown(f"""
-                                    <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};padding:1px 6px;margin-bottom:2px;font-size:10px;">
-                                      <span style="color:#f8fafc;font-weight:600;">{handy_cp_head} <span style="color:#94a3b8;font-size:8.5px;">({len(cp_sub)})</span></span>
+                                    <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10px;">
+                                      <span style="color:var(--text);font-weight:500;">{chip_head} <span style="color:var(--mute);font-size:8.5px;">({len(cp_sub)})</span></span>
                                       <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
                                     </div>
                                     """, unsafe_allow_html=True)
@@ -938,7 +1102,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                 rerun()
                                         with ev_c1:
                                             st.markdown(f"""
-                                            <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;padding:1px 4px;font-size:9.5px;color:#cbd5e1;">
+                                            <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;border-radius:2px;padding:2px 4px;font-size:9.5px;color:var(--slate);">
                                               <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
                                               <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
                                             </div>
@@ -954,7 +1118,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                 r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
                                                 is_act = (r.id == selected_id)
                                                 is_leaf_sel = r.id in selected_entity_ids
-                                                r_bg = "background:rgba(56,189,248,0.2);border:1px solid #38bdf8;box-shadow:inset 2px 0 0 #38bdf8;" if is_act else "background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.04);"
 
                                                 row_c0, row_c1, row_c2 = st.columns([0.6, 3.0, 1.4])
                                                 with row_c0:
@@ -971,11 +1134,73 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                 with row_c2:
                                                     r_c = r_meta["color"]
                                                     r_s = r_meta["symbol"]
+                                                    _sbar = ui.leaf_sparkbar(int(r.days_left))
                                                     st.markdown(
-                                                        f"<div style='text-align:right;padding-top:6px;padding-right:4px;font-family:var(--mono,monospace);font-size:10px;font-weight:600;color:{r_c};white-space:nowrap;'>{r_s} {ui.fmt_days(r.days_left)}</div>",
+                                                        f"<div style='text-align:right;padding-top:4px;padding-right:4px;'>"
+                                                        f"<div style='font-size:10px;font-weight:600;color:{r_c};white-space:nowrap;font-variant-numeric:tabular-nums;'>{r_s} {ui.fmt_days(r.days_left)}</div>"
+                                                        f"{_sbar}"
+                                                        f"</div>",
                                                         unsafe_allow_html=True
                                                     )
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
+
+            # Component Severity Distribution Panel (Rule 6: size to content, eliminate empty space)
+            dist_rows = []
+            for c_val in COMPONENT_ORDER:
+                c_sub = filtered[filtered["component"] == c_val]
+                c_cnt = len(c_sub)
+                c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+                if c_cnt == 0:
+                    dist_rows.append(
+                        f'<div class="dist-row">'
+                        f'<div class="dist-name">{c_code}</div>'
+                        f'<div class="dist-track"><div style="width:100%;background:#212429;"></div></div>'
+                        f'<div class="dist-num">0 · 0%</div>'
+                        f'</div>'
+                    )
+                else:
+                    c_exp = int((c_sub["days_left"] < 0).sum())
+                    c_crit = int((c_sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                    c_warn = int((c_sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                    c_hlth = int((c_sub["days_left"] > ui.WARNING_DAYS).sum())
+
+                    p_exp = (c_exp / c_cnt) * 100
+                    p_crit = (c_crit / c_cnt) * 100
+                    p_warn = (c_warn / c_cnt) * 100
+                    p_hlth = (c_hlth / c_cnt) * 100
+
+                    track_parts = []
+                    if p_exp > 0: track_parts.append(f'<div style="width:{p_exp:.1f}%;background:var(--expired);" title="{c_exp} expired"></div>')
+                    if p_crit > 0: track_parts.append(f'<div style="width:{p_crit:.1f}%;background:var(--critical);" title="{c_crit} critical"></div>')
+                    if p_warn > 0: track_parts.append(f'<div style="width:{p_warn:.1f}%;background:var(--warning);" title="{c_warn} warning"></div>')
+                    if p_hlth > 0: track_parts.append(f'<div style="width:{p_hlth:.1f}%;background:var(--healthy);" title="{c_hlth} healthy"></div>')
+                    track_html = "".join(track_parts) if track_parts else '<div style="width:100%;background:#212429;"></div>'
+
+                    if c_exp > 0:
+                        num_html = f'<span style="color:var(--expired);font-weight:700;">{c_exp} exp</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                    elif c_crit > 0:
+                        num_html = f'<span style="color:var(--critical);font-weight:700;">{c_crit} crit</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                    elif c_warn > 0:
+                        num_html = f'<span style="color:var(--warning);font-weight:700;">{c_warn} warn</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                    else:
+                        num_html = f'<span style="color:var(--healthy);font-weight:600;">{c_cnt}</span> <span style="color:var(--mute);font-weight:400;">(100%)</span>'
+
+                    dist_rows.append(
+                        f'<div class="dist-row">'
+                        f'<div class="dist-name">{c_code}</div>'
+                        f'<div class="dist-track">{track_html}</div>'
+                        f'<div class="dist-num">{num_html}</div>'
+                        f'</div>'
+                    )
+
+            st.markdown(f"""
+            <div class="panel" style="margin-top:8px;">
+              <div class="panel-head"><span class="panel-title">Severity by Component — Selected Scope</span><span class="panel-menu">⋮</span></div>
+              <div class="dist-body">
+                {''.join(dist_rows)}
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     with right_col:
         if selected_id is None:
@@ -986,98 +1211,96 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
         team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
         cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
-
-        # Top Inspector Header & Quick Renewal Bar (Compact 38px)
-        st.markdown(f"""
-        <div class="card" style="border-left:4px solid {meta['color']};margin-bottom:4px;padding:5px 10px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div>
-              <span style="font-size:9px;font-weight:700;letter-spacing:.08em;color:{meta['color']}">ENTITY #{rec['id']} · {rec['state']} · <span style="color:{team_meta['color']}">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
-              <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:#f8fafc;margin-top:1px;">{rec['schema_name']} <span class="env-tag" style="font-size:9.5px;">{rec['env_label']}</span></div>
-            </div>
-            {ui.status_pill(rec['band'])}
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Instant Action & Renewal Bar with 2-Step Confirmation
         conf = st.session_state.get("confirm_action")
         cur_dt = rec["exp_dt"].date()
 
-        if conf and conf.get("id") == rec["id"]:
-            cf_c1, cf_c2, cf_c3 = st.columns([2.5, 0.8, 0.8])
-            with cf_c1:
-                st.markdown(f"<div style='font-size:10.5px;color:#f59e0b;font-weight:700;padding-top:4px;'>⚠️ Extend {conf['schema']} to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
-            with cf_c2:
-                if st.button("✓ Confirm", key=f"op_cf_yes_{rec['id']}", type="primary", use_container_width=True):
-                    apply_edits([(conf["id"], conf["new_dt"])])
-                    del st.session_state["confirm_action"]
-                    st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
-                    rerun()
-            with cf_c3:
-                if st.button("Cancel", key=f"op_cf_no_{rec['id']}", use_container_width=True):
-                    del st.session_state["confirm_action"]
-                    rerun()
-        else:
-            act_b1, act_b2, act_b3, act_b4 = st.columns([1, 1, 1.6, 1.2])
-            if act_b1.button("+90 Days", key=f"op_top_p90_{rec['id']}", use_container_width=True):
-                st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
-                rerun()
-            if act_b2.button("+1 Year", key=f"op_top_p365_{rec['id']}", use_container_width=True):
-                st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
-                rerun()
+        # Unified Inspector Command Deck (Breadcrumb + Entity Title + Status + Action Chips)
+        head_c1, head_c2 = st.columns([2.5, 1.5])
+        with head_c1:
+            st.markdown(f"""
+            <div class="entity-head" style="border-left:3px solid {meta['color']};margin-bottom:6px;">
+              <div class="entity-crumb">
+                <span>ENTITY #{rec['id']} · <b style="color:var(--text);letter-spacing:0.04em;">State {rec['state']}</b> · <span style="color:{team_meta['color']};font-weight:600;">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
+                <span class="status-pill" style="background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+              </div>
+              <div class="entity-name">{rec['schema_name']} <span class="env-tag">{rec['env_label']}</span></div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            with act_b3:
-                if hasattr(st, "popover"):
-                    with st.popover("📅 Custom Date"):
-                        c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
-                        if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
-                            apply_edits([(rec["id"], c_date)])
-                            st.success(f"Updated to {c_date}")
-                            rerun()
-                else:
-                    with st.expander("📅 Custom Date"):
-                        c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
-                        if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
-                            apply_edits([(rec["id"], c_date)])
-                            st.success(f"Updated to {c_date}")
-                            rerun()
-
-            if rec["edited"]:
-                with act_b4:
-                    if st.button("↩ Revert", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True):
-                        conn = get_connection(DB_PATH)
-                        revert_component_exp_date(conn, int(rec["id"]))
-                        conn.close()
-                        bust_cache()
-                        st.success("Reverted to source workbook.")
+        with head_c2:
+            if conf and conf.get("id") == rec["id"]:
+                st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                cf_y, cf_n = st.columns(2)
+                with cf_y:
+                    if st.button("✓ Confirm", key=f"op_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                        apply_edits([(conf["id"], conf["new_dt"])])
+                        del st.session_state["confirm_action"]
+                        st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
                         rerun()
+                with cf_n:
+                    if st.button("Cancel", key=f"op_cf_no_{rec['id']}", use_container_width=True):
+                        del st.session_state["confirm_action"]
+                        rerun()
+            else:
+                n_act = 4 if rec["edited"] else 3
+                act_cols = st.columns(n_act)
+                if act_cols[0].button("+90d", key=f"op_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+                    st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                    rerun()
+                if act_cols[1].button("+1yr", key=f"op_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+                    st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                    rerun()
+                with act_cols[2]:
+                    if hasattr(st, "popover"):
+                        with st.popover("📅 Date"):
+                            c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+                            if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+                                apply_edits([(rec["id"], c_date)])
+                                st.success(f"Updated to {c_date}")
+                                rerun()
+                    else:
+                        with st.expander("📅 Date"):
+                            c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+                            if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+                                apply_edits([(rec["id"], c_date)])
+                                st.success(f"Updated to {c_date}")
+                                rerun()
+                if rec["edited"] and len(act_cols) > 3:
+                    with act_cols[3]:
+                        if st.button("↩ Rev", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                            conn = get_connection(DB_PATH)
+                            try:
+                                revert_component_exp_date(conn, int(rec["id"]))
+                            finally:
+                                conn.close()
+                            bust_cache()
+                            st.success("Reverted to source workbook.")
+                            rerun()
 
         i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
-            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
-            c_a, c_b = st.columns(2)
-            with c_a:
-                st.markdown(f"""
-                <div class="card" style="font-size:11px;line-height:1.45;padding:5px 8px;">
-                  <div><b>Team Owner:</b> <span style="color:{team_meta['color']};font-weight:700;">{rec['team']}</span> <span style="color:#94a3b8;font-size:9.5px;">({team_meta['lead']})</span></div>
-                  <div><b>Component:</b> {rec['component']}</div>
-                  <div style="color:#94a3b8;font-size:9.5px;margin-bottom:3px;">{ui.COMPONENT_BLURB.get(rec['component'], '')}</div>
-                  <div><b>Environment:</b> <span class="env-tag" style="font-size:9px;">{rec['env_label']}</span> ({ui.ENV_BLURB.get(rec['env_label'], 'Custom')})</div>
-                  <div><b>Module Code:</b> <code>{rec['module'] or 'N/A'}</code></div>
-                </div>
-                """, unsafe_allow_html=True)
-            with c_b:
-                exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
-                st.markdown(f"""
-                <div class="card" style="font-size:11px;line-height:1.45;padding:5px 8px;">
-                  <div><b>Current Expiry:</b> <code style="font-weight:700;color:{meta['color']}">{rec['exp_date']}</code></div>
-                  <div><b>Workbook Source:</b> <code>{rec['source_exp_date']}</code></div>
-                  <div><b>Life Remaining:</b> <b style="color:{meta['color']};">{ui.fmt_days(rec['days_left'])}</b> <span style="color:#94a3b8;font-size:10px;">{exp_detail}</span></div>
-                  <div><b>Quarter Horizon:</b> <code>{rec['quarter']}</code></div>
-                </div>
-                """, unsafe_allow_html=True)
+            st.markdown("<div style='max-height:220px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
+            _life_gauge = ui.life_gauge(int(rec['days_left']))
+            _team_chip = ui.alert_chip(rec["band"])
+            st.markdown(f"""
+            <div class="fact-grid" style="padding:4px 0 8px;">
+              <div class="fact-panel">
+                <div class="fact-row"><span class="fact-key">Team Owner</span><span class="fact-val" style="color:{team_meta['color']};font-weight:600;">{rec['team']} <span style="font-size:9.5px;color:var(--mute);font-weight:400;">({team_meta['lead']})</span> {_team_chip}</span></div>
+                <div class="fact-row"><span class="fact-key">Component</span><span class="fact-val" style="font-weight:500;">{rec['component']}</span></div>
+                <div class="fact-row"><span class="fact-key">Environment</span><span class="fact-val"><span class="env-tag">{rec['env_label']}</span> {ui.sla_badge(rec['env_label'])}</span></div>
+                <div class="fact-row"><span class="fact-key">Module Code</span><span class="fact-val" style="color:var(--slate);">{rec['module'] or 'N/A'}</span></div>
+              </div>
+              <div class="fact-panel">
+                <div class="fact-row"><span class="fact-key">Current Expiry</span><span class="fact-val" style="color:{meta['color']};font-weight:600;">{rec['exp_date']}</span></div>
+                <div class="fact-row"><span class="fact-key">Workbook Source</span><span class="fact-val" style="color:var(--slate);">{rec['source_exp_date']}</span></div>
+                <div class="fact-row"><span class="fact-key">Life Remaining</span><span class="fact-val crit" style="color:{meta['color']};font-weight:700;">{ui.fmt_days(rec['days_left'])} <span style="font-size:9.5px;font-weight:400;color:var(--mute);">{exp_detail}</span></span></div>
+                <div class="fact-row"><span class="fact-key">Quarter Horizon</span><span class="fact-val" style="color:var(--slate);">{rec['quarter']}</span></div>
+                <div style="margin-top:6px;">{_life_gauge}</div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
             payload = {
                 "id": int(rec["id"]),
@@ -1092,7 +1315,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 "band": rec["band"],
                 "edited_at": str(rec["edited_at"]),
             }
-            with st.expander("View raw data / query", expanded=False):
+            with st.expander("Technical Diagnostics & Database Query", expanded=False):
                 if hasattr(st, "code"):
                     st.caption("Technical Diagnostics & Database Query")
                     st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
@@ -1100,24 +1323,28 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab2:
-            st.markdown("<div style='max-height:200px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
-            st.markdown('<div class="note" style="margin-bottom:6px;"><b>Severity Heatmap (State × Component):</b> Color saturation indicates risk density. Click any cell to filter and expand the tree.</div>', unsafe_allow_html=True)
+            st.markdown("<div style='max-height:265px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            st.markdown(ui.panel_header(
+                "Severity Heatmap — State × Component",
+                color="#f59e0b",
+                info="Cell color saturation = risk density. Click any cell to cross-filter the Hierarchy Tree."
+            ), unsafe_allow_html=True)
             mat_states = STATES
             mat_comps = COMPONENT_ORDER
 
             # Header Row
             h_c0, h_c1, h_c2, h_c3, h_c4, h_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
             with h_c0:
-                st.markdown("<div style='font-size:10px;font-weight:700;color:#94a3b8;padding:4px 2px;'>STATE</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size:9.5px;font-weight:700;color:#94a3b8;padding:3px 2px;letter-spacing:.08em;text-align:center;background:rgba(255,255,255,0.03);border-radius:4px;'>STATE</div>", unsafe_allow_html=True)
             for idx, c_val in enumerate(mat_comps):
                 c_icon = ui.COMPONENT_ICONS.get(c_val, '')
                 c_code = ui.COMPONENT_CODE.get(c_val, c_val)
                 [h_c1, h_c2, h_c3, h_c4][idx].markdown(
-                    f"<div style='font-size:10px;font-weight:700;color:#cbd5e1;text-align:center;padding:4px 2px;'>{c_icon} {c_code}</div>",
+                    f"<div style='font-size:9.5px;font-weight:700;color:#cbd5e1;text-align:center;padding:3px 2px;letter-spacing:.06em;background:rgba(255,255,255,0.03);border-radius:4px;'>{c_icon} {c_code}</div>",
                     unsafe_allow_html=True
                 )
             with h_c5:
-                st.markdown("<div style='font-size:10px;font-weight:700;color:#94a3b8;text-align:right;padding:4px 2px;'>TOTAL</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size:9.5px;font-weight:700;color:#94a3b8;text-align:center;padding:3px 2px;letter-spacing:.08em;background:rgba(255,255,255,0.03);border-radius:4px;'>TOTAL</div>", unsafe_allow_html=True)
 
             # Rows
             for st_val in mat_states:
@@ -1125,6 +1352,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 r_c0, r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
                 is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
                 with r_c0:
+                    st.markdown("<div class='hm-state-btn'>", unsafe_allow_html=True)
                     if st.button(f"📍 {st_val}", key=f"hm_st_{st_val}", type="primary" if is_st_active else "secondary", use_container_width=True, help=f"Filter to State {st_val}"):
                         if is_st_active:
                             st.session_state["op_cell_filter"] = None
@@ -1133,13 +1361,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             tree_open.clear()
                             tree_open.add(st_val)
                         rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                 comp_cols = [r_c1, r_c2, r_c3, r_c4]
                 for idx, c_val in enumerate(mat_comps):
                     cell_sub = st_sub[st_sub["component"] == c_val]
                     with comp_cols[idx]:
                         if cell_sub.empty:
-                            st.button("—", key=f"hm_empty_{st_val}_{idx}", disabled=True, use_container_width=True)
+                            st.markdown("<div style='background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.08);border-radius:6px;height:56px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.15);font-size:14px;'>—</div>", unsafe_allow_html=True)
                         else:
                             c_cnt = len(cell_sub)
                             c_exp = int((cell_sub["days_left"] < 0).sum())
@@ -1148,21 +1377,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             c_hlth = int((cell_sub["days_left"] > ui.WARNING_DAYS).sum())
                             min_days = int(cell_sub["days_left"].min())
                             c_code = ui.COMPONENT_CODE.get(c_val, c_val)
-
-                            risk_parts = []
-                            if c_exp > 0:
-                                risk_parts.append(f"● {c_exp} Exp")
-                            if c_crit > 0:
-                                risk_parts.append(f"▲ {c_crit} Crit")
-                            if c_warn > 0:
-                                risk_parts.append(f"◆ {c_warn} Warn")
-
-                            if risk_parts:
-                                badge_txt = " + ".join(risk_parts)
-                            else:
-                                badge_txt = f"✓ {c_cnt} OK"
-
-                            btn_label = f"{badge_txt} · {ui.fmt_heatmap_time(min_days)}"
+                            c_worst = ui.worst_band(cell_sub["band"].tolist())
+                            c_color = ui.BAND_META[c_worst]["color"]
+                            is_cell_active = (cell_filter == (st_val, c_val)) or (state_filter == st_val and comp_filter == c_val and cell_filter is None)
 
                             breakdown_parts = []
                             if c_exp: breakdown_parts.append(f"{c_exp} Expired")
@@ -1171,14 +1388,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             if c_hlth: breakdown_parts.append(f"{c_hlth} Healthy")
                             help_desc = f"Cross-filter to {st_val} × {c_code} ({', '.join(breakdown_parts)} — soonest in {ui.fmt_heatmap_time(min_days)})"
 
-                            is_cell_active = (cell_filter == (st_val, c_val)) or (state_filter == st_val and comp_filter == c_val and cell_filter is None)
-                            if st.button(
-                                btn_label,
-                                key=f"hm_c_{st_val}_{c_code}",
-                                type="primary" if is_cell_active else "secondary",
-                                use_container_width=True,
-                                help=help_desc
-                            ):
+                            # Visual cell
+                            st.markdown(
+                                ui.heatmap_visual_cell(c_cnt, c_exp, c_crit, c_warn, c_hlth, min_days, c_color, is_cell_active),
+                                unsafe_allow_html=True
+                            )
+                            btn_label = "✓ SELECTED" if is_cell_active else "Inspect ↗"
+                            st.markdown("<div class='hm-action-btn'>", unsafe_allow_html=True)
+                            if st.button(btn_label, key=f"hm_c_{st_val}_{c_code}", help=help_desc, use_container_width=True, type="primary" if is_cell_active else "secondary"):
                                 if is_cell_active:
                                     st.session_state["op_cell_filter"] = None
                                 else:
@@ -1189,11 +1406,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                         tree_open.add(f"{st_val}/{t}")
                                         tree_open.add(f"{st_val}/{t}/{c_val}")
                                 rerun()
+                            st.markdown("</div>", unsafe_allow_html=True)
 
                 with r_c5:
-                    st.markdown(f"<div style='font-family:var(--mono);font-weight:700;color:var(--accent);text-align:right;padding-top:7px;font-size:11px;'>{len(st_sub)}</div>", unsafe_allow_html=True)
+                    # State total with colored accent
+                    _st_worst = ui.worst_band(st_sub["band"].tolist())
+                    _st_color = ui.BAND_META[_st_worst]["color"]
+                    st.markdown(f"<div style='font-family:var(--mono);font-weight:700;color:{_st_color};text-align:center;padding-top:22px;font-size:13px;letter-spacing:.02em;'>{len(st_sub)}</div>", unsafe_allow_html=True)
 
             st.markdown("</div>", unsafe_allow_html=True)
+
+
+
 
         with i_tab3:
             if selected_entity_ids:
@@ -1320,8 +1544,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "cadence": "Quarterly",
         "assets": 160,
         "status": "🔴 10 Expired",
-        "status_color": "#ef4444",
-        "status_bg": "rgba(239,68,68,0.18)"
+        "status_color": "#f2495c",
+        "status_bg": "rgba(242,73,92,0.18)"
     },
     "Letters": {
         "team": "Letters",
@@ -1330,8 +1554,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "cadence": "Monthly (1st Sun)",
         "assets": 96,
         "status": "▲ 5 Critical (15d)",
-        "status_color": "#f97316",
-        "status_bg": "rgba(249,115,22,0.18)"
+        "status_color": "#ff9830",
+        "status_bg": "rgba(255,152,48,0.18)"
     },
     "Cognos": {
         "team": "Cognos",
@@ -1340,8 +1564,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "cadence": "3× Weekly",
         "assets": 96,
         "status": "▲ 5 Critical (15d)",
-        "status_color": "#f97316",
-        "status_bg": "rgba(249,115,22,0.18)"
+        "status_color": "#ff9830",
+        "status_bg": "rgba(255,152,48,0.18)"
     },
     "Informatica": {
         "team": "Informatica",
@@ -1350,8 +1574,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "cadence": "Weekly (Sun)",
         "assets": 96,
         "status": "✓ 100% Healthy",
-        "status_color": "#10b981",
-        "status_bg": "rgba(16,185,129,0.15)"
+        "status_color": "#73bf69",
+        "status_bg": "rgba(115,191,105,0.16)"
     },
     "App Server": {
         "team": "App Server",
@@ -1360,8 +1584,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "cadence": "Weekly (Sun)",
         "assets": 96,
         "status": "✓ 100% Healthy",
-        "status_color": "#10b981",
-        "status_bg": "rgba(16,185,129,0.15)"
+        "status_color": "#73bf69",
+        "status_bg": "rgba(115,191,105,0.16)"
     },
 }
 
@@ -1404,15 +1628,15 @@ def render_governance_center() -> None:
     s_c1, s_c2 = st.columns([4.2, 0.8])
     with s_c1:
         st.markdown(f"""
-        <div style="background:var(--sunk);border:1px solid var(--rule);border-radius:6px;padding:4px 10px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.06em;">GOVERNANCE SCOPE:</span>
-            <span style="font-size:11px;color:#f8fafc;font-weight:700;">{scope_name}</span>
-            <span style="font-size:9.5px;color:var(--slate);">({len(scoped_records)} of 500 Total Managed Assets)</span>
+        <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
+          <div style="display:flex;align-items:center;gap:8px;flex:1;">
+            <span class="scope-label">GOVERNANCE SCOPE</span>
+            <span class="scope-val">{scope_name}</span>
+            <span class="scope-muted">({len(scoped_records)} of 500 total managed assets)</span>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;font-size:9.5px;font-family:var(--mono);">
-            <span style="color:#10b981;">● Live Data Sync</span>
-            <span style="color:var(--slate);">08:00 UTC</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="live-dot"></div>
+            <span class="scope-muted" style="font-variant-numeric:tabular-nums;font-size:11px;">Live Data Sync · 08:00 UTC</span>
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1426,30 +1650,30 @@ def render_governance_center() -> None:
 
     # 2. Level 1: Authoritative Action Directive (High Impact, Zero Ambiguity)
     st.markdown(f"""
-    <div class="card" style="border-left:4px solid #ef4444;background:linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(15,23,42,0.6) 100%);padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
+    <div class="panel" style="border-left:3px solid var(--expired);background:linear-gradient(90deg, rgba(242,73,92,0.12) 0%, rgba(24,27,31,0.95) 100%);padding:8px 12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;border-radius:2px;">
       <div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12.5px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">🔴 EXECUTIVE ACTION DIRECTIVE: Critical Credential Rotation Required Across 3 Functional Domains</span>
-          <span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.22);font-size:9px;font-weight:700;">POLICY ESCALATION</span>
+          <span style="font-size:12.5px;font-weight:700;color:var(--text);letter-spacing:-0.01em;">🔴 EXECUTIVE ACTION DIRECTIVE: Critical Credential Rotation Required Across 3 Functional Domains</span>
+          <span class="pill" style="color:var(--expired);background:var(--red-dim);font-size:9px;font-weight:700;border-radius:2px;">POLICY ESCALATION</span>
         </div>
-        <div style="font-size:10.5px;color:#cbd5e1;margin-top:2px;">
+        <div style="font-size:11px;color:var(--slate);margin-top:3px;">
           Escalate overdue credential rotation for <b>Core (ND)</b> and stage 15-day renewals for <b>Letters (AK)</b> and <b>Cognos (NH)</b> to eliminate operational disruption risks.
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;">
         <div style="width:130px;">
-          <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;margin-bottom:2px;font-family:var(--mono);">
-            <span style="color:#10b981;font-weight:700;">{pct_healthy:.1f}% OK</span>
-            <span style="color:#ef4444;font-weight:700;">{pct_risk:.1f}% Risk</span>
+          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--mute);margin-bottom:2px;font-variant-numeric:tabular-nums;">
+            <span style="color:var(--healthy);font-weight:700;">{pct_healthy:.1f}% OK</span>
+            <span style="color:var(--expired);font-weight:700;">{pct_risk:.1f}% Risk</span>
           </div>
-          <div style="height:5px;width:100%;background:#1e293b;border-radius:3px;overflow:hidden;display:flex;">
-            <div style="width:{pct_healthy:.1f}%;background:#10b981;"></div>
-            <div style="width:{pct_risk:.1f}%;background:#ef4444;"></div>
+          <div style="height:5px;width:100%;background:#212429;border-radius:2px;overflow:hidden;display:flex;">
+            <div style="width:{pct_healthy:.1f}%;background:var(--healthy);"></div>
+            <div style="width:{pct_risk:.1f}%;background:var(--expired);"></div>
           </div>
         </div>
-        <div style="text-align:right;font-family:var(--mono);border-left:1px solid #334155;padding-left:10px;">
-          <span style="font-size:16px;font-weight:800;color:#ef4444;line-height:1;">{n_total_risk_fleet}</span>
-          <span style="font-size:8.5px;color:#94a3b8;display:block;">Action Items</span>
+        <div style="text-align:right;border-left:1px solid var(--rule);padding-left:10px;font-variant-numeric:tabular-nums;">
+          <span style="font-size:18px;font-weight:700;color:var(--expired);line-height:1;">{n_total_risk_fleet}</span>
+          <span style="font-size:9px;color:var(--mute);display:block;">Action Items</span>
         </div>
       </div>
     </div>
@@ -1464,10 +1688,10 @@ def render_governance_center() -> None:
             label="Actionable Risk Assets",
             value=n_total_risk_fleet,
             subtext=f"{n_expired_fleet} Expired · {n_critical_fleet} Critical · {n_warning_fleet} Warning",
-            glow="#ef4444",
-            val_color="#ef4444",
+            glow="#f2495c",
+            val_color="#f2495c",
             badge="RISK",
-            badge_color="#ef4444",
+            badge_color="#f2495c",
             is_active=is_active,
         ), unsafe_allow_html=True)
         if st.button("Filter Risk Assets" if not is_active else "✓ Filtering Risk", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
@@ -1480,10 +1704,10 @@ def render_governance_center() -> None:
             label="Teams Impacted",
             value="3 / 5",
             subtext="Core, Letters, Cognos attention",
-            glow="#f59e0b",
-            val_color="#f59e0b",
+            glow="#ff9830",
+            val_color="#ff9830",
             badge="IMPACT",
-            badge_color="#f59e0b",
+            badge_color="#ff9830",
             is_active=is_active,
         ), unsafe_allow_html=True)
         if st.button("Focus Impacted" if not is_active else f"✓ Focused: {gov_team_filter}", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
@@ -1496,10 +1720,10 @@ def render_governance_center() -> None:
             label="Maintenance Windows",
             value=stats.get('maintenance_schedules', 0),
             subtext="100% Synced across 4 cadences",
-            glow="#38bdf8",
-            val_color="#f8fafc",
+            glow="#5794f2",
+            val_color="var(--ink)",
             badge="SCHEDULE",
-            badge_color="#38bdf8",
+            badge_color="#5794f2",
             is_active=is_active,
         ), unsafe_allow_html=True)
         if st.button("View Maintenance" if not is_active else "✓ Maintenance Scope", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
@@ -1513,10 +1737,10 @@ def render_governance_center() -> None:
             label="Alert Dispatch Audit",
             value=f"{stats['reminder_log']} Logged",
             subtext="Live SMTP Configured" if smtp_live else "Daily dry-run audit @ 08:00 UTC",
-            glow="#38bdf8",
-            val_color="#f8fafc",
+            glow="#5794f2",
+            val_color="var(--ink)",
             badge="LIVE SMTP" if smtp_live else "SIMULATED",
-            badge_color="#10b981" if smtp_live else "#f59e0b",
+            badge_color="#73bf69" if smtp_live else "#ff9830",
             is_active=is_active,
         ), unsafe_allow_html=True)
         if st.button("Audit Logs" if not is_active else "✓ Audit Log Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
@@ -1530,27 +1754,26 @@ def render_governance_center() -> None:
 
     with g_col1:
         # Team Governance & Risk Distribution Matrix (ALWAYS DISPLAYS ALL 5 TEAMS TO PREVENT EMPTY CAVITY)
-        st.markdown('<div class="eyebrow" style="margin-top:0;margin-bottom:3px;font-size:10.5px;color:#cbd5e1;">Team Governance & Risk Distribution Matrix</div>', unsafe_allow_html=True)
-
         team_profiles = list(TEAM_GOVERNANCE_PROFILES.values())
 
         t_rows = []
         for p in team_profiles:
             is_active_tm = (gov_team_filter == p["team"])
-            row_bg = "background:rgba(56,189,248,0.14);border-left:3px solid #38bdf8;" if is_active_tm else ""
-            active_badge = " <span style='color:#38bdf8;font-size:9px;font-weight:700;'>[ACTIVE]</span>" if is_active_tm else ""
+            row_bg = "background:rgba(255,120,10,0.12);border-left:3px solid var(--accent);" if is_active_tm else ""
+            active_badge = " <span style='color:var(--accent);font-size:9px;font-weight:700;'>[ACTIVE]</span>" if is_active_tm else ""
             t_rows.append(
                 f"<tr style='{row_bg}'>"
-                f"<td class='m' style='font-weight:700;color:#f8fafc;padding:5px 6px;'>{p['team']}{active_badge}</td>"
-                f"<td style='color:#cbd5e1;padding:5px 6px;'>{p['lead']}<br/><code style='font-size:9.5px;color:#94a3b8;'>{p['channel']}</code></td>"
+                f"<td class='m' style='font-weight:600;color:var(--text);padding:5px 6px;'>{p['team']}{active_badge}</td>"
+                f"<td style='color:var(--slate);padding:5px 6px;'>{p['lead']}<br/><code style='font-size:9.5px;color:var(--mute);'>{p['channel']}</code></td>"
                 f"<td class='m r' style='padding:5px 6px;'><b>{p['assets']}</b></td>"
-                f"<td style='padding:5px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:9px;'>{p['status']}</span></td>"
-                f"<td style='color:#94a3b8;font-size:9.5px;padding:5px 6px;'>{p['cadence']}</td>"
+                f"<td style='padding:5px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:9px;border-radius:2px;'>{p['status']}</span></td>"
+                f"<td style='color:var(--mute);font-size:9.5px;padding:5px 6px;'>{p['cadence']}</td>"
                 f"</tr>"
             )
 
         st.markdown(f"""
-        <div class="card" style="padding:6px 10px;margin-bottom:6px;border-radius:6px;">
+        <div class="panel" style="margin-bottom:6px;">
+          <div class="panel-head"><span class="panel-title">Team Governance & Risk Distribution Matrix</span><span class="panel-menu">⋮</span></div>
           <table class="tblx" style="font-size:10.5px;">
             <tr><th>Functional Team</th><th>Owner & Channel</th><th class="r">Assets</th><th>Risk Posture</th><th>Cadence</th></tr>
             {''.join(t_rows)}
@@ -1558,7 +1781,7 @@ def render_governance_center() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div style="font-size:9.5px;font-weight:700;color:#94a3b8;letter-spacing:0.04em;margin-top:4px;margin-bottom:3px;">FOCUS TEAM SCOPE:</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:9.5px;font-weight:700;color:var(--mute);letter-spacing:0.04em;margin-top:4px;margin-bottom:3px;">FOCUS TEAM SCOPE:</div>', unsafe_allow_html=True)
 
         # Team drill buttons (hidden but functional — triggered by the scorecard row clicks above)
         _drill_cols = st.columns(6)
@@ -1583,9 +1806,9 @@ def render_governance_center() -> None:
         with act_tab1:
             if urgent_records.empty:
                 st.markdown(f"""
-                <div class="card" style="padding:24px 16px;text-align:center;border-radius:6px;">
-                  <div style="font-size:14px;font-weight:700;color:#10b981;">✓ Scope 100% In Compliance</div>
-                  <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+                <div class="panel" style="padding:24px 16px;text-align:center;">
+                  <div style="font-size:14px;font-weight:700;color:var(--healthy);">✓ Scope 100% In Compliance</div>
+                  <div style="font-size:11px;color:var(--mute);margin-top:4px;">
                     No expired or critical debt entities found for <b>{scope_name}</b>.
                   </div>
                 </div>
@@ -1597,16 +1820,16 @@ def render_governance_center() -> None:
                     ur_code = ui.COMPONENT_CODE.get(ur.component, ur.component)
                     ur_icon = ui.COMPONENT_ICONS.get(ur.component, "📦")
                     if ur.days_left < 0:
-                        ll_style = "color:#ef4444;font-weight:800;"
+                        ll_style = "color:var(--expired);font-weight:700;"
                     elif ur.days_left <= 15:
-                        ll_style = "color:#f97316;font-weight:700;"
+                        ll_style = "color:var(--critical);font-weight:700;"
                     elif ur.days_left <= 30:
-                        ll_style = "color:#f59e0b;font-weight:600;"
+                        ll_style = "color:var(--warning);font-weight:600;"
                     else:
-                        ll_style = "color:#10b981;font-weight:600;"
+                        ll_style = "color:var(--healthy);font-weight:600;"
                     q_rows.append(
                         f"<tr>"
-                        f"<td><span class='pill' style='color:{ur_meta['color']};background:{ur_meta['tint']};font-weight:700;font-size:9px;'>{ur.band}</span></td>"
+                        f"<td><span class='pill' style='color:{ur_meta['color']};background:{ur_meta['tint']};font-weight:700;font-size:9px;border-radius:2px;'>{ur.band}</span></td>"
                         f"<td class='m'><b>{ur.state}</b> · <span class='env-tag' style='font-size:8.5px;'>{ur.env_label}</span></td>"
                         f"<td>{ur_icon} <b>{ur.team}</b> ({ur_code})</td>"
                         f"<td class='m'><code>{ur.schema_name}</code></td>"
@@ -1615,7 +1838,7 @@ def render_governance_center() -> None:
                     )
 
                 st.markdown(f"""
-                <div style="max-height:210px;overflow-y:auto;border:1px solid var(--rule);border-radius:6px;">
+                <div style="max-height:210px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;">
                   <table class="tblx" style="font-size:10px;">
                     <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                     {''.join(q_rows)}
@@ -1625,7 +1848,7 @@ def render_governance_center() -> None:
 
                 aq_c1, aq_c2 = st.columns([2.6, 1.4])
                 with aq_c1:
-                    st.markdown("<div style='font-size:10px;color:#94a3b8;padding-top:4px;'>Execute batch renewal overrides for urgent items:</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-size:10px;color:var(--mute);padding-top:4px;'>Execute batch renewal overrides for urgent items:</div>", unsafe_allow_html=True)
                 with aq_c2:
                     if st.button("⚡ Open Batch Editor", key="gov_send_batch", type="primary", use_container_width=True):
                         st.session_state["op_selected_entity_ids"] = set(urgent_records["id"].tolist())
@@ -1686,19 +1909,17 @@ def render_governance_center() -> None:
                 email_html = render_email(sim_mock)
 
                 st.markdown(f"""
-                <div style="border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--card);box-shadow:0 8px 24px rgba(0,0,0,0.5);margin-top:6px;margin-bottom:8px;">
-                  <div style="background:#0b1120;border-bottom:1px solid var(--rule);padding:5px 10px;display:flex;align-items:center;justify-content:space-between;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                      <span style="font-size:10px;font-weight:700;color:#38bdf8;font-family:var(--mono);letter-spacing:0.06em;">EMAIL ALERT DISPATCH PREVIEW &amp; SIMULATOR</span>
-                    </div>
-                    <span class="pill" style="color:#f59e0b;background:rgba(245,158,11,0.15);font-size:8.5px;font-weight:700;">● Simulation Mode (No Live SMTP)</span>
+                <div class="panel" style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--card);box-shadow:none !important;margin-top:6px;margin-bottom:8px;">
+                  <div class="panel-head" style="background:#141619;">
+                    <span class="panel-title" style="font-size:10px;font-weight:700;color:var(--text);letter-spacing:0.06em;">EMAIL ALERT DISPATCH PREVIEW &amp; SIMULATOR</span>
+                    <span class="pill" style="color:var(--warning);background:rgba(255,152,48,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">● Simulation Mode (No Live SMTP)</span>
                   </div>
-                  <div style="background:#0f172a;border-bottom:1px solid rgba(255,255,255,0.06);padding:5px 10px;font-size:10px;display:flex;flex-direction:column;gap:3px;">
-                    <div><span style="color:#64748b;font-weight:600;">To:</span> <b style="color:#f8fafc;">{sim_mock['owner_name']}</b> &lt;<code style="color:#38bdf8;font-size:10px;background:rgba(56,189,248,0.1);padding:1px 6px;border-radius:3px;">{sim_mock['owner_email']}</code>&gt;</div>
-                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:#64748b;font-weight:600;">Subject:</span> <span style="color:#38bdf8;font-weight:600;font-size:10.5px;">{email_subject}</span></div>
+                  <div style="background:#181b1f;border-bottom:1px solid var(--rule-soft);padding:6px 10px;font-size:11px;display:flex;flex-direction:column;gap:3px;">
+                    <div><span style="color:var(--mute);font-weight:600;">To:</span> <b style="color:var(--text);">{sim_mock['owner_name']}</b> &lt;<code style="color:var(--accent);font-size:10px;background:rgba(255,120,10,0.1);padding:1px 6px;border-radius:2px;">{sim_mock['owner_email']}</code>&gt;</div>
+                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">{email_subject}</span></div>
                   </div>
-                  <div style="background:#070b14;padding:7px;">
-                    <div style="max-height:160px;overflow-y:auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:5px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.15);">
+                  <div style="background:#111217;padding:7px;">
+                    <div style="max-height:160px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
                       {email_html}
                     </div>
                   </div>
@@ -1708,8 +1929,8 @@ def render_governance_center() -> None:
                 disp_c1, disp_c2 = st.columns([2.6, 1.4])
                 with disp_c1:
                     st.markdown(
-                        f"<div style='font-size:10px;color:#94a3b8;line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-                        f"Simulate dispatch to <code style='color:#38bdf8;font-size:9.5px;'>{sim_mock['owner_email']}</code> &amp; log audit:</div>",
+                        f"<div style='font-size:10px;color:var(--mute);line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                        f"Simulate dispatch to <code style='color:var(--accent);font-size:9.5px;'>{sim_mock['owner_email']}</code> &amp; log audit:</div>",
                         unsafe_allow_html=True
                     )
                 with disp_c2:
@@ -1727,20 +1948,130 @@ def render_governance_center() -> None:
                         st.toast(f"Simulated dispatch logged for {sim_mock['owner_email']}", icon="📧")
                         rerun()
 
+                # -------------------------------------------------------------
+                # SEPARATE & EXPLICIT: Live SMTP Dispatch (Real Network Send)
+                # -------------------------------------------------------------
+                st.markdown("""
+                <div style="border-top:1px dashed var(--rule);margin-top:12px;margin-bottom:8px;padding-top:8px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <span style="font-size:10.5px;font-weight:700;color:var(--text);letter-spacing:0.04em;">🚀 LIVE SMTP DISPATCH &bull; REAL NETWORK SEND</span>
+                    </div>
+                    <span class="pill" style="color:var(--healthy);background:var(--green-dim);font-size:8.5px;font-weight:700;border-radius:2px;">NETWORK READY</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--mute);line-height:1.4;">
+                    Dispatches authentic, RFC-compliant email alert for <b>all 10 expired components</b> strictly to designated operational test inboxes.
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                real_recipients = ["basha.shaikirfan@gmail.com", "dataengineerib@gmail.com"]
+
+                # Check if credentials are in env or session state
+                env_cfg = smtp_config_from_env()
+                sess_host = st.session_state.get("gov_smtp_host", env_cfg.get("host") or "")
+                sess_port = st.session_state.get("gov_smtp_port", env_cfg.get("port") or 587)
+                sess_user = st.session_state.get("gov_smtp_user", env_cfg.get("user") or "")
+                sess_pass = st.session_state.get("gov_smtp_pass", env_cfg.get("password") or "")
+
+                has_live_creds = bool(sess_host and sess_user and sess_pass)
+
+                with st.expander("⚙️ Live SMTP Server Credentials", expanded=not has_live_creds):
+                    cfg_c1, cfg_c2 = st.columns([1.5, 0.8])
+                    with cfg_c1:
+                        live_host = st.text_input("SMTP Host", value=sess_host, placeholder="smtp.gmail.com", key="gov_real_smtp_host")
+                        live_user = st.text_input("Username / Email", value=sess_user, placeholder="user@gmail.com", key="gov_real_smtp_user")
+                    with cfg_c2:
+                        live_port = st.text_input("Port", value=str(sess_port), placeholder="587", key="gov_real_smtp_port")
+                        live_pass = st.text_input("App Password", value=sess_pass, type="password", placeholder="16-char app password", key="gov_real_smtp_pass")
+
+                    port_val = int(live_port.strip()) if live_port.strip().isdigit() else 587
+                    st.session_state["gov_smtp_host"] = live_host.strip()
+                    st.session_state["gov_smtp_port"] = port_val
+                    st.session_state["gov_smtp_user"] = live_user.strip()
+                    st.session_state["gov_smtp_pass"] = live_pass.strip()
+                    st.session_state["gov_smtp_from"] = live_user.strip()
+
+                    if not (live_host.strip() and live_user.strip() and live_pass.strip()):
+                        st.markdown("<div style='font-size:9.5px;color:var(--warning);'>⚠️ SMTP Host, Username, and Password are required for live network send.</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div style='font-size:9.5px;color:var(--healthy);'>✓ SMTP configuration set for session. Ready to dispatch.</div>", unsafe_allow_html=True)
+
+                st.markdown(f"""
+                <div style="background:#141619;border:1px solid var(--rule);border-radius:2px;padding:6px 10px;margin-bottom:6px;font-size:10px;">
+                  <div><span style="color:var(--mute);font-weight:600;">Strict Target Inboxes:</span> <code style="color:var(--accent);">{', '.join(real_recipients)}</code></div>
+                  <div style="margin-top:2px;"><span style="color:var(--mute);font-weight:600;">Alert Payload:</span> <b style="color:var(--text);">10 Overdue Records (ND DR &amp; MO Software Versions)</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if st.button("🚀 Send Real Test Email (10 Expired Items)", key="gov_trigger_real_dispatch", type="primary", use_container_width=True):
+                    active_host = st.session_state.get("gov_smtp_host")
+                    active_port = st.session_state.get("gov_smtp_port", 587)
+                    active_user = st.session_state.get("gov_smtp_user")
+                    active_pass = st.session_state.get("gov_smtp_pass")
+                    active_from = st.session_state.get("gov_smtp_from") or active_user
+
+                    if not (active_host and active_user and active_pass):
+                        st.error("❌ Live SMTP Dispatch Blocked: Missing credentials. Please expand '⚙️ Live SMTP Server Credentials' above and supply Host, Username, and App Password.")
+                    else:
+                        conn_exp = get_connection(DB_PATH)
+                        df_all = pd.read_sql_query("SELECT * FROM component_records", conn_exp)
+                        conn_exp.close()
+
+                        df_all["exp_dt"] = pd.to_datetime(df_all["exp_date"]).dt.date
+                        df_all["days_left"] = (df_all["exp_dt"] - date.today()).apply(lambda d: d.days)
+                        exp_list = df_all[df_all["days_left"] < 0].sort_values(by=["state", "team", "environment"]).to_dict(orient="records")
+
+                        active_smtp_config = {
+                            "host": active_host,
+                            "port": int(active_port),
+                            "user": active_user,
+                            "password": active_pass,
+                            "from_addr": active_from,
+                        }
+
+                        with st.spinner("Connecting to SMTP server & transmitting live packets..."):
+                            try:
+                                receipt = dispatch_expired_alert_real(
+                                    recipients=real_recipients,
+                                    expired_records=exp_list,
+                                    smtp_config=active_smtp_config,
+                                    is_simulation=False,
+                                )
+                                st.session_state["last_real_receipt"] = receipt
+                                st.success("✓ Live SMTP Alert Successfully Delivered!")
+                            except Exception as ex:
+                                import traceback
+                                st.error(f"❌ Real SMTP Delivery Failed: {ex}")
+                                st.code(traceback.format_exc(), language="text")
+
+                if "last_real_receipt" in st.session_state:
+                    rcpt = st.session_state["last_real_receipt"]
+                    st.markdown(f"""
+                    <div style="background:rgba(115,191,105,0.08);border:1px solid rgba(115,191,105,0.3);border-radius:2px;padding:8px 10px;margin-top:6px;font-size:10px;">
+                      <div style="font-weight:700;color:var(--healthy);margin-bottom:4px;">VERIFIABLE DELIVERY RECEIPT</div>
+                      <div><b>Server Response:</b> <code>{rcpt.get('smtp_response', '250 2.0.0 OK')}</code></div>
+                      <div><b>Timestamp (UTC):</b> <code>{rcpt.get('timestamp')}</code></div>
+                      <div><b>Message-ID:</b> <code>{rcpt.get('message_id')}</code></div>
+                      <div><b>Recipients:</b> <code>{', '.join(rcpt.get('recipients', []))}</code></div>
+                      <div><b>Payload:</b> <code>{rcpt.get('item_count')} Expired Items</code></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
         with act_tab3:
             st.markdown(f"""
-            <div class="card" style="padding:6px 10px;margin-bottom:6px;border-radius:6px;">
+            <div class="panel" style="padding:6px 10px;margin-bottom:6px;border-radius:2px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:11px;font-weight:700;color:#f8fafc;">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
-                <span style="font-size:9.5px;color:#10b981;font-weight:700;">● ZERO-MOCK LINEAGE</span>
+                <span style="font-size:11px;font-weight:700;color:var(--text);">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
+                <span style="font-size:9.5px;color:var(--healthy);font-weight:700;">● ZERO-MOCK LINEAGE</span>
               </div>
               <table class="tblx" style="font-size:10px;">
                 <tr><th>Table Name</th><th class="r">Rows</th><th>Lineage Role</th><th class="r">Status</th></tr>
-                <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:8.5px;">✓ Active</span></td></tr>
-                <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:8.5px;">✓ Active</span></td></tr>
-                <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;">✓ Synced</span></td></tr>
-                <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;">3 States</span></td></tr>
-                <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.15);font-size:8.5px;">Audit Ready</span></td></tr>
+                <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:var(--healthy);background:var(--green-dim);font-size:8.5px;border-radius:2px;">✓ Active</span></td></tr>
+                <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:var(--healthy);background:var(--green-dim);font-size:8.5px;border-radius:2px;">✓ Active</span></td></tr>
+                <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#5794f2;background:rgba(87,148,242,0.15);font-size:8.5px;border-radius:2px;">✓ Synced</span></td></tr>
+                <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#5794f2;background:rgba(87,148,242,0.15);font-size:8.5px;border-radius:2px;">3 States</span></td></tr>
+                <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:var(--slate);background:rgba(159,167,179,0.15);font-size:8.5px;border-radius:2px;">Audit Ready</span></td></tr>
               </table>
             </div>
             """, unsafe_allow_html=True)
@@ -1756,7 +2087,7 @@ def render_governance_center() -> None:
                     for r in recent_logs
                 )
                 st.markdown(f"""
-                <div style="border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-bottom:6px;">
+                <div style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;margin-bottom:6px;">
                   <table class="tblx" style="font-size:9.5px;">
                     <tr><th>State</th><th>Entity Audited</th><th>Last Audit Date</th><th class="r">Dispatches</th></tr>
                     {rl_rows}
@@ -1885,6 +2216,75 @@ if diff_info is not None:
             if st.button("✕", key="wn_dismiss_btn", help="Dismiss Notification", use_container_width=True):
                 st.session_state["dismissed_whats_new"] = diff_info["id"]
                 rerun()
+
+# ==========================================================================
+# Left Toggle Bar (Collapsible Enterprise Navigation Rail)
+# ==========================================================================
+with st.sidebar:
+    st.markdown("""
+    <!-- Top Rail Header: Toggle button + Brand -->
+    <div class="rail-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 10px;border-bottom:1px solid #1e293b;margin-bottom:10px;">
+      <div class="rail-brand-group" style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;">
+        <button id="ets-rail-toggle-btn" class="rail-toggle-btn" title="Toggle Navigation Panel (Click to expand / collapse)" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.4);border-radius:6px;color:#38bdf8;cursor:pointer;flex-shrink:0;transition:all 0.15s ease;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </button>
+        <div class="rail-brand-text" style="overflow:hidden;white-space:nowrap;">
+          <div style="font-size:12px;font-weight:800;color:#f8fafc;letter-spacing:-.01em;">ETS WATCHTOWER</div>
+          <div style="font-size:8px;color:#38bdf8;font-family:var(--mono);font-weight:600;">ENTERPRISE PLATFORM</div>
+        </div>
+      </div>
+      <button id="ets-close-panel-btn" class="rail-close-btn" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#fca5a5;font-size:10px;font-weight:700;border-radius:4px;padding:3px 7px;cursor:pointer;white-space:nowrap;" title="Collapse Navigation Rail">
+        ✕
+      </button>
+    </div>
+
+    <!-- Navigation Workspace Icons / Links -->
+    <div class="rail-section-label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:6px;white-space:nowrap;overflow:hidden;">Workspaces</div>
+    <div class="ets-nav-items" style="display:flex;flex-direction:column;gap:6px;">
+      <button class="ets-nav-item active" data-nav-idx="0" title="Executive Command Center">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">⚡</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Command Center</span>
+      </button>
+      <button class="ets-nav-item" data-nav-idx="1" title="Portfolio Matrix & Operations Hub">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">📊</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Operations Hub</span>
+      </button>
+      <button class="ets-nav-item" data-nav-idx="2" title="Governance & Alerts">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🛡️</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Governance & Alerts</span>
+      </button>
+    </div>
+
+    <!-- Live Fleet Telemetry (Visible when expanded) -->
+    <div class="nav-telemetry" style="margin-top:16px;padding-top:12px;border-top:1px solid #1e293b;">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px;">Fleet Telemetry</div>
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;">
+        <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(255,255,255,0.03);border-radius:4px;border:1px solid rgba(255,255,255,0.05);">
+          <span style="color:#94a3b8;">Managed Assets</span>
+          <b style="color:#f8fafc;font-family:var(--mono);">500</b>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(16,185,129,0.08);border-radius:4px;border:1px solid rgba(16,185,129,0.2);">
+          <span style="color:#34d399;">Fleet SLA</span>
+          <b style="color:#10b981;font-family:var(--mono);">95.0% OK</b>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(56,189,248,0.08);border-radius:4px;border:1px solid rgba(56,189,248,0.2);">
+          <span style="color:#38bdf8;">PROD Resiliency</span>
+          <b style="color:#38bdf8;font-family:var(--mono);">100% OK</b>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(239,68,68,0.08);border-radius:4px;border:1px solid rgba(239,68,68,0.2);">
+          <span style="color:#f87171;">Overdue Debt</span>
+          <b style="color:#ef4444;font-family:var(--mono);">10 Active</b>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+
+
 
 tab_overview, tab_operations, tab_governance = st.tabs([
     "Executive Command Center",

@@ -48,21 +48,21 @@ BANDS = ["Expired", "Critical", "Warning", "Healthy"]
 # and the colour reinforces it.
 BAND_META = {
     "Expired": {
-        "color": "#EF4444", "tint": "rgba(239,68,68,0.18)", "symbol": "✕",
+        "color": "#f2495c", "tint": "rgba(242,73,92,0.18)", "symbol": "●",
         "label": "Expired", "plain": "already past its date",
     },
     "Critical": {
-        "color": "#F97316", "tint": "rgba(249,115,22,0.18)", "symbol": "▲",
+        "color": "#ff9830", "tint": "rgba(255,152,48,0.16)", "symbol": "▲",
         "label": f"Critical ({CRITICAL_DAYS} days or less)",
         "plain": f"expires within {CRITICAL_DAYS} days",
     },
     "Warning": {
-        "color": "#F59E0B", "tint": "rgba(245,158,11,0.18)", "symbol": "◆",
+        "color": "#ff9830", "tint": "rgba(255,152,48,0.16)", "symbol": "◆",
         "label": f"Warning ({WARNING_DAYS} days or less)",
         "plain": f"expires within {WARNING_DAYS} days",
     },
     "Healthy": {
-        "color": "#10B981", "tint": "rgba(16,185,129,0.18)", "symbol": "✓",
+        "color": "#73bf69", "tint": "rgba(115,191,105,0.16)", "symbol": "✓",
         "label": "Healthy", "plain": "more than 30 days of life left",
     },
 }
@@ -112,6 +112,36 @@ ENV_BLURB = {
 # them rather than alphabetically.
 ENV_ORDER = ["DEV", "SIT", "UAT", "MO", "DR", "PROD", "UNMAPPED"]
 
+# --------------------------------------------------------------------------
+# SLA & Business Impact Tier Weights
+# --------------------------------------------------------------------------
+ENV_TIER_WEIGHT = {
+    "PROD": {"tier": "Tier 1", "desc": "Mission Critical Live SLA", "weight": 5.0, "color": "#EF4444", "badge": "T1-PROD"},
+    "DR":   {"tier": "Tier 2", "desc": "Disaster Recovery Standby", "weight": 3.0, "color": "#F97316", "badge": "T2-DR"},
+    "MO":   {"tier": "Tier 3", "desc": "Model Office Pre-Prod", "weight": 2.0, "color": "#F59E0B", "badge": "T3-MO"},
+    "UAT":  {"tier": "Tier 3", "desc": "User Acceptance Test", "weight": 2.0, "color": "#F59E0B", "badge": "T3-UAT"},
+    "SIT":  {"tier": "Tier 3", "desc": "System Integration Test", "weight": 2.0, "color": "#F59E0B", "badge": "T3-SIT"},
+    "DEV":  {"tier": "Tier 4", "desc": "Development Sandbox", "weight": 1.0, "color": "#94A3B8", "badge": "T4-DEV"},
+    "UNMAPPED": {"tier": "Tier 4", "desc": "Unmapped Target", "weight": 1.0, "color": "#64748B", "badge": "T4-OTHER"},
+}
+
+
+def env_tier(env_label: str) -> dict:
+    """Return tier metadata dict for environment label."""
+    norm = str(env_label or "UNMAPPED").upper().strip()
+    return ENV_TIER_WEIGHT.get(norm, ENV_TIER_WEIGHT["UNMAPPED"])
+
+
+def sla_badge(env_label: str) -> str:
+    """Return compact HTML pill for SLA tier."""
+    t = env_tier(env_label)
+    return (
+        f'<span style="display:inline-block;padding:1px 5px;border-radius:3px;'
+        f'font-size:8.5px;font-weight:700;font-family:var(--mono);'
+        f'background:{t["color"]}22;color:{t["color"]};border:1px solid {t["color"]}55;">'
+        f'{t["badge"]}</span>'
+    )
+
 STATES = ["AK", "NH", "ND"]
 
 COMPONENT_ORDER = list(COMPONENT_CODE)
@@ -151,17 +181,17 @@ def team_of(schema_name: str, component: str = "", env_no: str | int = "", team:
 # Colour tokens shared by the Streamlit chrome and the canvas (Deep Slate)
 # --------------------------------------------------------------------------
 TOKENS = {
-    "paper": "#020617",     # Deepest canvas background
-    "card": "#0F172A",      # Deep slate panel & card surface
-    "sunk": "#070D1E",      # Dark inset / inputs / table rows
-    "rule": "#1E293B",      # Panel borders & hairlines
-    "rule_soft": "#283548", # Secondary inner dividers
-    "ink": "#F8FAFC",       # 18.5:1 high-contrast crisp text
-    "slate": "#94A3B8",     # Clean secondary labels
-    "mute": "#64748B",      # Decorative / subtle tags
-    "accent": "#38BDF8",    # Neon Cyan primary active accent
-    "accent_tint": "rgba(56,189,248,0.14)",
-    "accent_line": "rgba(56,189,248,0.45)",
+    "paper": "#111217",     # Grafana page background
+    "card": "#181b1f",      # Panel surface - one shade lighter than page
+    "sunk": "#141619",      # Dark inset / sub-bars / wells
+    "rule": "#2c3235",      # Panel 1px borders
+    "rule_soft": "#212429", # Button & input fill / secondary lines
+    "ink": "#d8d9da",       # Primary text
+    "slate": "#9fa7b3",     # Secondary labels
+    "mute": "#6e7681",      # Faint / disabled text
+    "accent": "#ff780a",    # Grafana Orange — marks interactive elements only
+    "accent_tint": "rgba(255,120,10,0.14)",
+    "accent_line": "rgba(255,120,10,0.45)",
 }
 
 
@@ -295,21 +325,52 @@ def css() -> str:
     t = TOKENS
     return f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
 :root {{
   color-scheme: dark;
-  --paper:{t['paper']}; --card:{t['card']}; --sunk:{t['sunk']};
-  --rule:{t['rule']}; --rule-soft:{t['rule_soft']};
-  --ink:{t['ink']}; --slate:{t['slate']}; --mute:{t['mute']};
-  --accent:{t['accent']}; --accent-tint:{t['accent_tint']}; --accent-line:{t['accent_line']};
-  --expired:{BAND_COLOR['Expired']}; --critical:{BAND_COLOR['Critical']};
-  --warning:{BAND_COLOR['Warning']}; --healthy:{BAND_COLOR['Healthy']};
-  --ui:'Inter',"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
-  --mono:'IBM Plex Mono',"Cascadia Mono",ui-monospace,Consolas,monospace;
+  --bg: {t['paper']};
+  --panel: {t['card']};
+  --paper: {t['paper']};
+  --card: {t['card']};
+  --sunk: {t['sunk']};
+  --rule: {t['rule']};
+  --rule-soft: {t['rule_soft']};
+  --border: {t['rule']};
+  --ink: {t['ink']};
+  --slate: {t['slate']};
+  --mute: {t['mute']};
+  --text: {t['ink']};
+  --text-sec: {t['slate']};
+  --text-faint: {t['mute']};
+  --orange: {t['accent']};
+  --accent: {t['accent']};
+  --accent-tint: {t['accent_tint']};
+  --accent-line: {t['accent_line']};
+  --expired: {BAND_COLOR['Expired']};
+  --critical: {BAND_COLOR['Critical']};
+  --warning: {BAND_COLOR['Warning']};
+  --healthy: {BAND_COLOR['Healthy']};
+  --green: {BAND_COLOR['Healthy']};
+  --green-dim: rgba(115,191,105,0.16);
+  --yellow: {BAND_COLOR['Critical']};
+  --yellow-dim: rgba(255,152,48,0.16);
+  --red: {BAND_COLOR['Expired']};
+  --red-dim: rgba(242,73,92,0.18);
+  --ui: 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  --mono: 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
 }}
 
-.stApp, body {{ background:var(--paper); color:var(--ink); font-family:var(--ui); }}
+* {{
+  box-sizing: border-box;
+  border-radius: 2px;
+}}
+
+.stApp, body {{
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ui);
+  font-size: 13px;
+  line-height: 1.35;
+}}
 
 /* Zero-scroll viewport layout */
 .block-container {{ max-width:none !important; padding:.3rem .6rem 0 !important; }}
@@ -319,179 +380,428 @@ def css() -> str:
 [data-testid="stVerticalBlockBorderWrapper"] {{ background:transparent; }}
 iframe {{ display:block; border:0; }}
 
-h1, h2, h3, h4, h5, h6 {{ font-family:var(--ui); color:#f8fafc !important; letter-spacing:-.015em; font-weight:700; }}
-code, kbd, .mono {{ font-family:var(--mono); }}
+h1, h2, h3, h4, h5, h6 {{
+  font-family: var(--ui);
+  color: var(--text) !important;
+  letter-spacing: -.01em;
+  font-weight: 600;
+}}
+code, kbd, .mono, .num {{
+  font-family: var(--ui) !important;
+  font-variant-numeric: tabular-nums !important;
+}}
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {{ width:6px; height:6px; }}
-::-webkit-scrollbar-track {{ background:var(--paper); }}
-::-webkit-scrollbar-thumb {{ background:var(--rule-soft); border-radius:3px; }}
+::-webkit-scrollbar-track {{ background:var(--bg); }}
+::-webkit-scrollbar-thumb {{ background:var(--rule); border-radius:2px; }}
 ::-webkit-scrollbar-thumb:hover {{ background:var(--mute); }}
 
-/* ---- tabs: enterprise dark tab bar -------------------------- */
+/* ---- primary navigation tabs: hidden since primary navigation is in Left Panel Drawer ---------- */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] > div > [role="tablist"],
 [data-baseweb="tab-list"] {{
-  gap:3px; background:var(--card); border:1px solid var(--rule); border-radius:7px;
-  padding:2px; height:32px; align-items:center; box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }}
-button[data-baseweb="tab"] {{
-  height:28px !important; min-height:28px !important; padding:0 12px !important;
-  border-radius:5px; background:transparent !important;
-  transition:all .12s ease;
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] > div > [role="tablist"] * {{
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
 }}
-button[data-baseweb="tab"] div,
-button[data-baseweb="tab"] p,
-button[data-baseweb="tab"] span,
-button[data-baseweb="tab"] {{
-  color:#94a3b8 !important; font-family:var(--ui); font-size:12px !important;
-  font-weight:600 !important; letter-spacing:.01em;
+[data-baseweb="tab-highlight"], [data-baseweb="tab-border"] {{ display:none !important; }}
+[data-baseweb="tab-panel"],
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] > div > [role="tabpanel"],
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] > div > [data-testid="stTabPanel"] {{
+  padding: 0 !important;
+  margin: 0 !important;
 }}
-button[data-baseweb="tab"]:hover {{
-  background:rgba(255,255,255,0.06) !important;
-}}
-button[data-baseweb="tab"]:hover div,
-button[data-baseweb="tab"]:hover p,
-button[data-baseweb="tab"]:hover span {{
-  color:#f8fafc !important;
-}}
-button[data-baseweb="tab"][aria-selected="true"] {{
-  background:var(--accent-tint) !important;
-  box-shadow:inset 0 0 0 1px var(--accent-line) !important;
-}}
-button[data-baseweb="tab"][aria-selected="true"] div,
-button[data-baseweb="tab"][aria-selected="true"] p,
-button[data-baseweb="tab"][aria-selected="true"] span {{
-  color:#38bdf8 !important; font-weight:700 !important;
-}}
-[data-baseweb="tab-highlight"], [data-baseweb="tab-border"] {{ display:none; }}
-[data-baseweb="tab-panel"] {{ padding:4px 0 0 !important; margin:0 !important; }}
 
-/* ---- buttons ----------------------------------------------------------- */
+/* ---- VS Code Style Permanent Slim Navigation Rail (48px -> 260px) ---- */
+[data-testid="stSidebar"] {{
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  height: 100vh !important;
+  z-index: 1000 !important;
+  background: #111217 !important;
+  border-right: 1px solid #2c3235 !important;
+  overflow-x: hidden !important;
+  transform: none !important;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: none !important;
+}}
+
+[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
+[data-testid="stSidebarHeader"],
+.st-emotion-cache-10p9htt {{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}}
+
+[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {{
+  padding: 6px 4px !important;
+}}
+
+/* Collapsed state: 48px slim icon rail */
+[data-testid="stSidebar"][data-rail-state="collapsed"],
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) {{
+  width: 48px !important;
+  min-width: 48px !important;
+  max-width: 48px !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] [data-testid="stSidebarContent"],
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) [data-testid="stSidebarContent"] {{
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+}}
+[data-testid="stSidebar"][data-rail-state="collapsed"] [data-testid="stSidebarContent"]::-webkit-scrollbar,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) [data-testid="stSidebarContent"]::-webkit-scrollbar {{
+  display: none !important;
+  width: 0 !important;
+}}
+
+/* Expanded state: 260px full navigation rail */
+[data-testid="stSidebar"][data-rail-state="expanded"] {{
+  width: 260px !important;
+  min-width: 260px !important;
+  max-width: 260px !important;
+  box-shadow: none !important;
+}}
+
+/* In collapsed (48px) state: hide labels, brand text, close button and telemetry */
+[data-testid="stSidebar"][data-rail-state="collapsed"] .rail-brand-text,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .rail-brand-text,
+[data-testid="stSidebar"][data-rail-state="collapsed"] .rail-close-btn,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .rail-close-btn,
+[data-testid="stSidebar"][data-rail-state="collapsed"] .rail-section-label,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .rail-section-label,
+[data-testid="stSidebar"][data-rail-state="collapsed"] .nav-label,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .nav-label,
+[data-testid="stSidebar"][data-rail-state="collapsed"] .nav-telemetry,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .nav-telemetry {{
+  display: none !important;
+}}
+
+/* In collapsed (48px) state: center toggle button and nav icons */
+[data-testid="stSidebar"][data-rail-state="collapsed"] .rail-header,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .rail-header {{
+  justify-content: center !important;
+  padding: 4px 0 8px !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] .rail-brand-group,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .rail-brand-group {{
+  width: 100% !important;
+  justify-content: center !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] .ets-nav-item,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) .ets-nav-item {{
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  justify-content: center !important;
+}}
+
+/* In expanded (260px) state: full width nav buttons */
+[data-testid="stSidebar"][data-rail-state="expanded"] .ets-nav-item {{
+  width: 100% !important;
+  padding: 8px 10px !important;
+  justify-content: flex-start !important;
+}}
+
+/* Shared styling for .ets-nav-item */
+.ets-nav-item {{
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  background: #181b1f !important;
+  border: 1px solid #2c3235 !important;
+  border-radius: 2px !important;
+  color: #9fa7b3 !important;
+  cursor: pointer !important;
+  transition: all 0.1s ease !important;
+  box-shadow: none !important;
+}}
+.ets-nav-item:hover {{
+  background: #212429 !important;
+  border-color: #ff780a !important;
+  color: #ff780a !important;
+}}
+.ets-nav-item.active {{
+  background: rgba(255,120,10,0.14) !important;
+  border-color: #ff780a !important;
+  color: #d8d9da !important;
+  box-shadow: none !important;
+}}
+
+/* Dynamic sibling push for main dashboard canvas */
+[data-testid="stSidebar"][data-rail-state="collapsed"] + div,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) + div,
+[data-testid="stSidebar"][data-rail-state="collapsed"] ~ div,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) ~ div {{
+  margin-left: 48px !important;
+  width: calc(100vw - 48px) !important;
+  max-width: calc(100vw - 48px) !important;
+  transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="expanded"] + div,
+[data-testid="stSidebar"][data-rail-state="expanded"] ~ div {{
+  margin-left: 260px !important;
+  width: calc(100vw - 260px) !important;
+  max-width: calc(100vw - 260px) !important;
+  transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}}
+
+/* Hide Streamlit default chevron collapse and expand controls */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stExpandSidebarButton"] {{
+  display: none !important;
+}}
+[data-testid="stSidebar"] [data-testid="stRadio"] > div {{
+  gap: 5px !important;
+}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label {{
+  background: #181b1f !important;
+  border: 1px solid #2c3235 !important;
+  border-radius: 2px !important;
+  padding: 6px 10px !important;
+  transition: all 0.1s ease !important;
+  cursor: pointer !important;
+  width: 100% !important;
+  box-shadow: none !important;
+}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {{
+  background: #212429 !important;
+  border-color: #ff780a !important;
+}}
+[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {{
+  background: rgba(255,120,10,0.14) !important;
+  border-color: #ff780a !important;
+  box-shadow: none !important;
+}}
+
+/* ---- Flat buttons: 2px corners, #212429 fill, 1px #2c3235 border ---- */
 .stButton > button, [data-testid="stDownloadButton"] > button {{
-  width:100%; background:var(--card) !important; color:#f8fafc !important;
-  border:none !important; border-radius:6px; padding:.3rem .5rem; min-height:30px;
-  font-family:var(--ui); font-size:11.5px; font-weight:600; white-space:nowrap !important;
-  box-shadow:0 1px 3px rgba(0,0,0,0.35);
-  transition:all .15s ease;
+  width: 100%;
+  background: #212429 !important;
+  color: #d8d9da !important;
+  border: 1px solid #2c3235 !important;
+  border-radius: 2px !important;
+  padding: .35rem .6rem;
+  min-height: 28px;
+  font-family: var(--ui) !important;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+  transition: all .1s ease;
 }}
 .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {{
-  border:1px solid var(--accent) !important; background:var(--accent-tint) !important; color:var(--accent) !important;
+  border-color: var(--accent) !important;
+  background: rgba(255,120,10,0.12) !important;
+  color: var(--accent) !important;
+  box-shadow: none !important;
 }}
 .stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus-visible {{
-  outline:2px solid var(--accent); outline-offset:1px;
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
 }}
 .stButton > button[kind="primary"]:not(:disabled) {{
-  background:linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
-  border:1px solid #38bdf8 !important; color:#ffffff !important; font-weight:700 !important;
-  box-shadow:0 0 12px rgba(56,189,248,0.35) !important;
+  background: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+  color: #111217 !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
 }}
 .stButton > button[kind="primary"]:not(:disabled):hover {{
-  background:linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%) !important;
-  color:#000000 !important; box-shadow:0 0 16px rgba(56,189,248,0.55) !important;
+  background: #ff8e26 !important;
+  border-color: #ff8e26 !important;
+  color: #111217 !important;
+  box-shadow: none !important;
 }}
 .stButton > button:disabled,
 .stButton > button[kind="primary"]:disabled,
 .stButton > button[disabled] {{
-  background:rgba(30, 41, 59, 0.6) !important;
-  border:1px solid rgba(255, 255, 255, 0.08) !important;
-  color:#64748b !important;
-  box-shadow:none !important;
-  cursor:not-allowed !important;
-  opacity:0.65 !important;
+  background: #181b1f !important;
+  border: 1px solid #2c3235 !important;
+  color: #6e7681 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.45 !important;
 }}
 
 /* ---- state chooser ----------------------------------------------------- */
 .pickline {{
   display:flex; align-items:center; gap:8px; padding:2px 0 3px; margin-bottom:2px;
 }}
-.pickline .h {{ font-size:12.5px; font-weight:700; color:#f8fafc !important; }}
-.pickline .p {{ font-size:11px; color:#94a3b8 !important; }}
+.pickline .h {{ font-size:12px; font-weight:600; color:#d8d9da !important; }}
+.pickline .p {{ font-size:11px; color:#9fa7b3 !important; }}
 .statebar {{ display:flex; align-items:center; gap:8px; }}
 
-/* ---- Inputs, Selectors, Popovers & Expanders --------------------------- */
+/* ---- Inputs, Selectors, Popovers & Expanders (2px radius, #212429) ---- */
 [data-testid="stExpander"] {{
-  background:var(--card) !important; border:1px solid var(--rule) !important;
-  border-radius:8px !important; box-shadow:0 2px 6px rgba(0,0,0,0.25);
-  margin-bottom:6px !important;
+  background: var(--card) !important;
+  border: 1px solid var(--rule) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  margin-bottom: 6px !important;
 }}
 [data-testid="stExpander"] details {{
-  background:var(--card) !important; color:var(--ink) !important;
+  background: var(--card) !important;
+  color: var(--ink) !important;
 }}
 [data-testid="stExpander"] summary {{
-  background:var(--card) !important; color:var(--ink) !important;
-  font-family:var(--ui); font-size:12.5px; font-weight:600;
-  border-radius:8px; padding:6px 12px !important;
+  background: var(--card) !important;
+  color: var(--ink) !important;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 2px;
+  padding: 6px 10px !important;
 }}
 [data-testid="stExpander"] summary:hover {{
-  background:var(--sunk) !important; color:var(--accent) !important;
+  background: var(--sunk) !important;
+  color: var(--accent) !important;
 }}
 [data-testid="stExpander"] details[open] summary {{
-  border-bottom:1px solid var(--rule-soft) !important;
+  border-bottom: 1px solid var(--rule-soft) !important;
 }}
 [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
-  background:var(--card) !important; padding:8px 12px !important;
+  background: var(--card) !important;
+  padding: 8px 10px !important;
 }}
 
 [data-testid="stDataFrame"], [data-testid="stDataEditor"] {{
-  border:1px solid var(--rule) !important; border-radius:8px !important; overflow:hidden !important;
-  background:var(--card) !important; box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;
+  border: 1px solid var(--rule) !important;
+  border-radius: 2px !important;
+  overflow: hidden !important;
+  background: var(--card) !important;
+  box-shadow: none !important;
 }}
 [data-testid="stDataEditor"] canvas {{
-  border-radius:6px !important;
+  border-radius: 2px !important;
 }}
 .stTextInput input, .stDateInput input, .stNumberInput input,
 div[data-baseweb="select"] > div {{
-  background:var(--sunk) !important; border:1px solid var(--rule) !important; color:#f8fafc !important;
-  font-family:var(--mono); font-size:12px; border-radius:6px;
+  background: #212429 !important;
+  border: 1px solid var(--rule) !important;
+  color: var(--ink) !important;
+  font-family: var(--ui) !important;
+  font-size: 12px;
+  border-radius: 2px !important;
+  box-shadow: none !important;
 }}
 div[data-baseweb="popover"], ul[role="listbox"] {{
-  background:var(--card) !important; border:1px solid var(--rule) !important; color:#f8fafc !important;
+  background: var(--card) !important;
+  border: 1px solid var(--rule) !important;
+  color: var(--ink) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}}
+div[data-testid="stPopover"] > button, button[data-testid="stPopoverButton"], [data-testid="stPopoverButton"] {{
+  background: #212429 !important;
+  color: #d8d9da !important;
+  border: 1px solid #2c3235 !important;
+  border-radius: 2px !important;
+  padding: .35rem .6rem !important;
+  min-height: 28px !important;
+  font-family: var(--ui) !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+  width: 100% !important;
+}}
+div[data-testid="stPopover"] > button:hover, button[data-testid="stPopoverButton"]:hover, [data-testid="stPopoverButton"]:hover {{
+  border-color: var(--accent) !important;
+  background: rgba(255,120,10,0.12) !important;
+  color: var(--accent) !important;
 }}
 li[role="option"] {{
-  background:var(--card) !important; color:#f8fafc !important; font-family:var(--ui); font-size:12px;
+  background: var(--card) !important;
+  color: var(--ink) !important;
+  font-family: var(--ui);
+  font-size: 12px;
 }}
 li[role="option"]:hover, li[aria-selected="true"] {{
-  background:var(--accent-tint) !important; color:var(--accent) !important;
+  background: rgba(255,120,10,0.15) !important;
+  color: var(--accent) !important;
 }}
 .stTextInput input:focus, div[data-baseweb="select"] > div:focus-within {{
-  border-color:var(--accent) !important; box-shadow:0 0 0 1px var(--accent);
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
 }}
 
 [data-testid="stTextInput"], [data-testid="stSelectbox"], [data-testid="stMultiSelect"] {{
-  margin:0 !important;
+  margin: 0 !important;
 }}
 [data-testid="stTextInput"] input,
 [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
 [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
-  min-height:34px !important;
+  min-height: 28px !important;
 }}
 [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
-  background:var(--sunk); border-color:var(--rule);
+  background: #212429;
+  border-color: var(--rule);
 }}
 [data-testid="stMultiSelect"] span[data-baseweb="tag"] {{
-  background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.4);
-  color:var(--accent); border-radius:4px; font-family:var(--mono); font-size:10.5px;
+  background: rgba(255,120,10,0.15);
+  border: 1px solid rgba(255,120,10,0.4);
+  color: var(--accent);
+  border-radius: 2px;
+  font-family: var(--ui);
+  font-size: 10.5px;
 }}
-[data-testid="stMetricValue"] {{ font-family:var(--mono); color:var(--ink); }}
-.stAlert {{ border-radius:7px; background:var(--card); border:1px solid var(--rule); color:var(--ink); }}
+[data-testid="stMetricValue"] {{
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}}
+.stAlert {{
+  border-radius: 2px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  box-shadow: none !important;
+}}
 
 /* ---- Enterprise components -------------------------------------------- */
-.note {{ font-size:12px; color:#94a3b8; line-height:1.45; margin:4px 0 8px; }}
-.note b {{ color:#f8fafc; font-weight:700; }}
+.note {{ font-size:12px; color:var(--slate); line-height:1.45; margin:4px 0 8px; }}
+.note b {{ color:var(--ink); font-weight:600; }}
 .eyebrow {{
-  font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-  color:#38bdf8; padding:4px 0 4px; display:block; margin-top:8px; margin-bottom:4px;
+  font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--slate); padding:4px 0 4px; display:block; margin-top:8px; margin-bottom:4px;
 }}
 .pill {{
-  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
-  padding:2px 8px; border-radius:5px; white-space:nowrap; border:1px solid transparent;
+  display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+  padding:2px 8px; border-radius:2px; white-space:nowrap; border:1px solid transparent;
 }}
-.pill .sym {{ font-size:10.5px; line-height:1; font-weight:700; }}
+.pill .sym {{ font-size:10px; line-height:1; font-weight:700; }}
 .card {{
-  background:var(--card); border-radius:8px;
-  padding:10px 12px; box-shadow:0 2px 6px rgba(0,0,0,0.25);
+  background:var(--card); border:1px solid var(--rule); border-radius:2px;
+  padding:10px 12px; box-shadow:none !important;
 }}
 .void {{
-  background:var(--card); border:1px dashed var(--rule); border-radius:8px;
+  background:var(--card); border:1px dashed var(--rule); border-radius:2px;
   padding:14px 16px; text-align:center;
 }}
 .void .h {{ font-size:13px; font-weight:600; color:var(--ink); }}
@@ -499,161 +809,541 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 
 .tblx {{ width:100%; border-collapse:collapse; font-size:12px; }}
 .tblx th {{
-  font-size:10px; font-weight:700; letter-spacing:.08em;
-  text-transform:uppercase; color:#94a3b8; padding:8px 10px;
+  font-size:10px; font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--slate); padding:6px 8px;
   border-bottom:1px solid var(--rule); background:var(--card);
 }}
 .tblx td {{
-  padding:7px 10px; border-bottom:1px solid var(--rule-soft); white-space:nowrap; color:#f8fafc;
+  padding:6px 8px; border-bottom:1px solid var(--rule-soft); white-space:nowrap; color:var(--ink);
+  font-variant-numeric:tabular-nums;
 }}
-.tblx tr:hover td {{ background:rgba(56,189,248,0.04); }}
-.tblx td.m {{ font-family:var(--mono); }}
+.tblx tr:hover td {{ background:rgba(255,120,10,0.05); }}
+.tblx td.m {{ font-variant-numeric:tabular-nums; }}
 .tblx td.c {{ text-align:center; }}
 .tblx td.r {{ text-align:right; }}
 .tblx td.sym {{ width:1%; padding-right:4px; font-weight:700; text-align:center; }}
 .tblx td.was {{ color:var(--mute); text-decoration:line-through; }}
-.tblx td.now {{ color:#f8fafc; font-weight:600; }}
+.tblx td.now {{ color:var(--ink); font-weight:600; }}
 
-/* Master-detail & Navigation Pills */
-.nav-ribbon {{
-  display:flex; align-items:center; gap:8px; background:var(--card);
-  border:1px solid var(--rule); border-radius:8px; padding:6px 10px;
-  margin-bottom:6px; box-shadow:0 2px 6px rgba(0,0,0,0.25);
+/* Master-detail & Navigation Panels */
+.panel {{
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: none !important;
 }}
-.nav-title {{ font-size:14px; font-weight:700; color:var(--ink); letter-spacing:-.01em; }}
-.nav-badge {{
-  font-family:var(--mono); font-size:10px; font-weight:600;
-  color:var(--accent); background:var(--accent-tint);
-  border:1px solid var(--accent-line); border-radius:4px; padding:1px 6px;
-}}
-.top-glow-kpi {{
-  background:var(--card); border-top:3px solid var(--glow,#38bdf8);
-  border-radius:8px; padding:10px 12px; box-shadow:0 2px 8px rgba(0,0,0,0.25);
-}}
-.top-glow-kpi.interactive {{
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}}
-.top-glow-kpi.interactive:hover {{
-  transform: translateY(-2px);
-  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
-  border-color: var(--accent);
-}}
-.top-glow-kpi.interactive:active {{
-  transform: translateY(0);
-}}
-.tree-node-row {{
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 2px 6px;
-  margin-bottom: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background 0.15s ease, border-color 0.15s ease;
-}}
-.tree-node-row:hover {{
-  background: rgba(56, 189, 248, 0.12) !important;
-  border-color: rgba(56, 189, 248, 0.4) !important;
-}}
-.tree-leaf-row {{
-  cursor: pointer;
-  border-radius: 3px;
-  padding: 2px 5px;
-  margin-bottom: 1px;
+.panel-head {{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--rule);
 }}
-.tree-leaf-row:hover {{
-  background: rgba(56, 189, 248, 0.14) !important;
-  border-color: rgba(56, 189, 248, 0.45) !important;
-  transform: translateX(2px);
+.panel-title {{
+  font-size: 12px;
+  color: var(--slate);
+  font-weight: 500;
 }}
-.tree-leaf-row.active {{
-  background: rgba(56, 189, 248, 0.22) !important;
-  border: 1px solid #38bdf8 !important;
-  box-shadow: inset 2px 0 0 #38bdf8, 0 0 8px rgba(56, 189, 248, 0.25);
-}}
-.heatmap-cell {{
+.panel-menu {{
+  opacity: 0;
+  color: var(--mute);
+  font-size: 13px;
   cursor: pointer;
-  border-radius: 4px;
-  padding: 3px 4px;
+  transition: opacity .1s;
+}}
+.panel:hover .panel-menu {{
+  opacity: 1;
+}}
+
+/* Stat tiles with full background tints */
+.stat-row {{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}}
+.stat-panel {{
+  padding: 12px 14px;
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+  box-shadow: none !important;
+}}
+.stat-fill-red {{
+  background: linear-gradient(180deg, rgba(242,73,92,0.20), rgba(242,73,92,0.05)) !important;
+}}
+.stat-fill-yellow {{
+  background: linear-gradient(180deg, rgba(255,152,48,0.18), rgba(255,152,48,0.04)) !important;
+}}
+.stat-fill-green {{
+  background: linear-gradient(180deg, rgba(115,191,105,0.14), rgba(115,191,105,0.03)) !important;
+}}
+.stat-fill-neutral {{
+  background: var(--card) !important;
+}}
+.stat-label {{
+  font-size: 11px;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  font-weight: 500;
+}}
+.stat-val {{
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}}
+.stat-val.red {{ color: var(--expired); }}
+.stat-val.yellow {{ color: var(--critical); }}
+.stat-val.green {{ color: var(--healthy); }}
+.stat-val.white {{ color: var(--ink); }}
+.stat-sub {{
+  font-size: 10.5px;
+  color: var(--mute);
+  margin-top: 6px;
+}}
+.stat-action {{
+  margin-top: 8px;
+  background: #212429;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 6px 0;
   text-align: center;
-  font-size: 9.5px;
-  line-height: 1.2;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  font-size: 11.5px;
+  color: var(--slate);
+  cursor: pointer;
+  transition: all .1s;
 }}
-.heatmap-cell:hover {{
-  transform: scale(1.05);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5) !important;
-  border-color: #38bdf8 !important;
+.stat-action.active {{
+  background: var(--accent);
+  color: #111217;
+  font-weight: 700;
+  border-color: transparent;
 }}
-.heatmap-cell.selected {{
-  outline: 2px solid #38bdf8;
-  outline-offset: 1px;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6) !important;
+
+/* Proportional Component Severity Distribution */
+.dist-body {{
+  padding: 8px 12px 12px;
 }}
-@keyframes pulse-highlight {{
-  0% {{ box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }}
-  50% {{ box-shadow: 0 0 14px 4px rgba(56, 189, 248, 0.45); }}
-  100% {{ box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }}
+.dist-row {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
 }}
-.cross-filter-pulse {{
-  animation: pulse-highlight 1.6s ease-out;
+.dist-row:last-child {{
+  margin-bottom: 0;
 }}
-.top-glow-kpi .kpi-label {{
-  font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--mute);
+.dist-name {{
+  width: 58px;
+  font-size: 11.5px;
+  color: var(--slate);
+  flex-shrink: 0;
+  font-weight: 600;
 }}
-.top-glow-kpi .kpi-value {{
-  font-family:var(--mono); font-size:22px; font-weight:700; color:var(--ink); margin-top:2px;
+.dist-track {{
+  flex: 1;
+  height: 11px;
+  background: #212429;
+  border-radius: 2px;
+  overflow: hidden;
+  display: flex;
 }}
-.top-glow-kpi .kpi-sub {{
-  font-size:10.5px; color:var(--slate); margin-top:1px;
+.dist-num {{
+  font-size: 11px;
+  color: var(--mute);
+  width: 90px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}}
+
+/* Entity Header & Fact Grid */
+.entity-head {{
+  padding: 12px 14px;
+  border-left: 3px solid var(--expired);
+  background: linear-gradient(120deg, rgba(242,73,92,0.08), transparent 60%);
+  border-radius: 2px;
+}}
+.entity-crumb {{
+  font-size: 10.5px;
+  color: var(--mute);
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}}
+.status-pill {{
+  background: var(--red-dim);
+  color: #ff8a95;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-size: 10px;
+}}
+.entity-name {{
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}}
+.env-tag {{
+  font-size: 10px;
+  background: #212429;
+  color: var(--slate);
+  border: 1px solid var(--rule);
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}}
+.quickrange {{
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+}}
+.qr-btn {{
+  flex: 1;
+  background: #212429;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 7px;
+  font-size: 11.5px;
+  color: var(--slate);
+  text-align: center;
+  cursor: pointer;
+}}
+.qr-btn:hover {{
+  border-color: var(--accent);
+  color: var(--accent);
+}}
+.qr-btn.custom {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ink);
+}}
+.entity-tabs {{
+  display: flex;
+  gap: 20px;
+  padding: 0 14px;
+  border-top: 1px solid var(--rule);
+}}
+.etab {{
+  font-size: 12px;
+  color: var(--mute);
+  padding: 8px 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}}
+.etab.active {{
+  color: var(--ink);
+  border-color: var(--accent);
+  font-weight: 600;
+}}
+.fact-grid {{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 14px;
+}}
+.fact-panel {{
+  background: #141619;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 11px 13px;
+}}
+.fact-row {{
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 12px;
+  border-bottom: 1px solid #1d2024;
+}}
+.fact-row:last-child {{
+  border-bottom: none;
+}}
+.fact-key {{
+  color: var(--mute);
+}}
+.fact-val {{
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}}
+.fact-val.crit {{
+  color: var(--expired);
+  font-weight: 700;
+}}
+.fact-hint {{
+  font-size: 10.5px;
+  color: var(--mute);
+  margin-top: 4px;
+  line-height: 1.5;
+}}
+.raw-toggle {{
+  margin: 0 14px 14px;
+  padding: 8px 12px;
+  background: #141619;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  font-size: 11.5px;
+  color: var(--slate);
+  cursor: pointer;
+}}
+
+/* Scope line */
+.scope-line {{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--card);
+  margin-bottom: 10px;
+  font-size: 12px;
+}}
+.scope-label {{
+  color: var(--mute);
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: .03em;
+  font-weight: 600;
+}}
+.scope-val {{
+  font-weight: 600;
+  color: var(--ink);
+}}
+.scope-muted {{
+  color: var(--mute);
+}}
+.live-dot {{
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--healthy);
+  display: inline-block;
+}}
+.reset-btn {{
+  background: #212429;
+  border: 1px solid var(--rule);
+  color: var(--slate);
+  border-radius: 2px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}}
+.reset-btn:disabled {{
+  opacity: 0.4;
+  cursor: not-allowed;
+}}
+
+/* Tree rows */
+.tree-row {{
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--rule);
+  cursor: pointer;
+  border-radius: 2px;
+}}
+.tree-row:hover {{
+  background: #212429;
+}}
+.tree-row.active {{
+  background: rgba(255,120,10,0.14);
+  border-color: var(--accent);
+}}
+.cb {{
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--mute);
+  border-radius: 2px;
+  flex-shrink: 0;
+}}
+.pin {{
+  color: var(--expired);
+  font-size: 11px;
+}}
+.tree-name {{
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink);
+}}
+.tree-count {{
+  color: var(--mute);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}}
+.tree-spacer {{
+  flex: 1;
+}}
+.badge {{
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 2px;
+}}
+.badge-crit {{
+  background: var(--red-dim);
+  color: #ff8a95;
+}}
+.badge-warn {{
+  background: var(--yellow-dim);
+  color: #ffb673;
+}}
+.badge-good {{
+  background: var(--green-dim);
+  color: #a8df9e;
+}}
+.play {{
+  color: var(--mute);
+  font-size: 10px;
+}}
+
+/* Heatmap visual tile */
+.hm-tile-card {{
+  border-radius: 2px;
+  padding: 4px 6px 3px;
+  position: relative;
+  box-shadow: none !important;
+}}
+.hm-tile-card .hm-count {{
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}}
+.hm-tile-card .hm-sub {{
+  font-size: 8px;
+  font-weight: 600;
+  opacity: .9;
+}}
+.hm-tile-card .hm-sbar {{
+  display: flex;
+  height: 3px;
+  border-radius: 1px;
+  overflow: hidden;
+  margin-top: 3px;
+  gap: 1px;
+}}
+.hm-tile-card .hm-time {{
+  font-size: 8px;
+  margin-top: 2px;
+  color: var(--mute);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}}
+.hm-action-btn button {{
+  height: 20px !important;
+  min-height: 20px !important;
+  font-size: 9.5px !important;
+  padding: 0 4px !important;
+  margin-top: -1px !important;
+  border-radius: 0 0 2px 2px !important;
+  border-top: 1px solid var(--rule) !important;
+}}
+.hm-state-btn button {{
+  height: 56px !important;
+  min-height: 56px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border-radius: 2px !important;
+}}
+
+/* KPI button flush attachment under stat card */
+[data-testid="column"] > div > div > div > .stButton > button {{
+  min-height: 22px !important;
+  height: 22px !important;
+  font-size: 10px !important;
+  padding: 1px 6px !important;
+  margin-top: -2px !important;
+  border-top: none !important;
+  border-radius: 0 0 2px 2px !important;
+}}
+
+/* Life gauge */
+.life-gauge {{
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+  margin-top: 3px;
+}}
+.life-gauge-fill {{
+  height: 100%;
+  border-radius: 2px;
+}}
+
+/* Leaf sparkbar */
+.leaf-sparkbar {{
+  height: 4px;
+  border-radius: 1px;
+  overflow: hidden;
+  margin-top: 1px;
+  background: rgba(255,255,255,0.06);
+  min-width: 40px;
+}}
+.leaf-sparkbar-fill {{
+  height: 100%;
+  border-radius: 1px;
 }}
 
 .state-ribbon {{
-  display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:8px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
 }}
 .state-kpi-card {{
-  background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--accent);
-  border-radius:6px; padding:6px 10px; box-shadow:0 1px 4px rgba(0,0,0,0.25);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 2px;
+  padding: 6px 10px;
+  box-shadow: none !important;
 }}
-.state-kpi-card.urgent {{ border-left-color:var(--critical); }}
-.state-kpi-card.warn {{ border-left-color:var(--warning); }}
-.state-kpi-card.good {{ border-left-color:var(--healthy); }}
+.state-kpi-card.urgent {{ border-left-color: var(--critical); }}
+.state-kpi-card.warn {{ border-left-color: var(--warning); }}
+.state-kpi-card.good {{ border-left-color: var(--healthy); }}
 .state-kpi-label {{
-  font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--mute);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--mute);
 }}
 .state-kpi-val {{
-  font-family:var(--mono); font-size:16px; font-weight:700; color:var(--ink); margin-top:1px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
 }}
-.state-kpi-hint {{ font-size:10px; color:var(--slate); }}
+.state-kpi-hint {{ font-size: 10px; color: var(--slate); }}
 
-.env-tag {{
-  display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:600;
-  padding:1px 6px; border-radius:4px; background:rgba(56,189,248,0.12);
-  border:1px solid rgba(56,189,248,0.3); color:var(--accent);
+.top-glow-kpi {{
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--glow, var(--accent));
+  border-radius: 2px;
+  padding: 8px 10px;
+  box-shadow: none !important;
 }}
-
-.matrix-table {{
-  width:100%; border-collapse:collapse; font-size:11.5px;
-}}
-.matrix-table th {{
-  font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-  color:#94a3b8; padding:7px 8px; border-bottom:1px solid var(--rule); background:var(--card);
-}}
-.matrix-table td {{
-  padding:6px 8px; border-bottom:1px solid var(--rule-soft); color:#f8fafc;
-}}
-.matrix-cell-badge {{
-  display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:10.5px;
-  font-weight:600; padding:2px 6px; border-radius:4px;
-}}
-
-.code-box {{
-  background:var(--sunk); border:1px solid var(--rule); border-radius:6px;
-  padding:10px; font-family:var(--mono); font-size:11px; line-height:1.5;
-  color:#f8fafc; overflow-x:auto; max-height:220px;
+.top-glow-kpi.interactive:hover {{
+  border-color: var(--accent);
 }}
 
 @media (prefers-reduced-motion:reduce) {{ * {{ transition:none !important; }} }}
@@ -811,23 +1501,308 @@ def kpi_card(
     """
     Canonical shared KPI card component used across the application.
     Enforces that subtext never restates the headline number verbatim.
+    Strictly follows Grafana flat design system: 2px corners, thin 1px border, zero shadow.
     """
     clean_sub = sanitize_kpi_subtext(value, subtext)
-    sub_html = f'<div class="kpi-sub" style="font-size:9.5px;">{clean_sub}</div>' if clean_sub else '<div class="kpi-sub" style="font-size:9.5px;min-height:13px;"></div>'
-    v_col = f"color:{val_color};" if val_color else ""
-    val_suffix_html = f' <span style="font-size:10px;color:#94a3b8;font-weight:400;">/ {total_suffix}</span>' if total_suffix else ""
-    badge_html = f'<span style="font-size:8.5px;color:{badge_color or glow};font-weight:700;font-family:var(--mono);">{badge}</span>' if badge else ""
-    active_style = f"border:1px solid {glow};box-shadow:0 0 8px {glow}50;" if is_active else "border:1px solid var(--rule);"
-    cls_names = "top-glow-kpi interactive" if interactive else "top-glow-kpi"
+    sub_html = f'<div class="kpi-sub" style="font-size:9.5px;color:var(--mute);margin-top:2px;">{clean_sub}</div>' if clean_sub else '<div class="kpi-sub" style="font-size:9.5px;min-height:13px;"></div>'
+    v_col = f"color:{val_color};" if val_color else "color:var(--ink);"
+    val_suffix_html = f' <span style="font-size:10px;color:var(--mute);font-weight:400;">/ {total_suffix}</span>' if total_suffix else ""
+    badge_html = f'<span style="font-size:8.5px;color:{badge_color or glow};font-weight:700;font-variant-numeric:tabular-nums;">{badge}</span>' if badge else ""
+    active_style = "border:1px solid var(--accent);" if is_active else "border:1px solid var(--rule);"
+
+    lbl_lower = label.lower()
+    if "risk" in lbl_lower or "expir" in lbl_lower or (val_color and val_color.lower() in ("#f2495c", "#ef4444")):
+        fill_cls = "stat-fill-red"
+    elif "impact" in lbl_lower or "crit" in lbl_lower or "warn" in lbl_lower or "urgent" in lbl_lower or (val_color and val_color.lower() in ("#ff9830", "#f97316", "#f59e0b")):
+        fill_cls = "stat-fill-yellow"
+    elif "health" in lbl_lower or (val_color and val_color.lower() in ("#73bf69", "#10b981")):
+        fill_cls = "stat-fill-green"
+    else:
+        fill_cls = "stat-fill-neutral"
+
     click_attr = f' onclick="{onclick}"' if onclick else ""
 
     return f"""
-    <div class="{cls_names}" style="--glow:{glow};padding:4px 10px;margin-bottom:2px;{active_style}"{click_attr}>
+    <div class="panel stat-panel {fill_cls}" style="padding:6px 10px;margin-bottom:2px;{active_style}box-shadow:none !important;border-radius:2px;"{click_attr}>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="kpi-label" style="font-size:9.5px;">{escape(label)}</div>
+        <div class="kpi-label" style="font-size:10.5px;font-weight:600;color:var(--slate);text-transform:uppercase;letter-spacing:.02em;">{escape(label)}</div>
         {badge_html}
       </div>
-      <div class="kpi-value" style="font-size:17px;line-height:1.1;{v_col}">{escape(str(value))}{val_suffix_html}</div>
+      <div class="kpi-value" style="font-size:20px;font-weight:600;line-height:1.15;margin-top:2px;font-variant-numeric:tabular-nums;{v_col}">{escape(str(value))}{val_suffix_html}</div>
       {sub_html}
     </div>
     """
+
+
+def grafana_sparkline(values: list[int], color: str, height: int = 24, width: int = 68) -> str:
+    """
+    Sleek Grafana-grade SVG line sparkline with subtle gradient area fill.
+    values: list of ints (up to 7), most recent last.
+    """
+    if not values:
+        return ""
+    vals = values[-7:]
+    peak = max(vals) or 1
+    low = min(vals)
+    n = len(vals)
+    if n == 1:
+        vals = vals * 2
+        n = 2
+
+    # If constant across snapshots (e.g. 500 items tracked), render clean baseline + dot
+    if peak == low:
+        mid_y = height / 2
+        return (
+            f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
+            f'style="display:block;overflow:visible" role="img" aria-label="stable trend">'
+            f'<line x1="2" y1="{mid_y:.1f}" x2="{width - 4:.1f}" y2="{mid_y:.1f}" stroke="{color}" stroke-width="1.8"/>'
+            f'<circle cx="{width - 4:.1f}" cy="{mid_y:.1f}" r="2" fill="{color}"/>'
+            f'</svg>'
+        )
+
+    # Trend curve with subtle area fill
+    dx = (width - 8) / max(n - 1, 1)
+    val_range = max(1, peak - low)
+    pts = []
+    for i, v in enumerate(vals):
+        x = 3 + i * dx
+        y = (height - 4) - ((v - low) / val_range) * (height - 8)
+        pts.append((x, y))
+
+    poly_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    area_pts = f"3,{height - 2} " + poly_pts + f" {pts[-1][0]:.1f},{height - 2}"
+
+    return (
+        f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
+        f'style="display:block;overflow:visible" role="img" aria-label="trend">'
+        f'<polygon points="{area_pts}" fill="{color}" fill-opacity="0.15"/>'
+        f'<polyline points="{poly_pts}" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+        f'<circle cx="{pts[-1][0]:.1f}" cy="{pts[-1][1]:.1f}" r="2" fill="{color}"/>'
+        f'</svg>'
+    )
+
+
+def compliance_donut(pct: float, color: str, size: int = 28) -> str:
+    """
+    SVG donut arc showing compliance %. Pure SVG stroke-dashoffset technique.
+    pct: 0-100
+    """
+    sw = 3.5 if size <= 32 else 5
+    r = (size - sw - 2) / 2
+    circ = 2 * 3.14159 * r
+    filled = circ * (pct / 100)
+    cx = size / 2
+    fsize = 7.5 if size <= 32 else 9
+    return (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" role="img" aria-label="{pct:.0f}% compliant">'
+        f'<circle cx="{cx}" cy="{cx}" r="{r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="{sw}"/>'
+        f'<circle cx="{cx}" cy="{cx}" r="{r}" fill="none" stroke="{color}" stroke-width="{sw}" '
+        f'stroke-linecap="round" stroke-dasharray="{filled:.1f} {circ:.1f}" '
+        f'transform="rotate(-90 {cx} {cx})"/>'
+        f'<text x="{cx}" y="{cx + 2.8}" text-anchor="middle" font-family="var(--mono)" '
+        f'font-size="{fsize}" font-weight="700" fill="{color}">{pct:.0f}%</text>'
+        f'</svg>'
+    )
+
+
+def panel_header(title: str, color: str = "#38bdf8", live: bool = True,
+                 count: str | None = None, info: str | None = None) -> str:
+    """Grafana-style section panel chrome with colored left border and live badge."""
+    live_html = '<span class="ph-live">LIVE</span>' if live else ""
+    count_html = f'<span class="ph-count">{escape(count)}</span>' if count else ""
+    info_html = (f'<span title="{escape(info)}" style="font-size:11px;color:rgba(255,255,255,0.35);'
+                 f'cursor:help;">ⓘ</span>') if info else ""
+    return (
+        f'<div class="panel-header" style="--ph-color:{color}">'
+        f'<span class="ph-title">{escape(title)}</span>'
+        f'<span class="ph-right">{count_html}{live_html}{info_html}</span>'
+        f'</div>'
+    )
+
+
+def alert_chip(band: str) -> str:
+    """FIRING / PENDING / OK chip — maps health band to Grafana alert state."""
+    if band == "Expired":
+        return '<span class="alert-chip firing">FIRING</span>'
+    if band in ("Critical", "Warning"):
+        return '<span class="alert-chip pending">PENDING</span>'
+    return '<span class="alert-chip ok">OK</span>'
+
+
+def grafana_stat_card(
+    label: str,
+    value: str | int | float,
+    color: str,
+    subtext: str = "",
+    badge: str = "",
+    badge_bg: str = "",
+    badge_fg: str = "#fff",
+    sparkline_vals: list[int] | None = None,
+    donut_pct: float | None = None,
+    delta: str = "",
+    state: str = "ok",   # "ok" | "pending" | "firing"
+) -> str:
+    """
+    Full Grafana-style stat panel — full background tint wash matching severity,
+    2px sharp corners, 1px border #2c3235, tabular numbers, sparkline/donut.
+    """
+    lbl_lower = label.lower()
+    if "expir" in lbl_lower or color.lower() in ("#f2495c", "#ef4444") or state == "firing":
+        fill_cls = "stat-fill-red"
+        val_cls = "red"
+        val_color = BAND_META["Expired"]["color"]
+    elif "crit" in lbl_lower or "warn" in lbl_lower or "urgent" in lbl_lower or color.lower() in ("#ff9830", "#f97316", "#f59e0b") or state == "pending":
+        fill_cls = "stat-fill-yellow"
+        val_cls = "yellow"
+        val_color = BAND_META["Critical"]["color"]
+    elif "health" in lbl_lower or color.lower() in ("#73bf69", "#10b981"):
+        fill_cls = "stat-fill-green"
+        val_cls = "green"
+        val_color = BAND_META["Healthy"]["color"]
+    else:
+        fill_cls = "stat-fill-neutral"
+        val_cls = "white"
+        val_color = "var(--ink)"
+
+    sub_html = f'<div class="stat-sub">{escape(subtext)}</div>' if subtext else ""
+
+    # Right-side visual: donut for healthy, sparkline for others
+    visual_html = ""
+    if donut_pct is not None:
+        visual_html = compliance_donut(donut_pct, val_color, size=28)
+    elif sparkline_vals:
+        visual_html = grafana_sparkline(sparkline_vals, val_color, height=18, width=54)
+
+    right_visual = f'<div style="flex:none;margin-left:auto;">{visual_html}</div>' if visual_html else ""
+
+    return f"""
+    <div class="panel stat-panel {fill_cls}" style="border:1px solid var(--rule);border-radius:2px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div class="stat-label">{escape(label)}</div>
+          <div class="stat-val {val_cls}" style="font-size:26px;font-weight:600;line-height:1.1;margin-top:4px;">{escape(str(value))}</div>
+        </div>
+        {right_visual}
+      </div>
+      <div>
+        {sub_html}
+      </div>
+    </div>
+    """
+
+
+def life_gauge(days_left: int, max_days: int = 730) -> str:
+    """Inline linear gauge bar showing how much life is remaining, 0–max_days scale."""
+    if days_left < 0:
+        color = BAND_META["Expired"]["color"]
+        pct = 0
+    else:
+        d = min(days_left, max_days)
+        pct = round(d / max_days * 100)
+        if days_left <= CRITICAL_DAYS:
+            color = BAND_META["Critical"]["color"]
+        elif days_left <= WARNING_DAYS:
+            color = BAND_META["Warning"]["color"]
+        else:
+            color = BAND_META["Healthy"]["color"]
+    return (
+        f'<div class="life-gauge" title="{days_left}d remaining">'
+        f'<div class="life-gauge-fill" style="width:{pct}%;background:{color}"></div>'
+        f'</div>'
+    )
+
+
+def leaf_sparkbar(days_left: int, max_days: int = 365) -> str:
+    """Tiny inline days-remaining bar for entity leaf rows."""
+    if days_left < 0:
+        color = BAND_META["Expired"]["color"]
+        pct = 0
+    else:
+        pct = min(100, round(days_left / max_days * 100))
+        if days_left <= CRITICAL_DAYS:
+            color = BAND_META["Critical"]["color"]
+        elif days_left <= WARNING_DAYS:
+            color = BAND_META["Warning"]["color"]
+        else:
+            color = BAND_META["Healthy"]["color"]
+    return (
+        f'<div class="leaf-sparkbar">'
+        f'<div class="leaf-sparkbar-fill" style="width:{pct}%;background:{color}"></div>'
+        f'</div>'
+    )
+
+
+def heatmap_visual_cell(n: int, exp: int, crit: int, warn: int, hlth: int,
+                        min_days: int, color: str, is_active: bool = False) -> str:
+    """
+    Grafana/Datadog-grade heatmap cell — colored background with stacked mini-bar,
+    item count, and soonest expiry sub-label.
+    """
+    risk_ratio = (exp * 3 + crit * 2 + warn) / max(n, 1)
+    opacity = min(0.75, 0.12 + risk_ratio * 0.35)
+    bg = color + f"{int(opacity * 255):02x}"
+    border = f"1px solid {color}" if not is_active else "1px solid var(--accent)"
+
+    # Stacked mini-bar segments
+    segs = ""
+    if n > 0:
+        if exp:
+            segs += f'<div style="flex:{exp};background:{BAND_META["Expired"]["color"]}"></div>'
+        if crit:
+            segs += f'<div style="flex:{crit};background:{BAND_META["Critical"]["color"]}"></div>'
+        if warn:
+            segs += f'<div style="flex:{warn};background:{BAND_META["Warning"]["color"]}"></div>'
+        if hlth:
+            segs += f'<div style="flex:{hlth};background:{BAND_META["Healthy"]["color"]};opacity:.6"></div>'
+
+    # Concise status description
+    if exp > 0 and crit > 0:
+        count_str = f"{exp}E · {crit}C"
+    elif exp > 0:
+        count_str = f"{exp} Exp"
+    elif crit > 0 and warn > 0:
+        count_str = f"{crit}C · {warn}W"
+    elif crit > 0:
+        count_str = f"{crit} Crit"
+    elif warn > 0:
+        count_str = f"{warn} Warn"
+    else:
+        count_str = f"✓ {hlth} OK"
+
+    # Compact duration formatting to prevent clipping
+    if min_days < 0:
+        d_neg = -min_days
+        if d_neg >= 365:
+            y = d_neg // 365
+            rm = (d_neg % 365) // 30
+            time_str = f"{y}y {rm}m overdue" if rm else f"{y}y overdue"
+        elif d_neg >= 60:
+            time_str = f"{d_neg // 30}m overdue"
+        else:
+            time_str = f"{d_neg}d overdue"
+    else:
+        if min_days >= 365:
+            y = min_days // 365
+            rm = (min_days % 365) // 30
+            time_str = f"{y}y {rm}m left" if rm else f"{y}y left"
+        elif min_days >= 60:
+            time_str = f"{min_days // 30}m left"
+        else:
+            time_str = f"{min_days}d left"
+
+    return (
+        f'<div class="hm-tile-card" style="background:{bg};border:{border};border-bottom:none;border-radius:2px;">'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        f'<span class="hm-count" style="color:{color}">{escape(str(n))}</span>'
+        f'<span class="hm-sub" style="color:{color}">{escape(count_str)}</span>'
+        f'</div>'
+        f'<div class="hm-sbar">{segs}</div>'
+        f'<div class="hm-time">{escape(time_str)}</div>'
+        f'</div>'
+    )
+
+
+sla_pill = sla_badge
+
+
+
