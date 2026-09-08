@@ -622,9 +622,28 @@ code, kbd, .mono, .num {{
   color: var(--accent) !important;
   box-shadow: none !important;
 }}
-.stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus-visible {{
-  outline: 1px solid var(--accent);
-  outline-offset: 1px;
+.stButton > button:focus, .stButton > button:focus-visible, [data-testid="stDownloadButton"] > button:focus, [data-testid="stDownloadButton"] > button:focus-visible {{
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+}}
+
+
+
+/* Heatmap column headers — framed with bottom clearance */
+.hm-col-hdr {{
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-align: center;
+  padding: 4px 2px;
+  margin-bottom: 8px;
+  height: 22px;
+  line-height: 14px;
+  letter-spacing: .06em;
+  background: #181b1f;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
 }}
 .stButton > button[kind="primary"]:not(:disabled) {{
   background: var(--accent) !important;
@@ -1263,15 +1282,35 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   border-radius: 2px !important;
 }}
 
-/* KPI button flush attachment under stat card */
-[data-testid="column"] > div > div > div > .stButton > button {{
-  min-height: 22px !important;
-  height: 22px !important;
+/* KPI button flush attachment under stat card — targeted ONLY by specific key */
+div.st-key-op_kpi_all button,
+div.st-key-op_kpi_exp button,
+div.st-key-op_kpi_urgent button,
+div.st-key-op_kpi_hlth button {{
+  min-height: 24px !important;
+  height: 24px !important;
   font-size: 10px !important;
-  padding: 1px 6px !important;
-  margin-top: -2px !important;
-  border-top: none !important;
+  font-weight: 600 !important;
+  padding: 2px 6px !important;
+  margin-top: -8px !important;
+  border-top: 1px solid var(--rule-soft) !important;
   border-radius: 0 0 2px 2px !important;
+}}
+
+/* Tree action toolbar buttons — properly framed without overflow */
+div.st-key-tree_exp_all button,
+div.st-key-tree_col_all button,
+div.st-key-tree_clear_sel_btn button,
+div.st-key-tree_select_all_btn button,
+div.st-key-tree_send_to_batch button {{
+  min-height: 24px !important;
+  height: 24px !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  padding: 2px 6px !important;
+  margin-top: 0 !important;
+  border: 1px solid var(--rule) !important;
+  border-radius: 2px !important;
 }}
 
 /* Life gauge */
@@ -1608,14 +1647,15 @@ def compliance_donut(pct: float, color: str, size: int = 28) -> str:
 def panel_header(title: str, color: str = "#38bdf8", live: bool = True,
                  count: str | None = None, info: str | None = None) -> str:
     """Grafana-style section panel chrome with colored left border and live badge."""
-    live_html = '<span class="ph-live">LIVE</span>' if live else ""
-    count_html = f'<span class="ph-count">{escape(count)}</span>' if count else ""
-    info_html = (f'<span title="{escape(info)}" style="font-size:11px;color:rgba(255,255,255,0.35);'
-                 f'cursor:help;">ⓘ</span>') if info else ""
+    live_html = '<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;letter-spacing:.06em;margin-left:8px;">LIVE</span>' if live else ""
+    count_html = f'<span style="font-size:9.5px;font-weight:600;color:var(--mute);margin-left:6px;">{escape(count)}</span>' if count else ""
+    info_html = (f'<span title="{escape(info)}" style="font-size:11px;color:rgba(255,255,255,0.4);'
+                 f'cursor:help;margin-left:auto;">ⓘ</span>') if info else ""
     return (
-        f'<div class="panel-header" style="--ph-color:{color}">'
-        f'<span class="ph-title">{escape(title)}</span>'
-        f'<span class="ph-right">{count_html}{live_html}{info_html}</span>'
+        f'<div style="display:flex;align-items:center;padding:4px 2px 7px;margin-bottom:8px;border-bottom:1px solid var(--rule);border-left:3px solid {color};padding-left:6px;">'
+        f'<span style="font-size:11.5px;font-weight:600;color:var(--ink);letter-spacing:.01em;">{escape(title)}</span>'
+        f'{live_html}{count_html}'
+        f'{info_html}'
         f'</div>'
     )
 

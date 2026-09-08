@@ -924,54 +924,58 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         tree_open.clear()
                     tree_open.add(path)
 
-            st.markdown("""
-            <div class="panel">
-              <div class="panel-head"><span class="panel-title">Hierarchy — State</span><span class="panel-menu">⋮</span></div>
+            # Tree Header Bar — integrated Title + Breadcrumb Trail
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#181b1f;border:1px solid var(--rule);border-radius:2px;padding:6px 10px;margin-bottom:6px;">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;">
+                <span style="font-size:11.5px;font-weight:600;color:var(--ink);white-space:nowrap;">Hierarchy — State</span>
+                <span style="color:var(--rule-soft);font-size:10px;">|</span>
+                <div style="font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">{bc_trail}</div>
+              </div>
+              <span style="color:var(--mute);font-size:12px;flex:none;cursor:pointer;">⋮</span>
+            </div>
             """, unsafe_allow_html=True)
 
-            bc_c1, bc_c2 = st.columns([1.1, 2.9])
-            with bc_c1:
-                st.markdown(f"<div style='font-size:10px;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{bc_trail}</div>", unsafe_allow_html=True)
-            with bc_c2:
-                tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.4])
-                with tc1:
-                    if st.button("Expand", key="tree_exp_all", use_container_width=True):
-                        for s_val in filtered["state"].unique():
-                            tree_open.add(str(s_val))
-                            st_sub = filtered[filtered["state"] == s_val]
-                            for t_val in st_sub["team"].unique():
-                                tree_open.add(f"{s_val}/{t_val}")
-                                tm_sub = st_sub[st_sub["team"] == t_val]
-                                for c_val in tm_sub["component"].unique():
-                                    tree_open.add(f"{s_val}/{t_val}/{c_val}")
-                                    cp_sub = tm_sub[tm_sub["component"] == c_val]
-                                    for e_val in cp_sub["env_label"].unique():
-                                        tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+            # Action Toolbar
+            tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.3])
+            with tc1:
+                if st.button("Expand", key="tree_exp_all", use_container_width=True):
+                    for s_val in filtered["state"].unique():
+                        tree_open.add(str(s_val))
+                        st_sub = filtered[filtered["state"] == s_val]
+                        for t_val in st_sub["team"].unique():
+                            tree_open.add(f"{s_val}/{t_val}")
+                            tm_sub = st_sub[st_sub["team"] == t_val]
+                            for c_val in tm_sub["component"].unique():
+                                tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                                cp_sub = tm_sub[tm_sub["component"] == c_val]
+                                for e_val in cp_sub["env_label"].unique():
+                                    tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+                    rerun()
+            with tc2:
+                if st.button("Collapse", key="tree_col_all", use_container_width=True):
+                    tree_open.clear()
+                    rerun()
+            with tc3:
+                all_f_ids = set(filtered["id"].tolist())
+                n_sel = len(selected_entity_ids)
+                if n_sel > 0:
+                    if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
+                        selected_entity_ids.clear()
                         rerun()
-                with tc2:
-                    if st.button("Collapse", key="tree_col_all", use_container_width=True):
-                        tree_open.clear()
+                else:
+                    if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
+                        selected_entity_ids.update(all_f_ids)
                         rerun()
-                with tc3:
-                    all_f_ids = set(filtered["id"].tolist())
-                    n_sel = len(selected_entity_ids)
-                    if n_sel > 0:
-                        if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
-                            selected_entity_ids.clear()
-                            rerun()
-                    else:
-                        if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
-                            selected_entity_ids.update(all_f_ids)
-                            rerun()
-                with tc4:
-                    n_sel = len(selected_entity_ids)
-                    btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
-                    if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
-                        st.session_state["op_target_tab"] = "batch"
-                        rerun()
+            with tc4:
+                n_sel = len(selected_entity_ids)
+                btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
+                if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
+                    st.session_state["op_target_tab"] = "batch"
+                    rerun()
 
-            # Hierarchical Matrix Tree (5-Level Cascading Hierarchy with Tri-State Multi-Select)
-            st.markdown("<div style='max-height:260px;overflow-y:auto;border-top:1px solid var(--rule);padding:2px 3px;'>", unsafe_allow_html=True)
+            # Hierarchical Matrix Tree (Scrollable node list)
+            st.markdown("<div style='max-height:260px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;background:#141619;padding:3px 4px;margin-top:6px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
                 st_sub = filtered[filtered["state"] == st_val]
@@ -1142,7 +1146,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                         f"</div>",
                                                         unsafe_allow_html=True
                                                     )
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # Component Severity Distribution Panel (Rule 6: size to content, eliminate empty space)
             dist_rows = []
@@ -1332,19 +1336,19 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             mat_states = STATES
             mat_comps = COMPONENT_ORDER
 
-            # Header Row
+            # Header Row — framed column labels with clean bottom margin
             h_c0, h_c1, h_c2, h_c3, h_c4, h_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
             with h_c0:
-                st.markdown("<div style='font-size:9.5px;font-weight:700;color:#94a3b8;padding:3px 2px;letter-spacing:.08em;text-align:center;background:rgba(255,255,255,0.03);border-radius:4px;'>STATE</div>", unsafe_allow_html=True)
+                st.markdown("<div class='hm-col-hdr' style='color:#94a3b8;'>STATE</div>", unsafe_allow_html=True)
             for idx, c_val in enumerate(mat_comps):
                 c_icon = ui.COMPONENT_ICONS.get(c_val, '')
                 c_code = ui.COMPONENT_CODE.get(c_val, c_val)
                 [h_c1, h_c2, h_c3, h_c4][idx].markdown(
-                    f"<div style='font-size:9.5px;font-weight:700;color:#cbd5e1;text-align:center;padding:3px 2px;letter-spacing:.06em;background:rgba(255,255,255,0.03);border-radius:4px;'>{c_icon} {c_code}</div>",
+                    f"<div class='hm-col-hdr'>{c_icon} {c_code}</div>",
                     unsafe_allow_html=True
                 )
             with h_c5:
-                st.markdown("<div style='font-size:9.5px;font-weight:700;color:#94a3b8;text-align:center;padding:3px 2px;letter-spacing:.08em;background:rgba(255,255,255,0.03);border-radius:4px;'>TOTAL</div>", unsafe_allow_html=True)
+                st.markdown("<div class='hm-col-hdr' style='color:#94a3b8;'>TOTAL</div>", unsafe_allow_html=True)
 
             # Rows
             for st_val in mat_states:
