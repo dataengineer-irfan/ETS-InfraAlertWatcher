@@ -337,32 +337,51 @@ body{
 /* Maintenance Cadence Visualizer */
 .cadence-wrap{ height:100%; overflow-y:auto; }
 .cadence-tbl{ width:100%; border-collapse:collapse; table-layout:auto !important; font-size:10px; }
-.cadence-tbl th{ padding:3px 4px; font-size:8.5px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); white-space:nowrap; }
-.cadence-tbl th.cur-th{ color:#38BDF8; font-weight:700; background:rgba(56,189,248,0.1); }
-.cadence-tbl td{ padding:4px 5px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; white-space:nowrap; }
-.cadence-tbl tr.hot-maint{ background:rgba(56,189,248,0.08); }
+.cadence-tbl th{ padding:4px 6px; font-size:8.5px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); white-space:nowrap; text-align:left; }
+.cadence-tbl th.c-st, .cadence-tbl th.c-tier, .cadence-tbl th.c-day{ text-align:center !important; }
+.cadence-tbl td{ padding:4px 6px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; white-space:nowrap; }
+.cadence-tbl tr:hover{ background:rgba(255,255,255,0.025); }
+.cadence-tbl tr.hot-maint{ background:rgba(56,189,248,0.07); }
+.cadence-tbl tr.hot-maint:hover{ background:rgba(56,189,248,0.11); }
 
-.cadence-tbl .c-st{ width:34px; max-width:38px; }
-.cadence-tbl .c-env{ width:44px; max-width:48px; }
-.cadence-tbl .c-tier{ width:42px; max-width:46px; }
-.cadence-tbl .c-team{ min-width:85px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
-.cadence-tbl .c-cadence{ min-width:85px; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
-.cadence-tbl .c-win{ min-width:68px; max-width:80px; }
-.cadence-tbl .c-day{ width:18px !important; min-width:18px !important; max-width:20px !important; padding:3px 0 !important; text-align:center !important; }
-.cadence-tbl .c-status{ min-width:92px; white-space:nowrap; }
+.cadence-tbl .c-st{ width:42px; min-width:38px; text-align:center; }
+.cadence-tbl .c-env{ width:54px; min-width:48px; }
+.cadence-tbl .c-tier{ width:50px; min-width:44px; text-align:center; }
+.cadence-tbl .c-team{ min-width:100px; font-weight:700; }
+.cadence-tbl .c-cadence{ min-width:130px; }
+.cadence-tbl .c-win{ width:92px; min-width:85px; }
 
-.cadence-cell{ text-align:center; font-size:11px; color:var(--mute); }
-.cadence-cell.active{ color:#38BDF8; font-weight:700; }
-.cadence-cell.today-active{ color:#10B981; font-weight:700; background:rgba(16,185,129,0.15); border-radius:3px; }
-.cadence-cell.cur-day{ background:rgba(255,255,255,0.03); }
+.cadence-tbl .c-day{ width:36px !important; min-width:34px !important; max-width:44px !important; padding:4px 2px !important; text-align:center !important; }
+.cadence-tbl th.c-day{ font-size:8px; font-weight:700; letter-spacing:.05em; color:var(--mute); }
+.cadence-tbl th.cur-th{ color:#38BDF8 !important; font-weight:800 !important; background:rgba(56,189,248,0.14) !important; border-bottom:2px solid #38BDF8 !important; }
+.cadence-tbl .c-day-start{ border-left:1px solid rgba(255,255,255,0.07) !important; }
+.cadence-tbl .c-day-end{ border-right:1px solid rgba(255,255,255,0.07) !important; }
+
+.cadence-tbl .c-status{ min-width:150px; padding-left:8px !important; }
+
+.cadence-cell{ text-align:center; vertical-align:middle; }
+.cadence-cell.cur-day{ background:rgba(56,189,248,0.035); }
+.cadence-cell.today-active{ background:rgba(16,185,129,0.12); }
+
+.c-dot{ display:inline-block; border-radius:50%; vertical-align:middle; }
+.c-dot.is-today{ width:10px; height:10px; background:#10B981; box-shadow:0 0 8px rgba(16,185,129,0.75); border:1.5px solid #a7f3d0; }
+.c-dot.is-active{ width:8px; height:8px; background:#38BDF8; box-shadow:0 0 6px rgba(56,189,248,0.55); border:1px solid rgba(255,255,255,0.35); }
+.c-dot.is-idle{ width:4px; height:4px; background:rgba(148,163,184,0.22); }
+
+.pip-dot{ width:5px; height:5px; border-radius:50%; display:inline-block; flex:none; }
+.pip-dot.live{ background:#10b981; box-shadow:0 0 5px #10b981; }
+.pip-dot.sched{ background:var(--mute); }
+
 .st-tag{ background:var(--accent-tint); color:var(--accent); border:1px solid var(--accent-line); border-radius:3px; padding:1px 4px; font-size:9px; }
 .badge-maint-active{
-  background:rgba(16,185,129,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.4);
-  border-radius:3px; padding:1px 5px; font-size:8.5px; font-weight:700; text-transform:uppercase; display:inline-block;
+  background:rgba(16,185,129,0.18); color:#10B981; border:1px solid rgba(16,185,129,0.45);
+  border-radius:4px; padding:2px 8px; font-size:8.5px; font-weight:700; text-transform:uppercase;
+  display:inline-flex; align-items:center; gap:6px; min-width:115px;
 }
 .badge-maint-sched{
   background:var(--sunk); color:var(--slate); border:1px solid var(--rule);
-  border-radius:3px; padding:1px 5px; font-size:8.5px; display:inline-block;
+  border-radius:4px; padding:2px 8px; font-size:8.5px; font-weight:500;
+  display:inline-flex; align-items:center; gap:6px; min-width:136px;
 }
 
 /* ---- chips ----------------------------------------------------------- */
@@ -1474,10 +1493,15 @@ function renderCadence(S){
       const active = daysStr.includes(d);
       const isCur = i === todayIdx;
       let cls = "cadence-cell c-day";
+      if (i === 0) cls += " c-day-start";
+      if (i === 6) cls += " c-day-end";
       if (active) cls += isCur ? " today-active" : " active";
       else if (isCur) cls += " cur-day";
       const dayTip = dayNames[i] + ': ' + (active ? (isCur ? 'Active Today' : 'Scheduled Maintenance') : 'No Maintenance');
-      return '<td class="' + cls + '" title="' + esc(dayTip) + '">' + (active ? (isCur ? "🟢" : "●") : "·") + '</td>';
+      const dot = active
+        ? (isCur ? '<span class="c-dot is-today"></span>' : '<span class="c-dot is-active"></span>')
+        : '<span class="c-dot is-idle"></span>';
+      return '<td class="' + cls + '" title="' + esc(dayTip) + '">' + dot + '</td>';
     }).join("");
 
     const tClr = TEAM_COLOR[sch.team] || "var(--ink)";
@@ -1492,13 +1516,19 @@ function renderCadence(S){
       + '<td class="c-cadence" style="color:var(--slate);font-size:9px;" title="' + esc(sch.frequency_blurb) + '">' + esc(sch.frequency_blurb) + '</td>'
       + '<td class="c-win mono" style="color:var(--mute);font-size:9px;" title="Window: ' + esc(sch.time_window) + ' UTC">' + esc(sch.time_window) + '</td>'
       + dayCells
-      + '<td class="c-status" title="' + esc(statusTip) + '">' + (isToday ? '<span class="badge-maint-active">ACTIVE TODAY</span>' : '<span class="badge-maint-sched">' + esc(statusLabel) + '</span>') + '</td>'
+      + '<td class="c-status" title="' + esc(statusTip) + '">' + (isToday ? '<span class="badge-maint-active"><span class="pip-dot live"></span>ACTIVE TODAY</span>' : '<span class="badge-maint-sched"><span class="pip-dot sched"></span>' + esc(statusLabel) + '</span>') + '</td>'
       + '</tr>';
   }).join("");
 
   return '<div class="cadence-wrap"><table class="tbl cadence-tbl"><thead><tr>'
     + '<th class="c-st">State</th><th class="c-env">Env</th><th class="c-tier">Tier</th><th class="c-team">Team</th><th class="c-cadence">Cadence</th><th class="c-win">Window (UTC)</th>'
-    + dayNames.map((d, i) => '<th class="c-day ' + (i === todayIdx ? "cur-th" : "") + '" title="' + fullDayNames[i].toUpperCase() + '">' + d + '</th>').join("")
+    + dayNames.map((d, i) => {
+        let thCls = "c-day";
+        if (i === 0) thCls += " c-day-start";
+        if (i === 6) thCls += " c-day-end";
+        if (i === todayIdx) thCls += " cur-th";
+        return '<th class="' + thCls + '" title="' + fullDayNames[i].toUpperCase() + '">' + d + '</th>';
+      }).join("")
     + '<th class="c-status">Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
 }
 
