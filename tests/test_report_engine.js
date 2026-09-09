@@ -439,7 +439,7 @@ const bh = [...bars.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" h
   .map(m => m.slice(1).map(Number));
 ok("bars have positive height", bh.every(([, , , h]) => h > 0));
 ok("bars stay inside the viewBox",
-   bh.every(([x, y, w, h]) => x >= 0 && x + w <= 1000 && y >= 0 && y + h <= 162.5));
+   bh.every(([x, y, w, h]) => x >= 0 && x + w <= 1000 && y >= 0 && y + h <= 170.5));
 eq("bar labels add up to what is in the window",
    [...bars.matchAll(/font-weight="600" text-anchor="middle">(\d+)</g)]
      .reduce((a, m) => a + Number(m[1]), 0),

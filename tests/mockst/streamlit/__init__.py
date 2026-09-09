@@ -73,6 +73,9 @@ def form_submit_button(label, **kw): LOG.append(("submit", label)); return False
 def text_input(label, key=None, value="", **kw): _key(key); return value
 def selectbox(label, options, key=None, **kw):
     _key(key); options = list(options); return options[0] if options else None
+def radio(label, options, key=None, index=0, **kw):
+    _key(key); options = list(options)
+    return options[index] if options and 0 <= index < len(options) else (options[0] if options else None)
 def multiselect(label, options, key=None, default=None, **kw): _key(key); return list(default or [])
 def date_input(label, value=None, key=None, **kw): _key(key); return value
 def data_editor(data, key=None, **kw):

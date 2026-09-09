@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Urgent: 10 Overdue Component Expirations</title>
+</head>
+<body style="margin: 0; padding: 16px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+  <div style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+    
+    <!-- Top Alert Banner -->
+    <div style="background-color: #dc2626; color: #ffffff; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">
+        ETS Infrastructure Watchtower &bull; Critical Governance Notice
+      </div>
+      <div style="font-size: 11px; font-weight: 700; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px;">
+        10 EXPIRED ASSETS
+      </div>
+    </div>
+
+    <!-- Body Header -->
+    <div style="padding: 24px 24px 16px 24px;">
+      <h2 style="margin: 0 0 8px 0; font-size: 18px; color: #0f172a; font-weight: 700;">
+        Action Required: 10 Components Have Expired
+      </h2>
+      <p style="margin: 0 0 16px 0; font-size: 13.5px; color: #475569; line-height: 1.5;">
+        Automated lineage scanning detected <strong>10 components</strong> past their expiration horizon in <strong>North Dakota (ND)</strong> across Disaster Recovery (DR) and Maintenance Outage (MO) environments. Immediate operational remediation is required to avoid cascade job failures.
+      </p>
+
+      <!-- Risk Alert Callout -->
+      <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 0 6px 6px 0; margin-bottom: 20px;">
+        <div style="font-size: 12.5px; font-weight: 700; color: #991b1b; margin-bottom: 2px;">
+          Operational Risk Summary
+        </div>
+        <div style="font-size: 12px; color: #7f1d1d; line-height: 1.4;">
+          5 items in DR (Env 19) expired on 2020-12-27. 5 items in MO (Env 78) expired on 2022-06-10. All 5 core functional teams (App Server, Cognos, Core, Informatica, Letters) are impacted.
+        </div>
+      </div>
+
+      <!-- Detail Table -->
+      <table cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: 20px;">
+        <thead>
+          <tr style="background-color: #0f172a; color: #f8fafc; text-align: left;">
+            <th style="padding: 9px 10px; font-weight: 600; border-bottom: 1px solid #334155;">Scope</th>
+            <th style="padding: 9px 10px; font-weight: 600; border-bottom: 1px solid #334155;">Team</th>
+            <th style="padding: 9px 10px; font-weight: 600; border-bottom: 1px solid #334155;">Component</th>
+            <th style="padding: 9px 10px; font-weight: 600; border-bottom: 1px solid #334155;">Target Schema</th>
+            <th style="padding: 9px 10px; font-weight: 600; border-bottom: 1px solid #334155;">Exp Date</th>
+            <th style="padding: 9px 10px; font-weight: 600; text-align: right; border-bottom: 1px solid #334155;">Overdue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+          <tr style="border-bottom: 1px solid #e2e8f0; {% if loop.index is even %}background-color: #f8fafc;{% endif %}">
+            <td style="padding: 8px 10px; font-weight: 700; color: #0f172a;">{{ r.state }} &bull; {{ r.environment }}</td>
+            <td style="padding: 8px 10px; color: #334155;">{{ r.team }}</td>
+            <td style="padding: 8px 10px; color: #475569;">{{ r.component }}</td>
+            <td style="padding: 8px 10px; font-family: monospace; font-size: 11.5px; color: #0284c7;">{{ r.schema_name }}</td>
+            <td style="padding: 8px 10px; color: #dc2626; font-weight: 600;">{{ r.exp_date }}</td>
+            <td style="padding: 8px 10px; text-align: right; color: #dc2626; font-weight: 700;">{{ r.overdue_str }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- Next Steps -->
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px;">
+        <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">
+          Required Remediation Actions:
+        </div>
+        <ol style="margin: 0; padding-left: 18px; font-size: 12px; color: #334155; line-height: 1.6;">
+          <li>Update software versions or database credentials in target environments.</li>
+          <li>Record renewal dates in the Watchtower Batch Editor or update the master workbook.</li>
+          <li>Notify functional team leads once parameters are synchronized.</li>
+        </ol>
+      </div>
+
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">
+        This alert was dispatched from the <strong>ETS Infrastructure Watchtower</strong> live governance pipeline.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 24px; font-size: 11px; color: #94a3b8;">
+      Generated on {{ generated_at }} UTC &bull; Test Recipients: <code>basha.shaikirfan@gmail.com</code>, <code>dataengineerib@gmail.com</code>
+    </div>
+
+  </div>
+</body>
+</html>

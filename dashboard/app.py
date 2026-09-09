@@ -1547,7 +1547,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "channel": "core-dba@example.com",
         "cadence": "Quarterly",
         "assets": 160,
-        "status": "🔴 10 Expired",
+        "status": "10 Expired",
+        "symbol": "●",
         "status_color": "#f2495c",
         "status_bg": "rgba(242,73,92,0.18)"
     },
@@ -1557,7 +1558,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "channel": "letters-ops@example.com",
         "cadence": "Monthly (1st Sun)",
         "assets": 96,
-        "status": "▲ 5 Critical (15d)",
+        "status": "5 Critical (15d)",
+        "symbol": "▲",
         "status_color": "#ff9830",
         "status_bg": "rgba(255,152,48,0.18)"
     },
@@ -1567,7 +1569,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "channel": "cognos-dba@example.com",
         "cadence": "3× Weekly",
         "assets": 96,
-        "status": "▲ 5 Critical (15d)",
+        "status": "5 Critical (15d)",
+        "symbol": "▲",
         "status_color": "#ff9830",
         "status_bg": "rgba(255,152,48,0.18)"
     },
@@ -1577,7 +1580,8 @@ TEAM_GOVERNANCE_PROFILES = {
         "channel": "infa-etl@example.com",
         "cadence": "Weekly (Sun)",
         "assets": 96,
-        "status": "✓ 100% Healthy",
+        "status": "100% Healthy",
+        "symbol": "✓",
         "status_color": "#73bf69",
         "status_bg": "rgba(115,191,105,0.16)"
     },
@@ -1587,10 +1591,11 @@ TEAM_GOVERNANCE_PROFILES = {
         "channel": "appserver-admin@example.com",
         "cadence": "Weekly (Sun)",
         "assets": 96,
-        "status": "✓ 100% Healthy",
+        "status": "100% Healthy",
+        "symbol": "✓",
         "status_color": "#73bf69",
         "status_bg": "rgba(115,191,105,0.16)"
-    },
+    }
 }
 
 
@@ -1688,66 +1693,68 @@ def render_governance_center() -> None:
 
     with kpi_c1:
         is_active = (gov_drill == "urgent")
-        st.markdown(ui.kpi_card(
+        st.markdown(ui.grafana_stat_card(
             label="Actionable Risk Assets",
             value=n_total_risk_fleet,
-            subtext=f"{n_expired_fleet} Expired · {n_critical_fleet} Critical · {n_warning_fleet} Warning",
-            glow="#f2495c",
-            val_color="#f2495c",
-            badge="RISK",
-            badge_color="#f2495c",
+            color="#f2495c",
+            subtext=f"{n_expired_fleet} Exp · {n_critical_fleet} Crit · {n_warning_fleet} Warn",
+            badge="FIRING" if n_total_risk_fleet else "CLEAR",
+            sparkline_vals=[28, 26, 25, 25],
+            state="firing" if n_total_risk_fleet else "ok",
             is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button("Filter Risk Assets" if not is_active else "✓ Filtering Risk", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button(f"✓ Active: Risk Assets ({n_total_risk_fleet})" if is_active else f"Filter: Risk Assets ({n_total_risk_fleet})", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "urgent" if gov_drill != "urgent" else "all"
             rerun()
 
     with kpi_c2:
         is_active = (gov_team_filter != "All")
-        st.markdown(ui.kpi_card(
+        st.markdown(ui.grafana_stat_card(
             label="Teams Impacted",
             value="3 / 5",
+            color="#ff9830",
             subtext="Core, Letters, Cognos attention",
-            glow="#ff9830",
-            val_color="#ff9830",
-            badge="IMPACT",
-            badge_color="#ff9830",
+            badge="ATTENTION",
+            sparkline_vals=[4, 3, 3, 3],
+            state="pending",
             is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button("Focus Impacted" if not is_active else f"✓ Focused: {gov_team_filter}", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button(f"✓ Active: Team {gov_team_filter}" if is_active else "Filter: Impacted (3/5)", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_team_filter"] = "Core" if gov_team_filter == "All" else "All"
             rerun()
 
     with kpi_c3:
         is_active = (gov_drill == "maintenance")
-        st.markdown(ui.kpi_card(
+        maint_cnt = stats.get('maintenance_schedules', 0)
+        st.markdown(ui.grafana_stat_card(
             label="Maintenance Windows",
-            value=stats.get('maintenance_schedules', 0),
+            value=maint_cnt,
+            color="#5794f2",
             subtext="100% Synced across 4 cadences",
-            glow="#5794f2",
-            val_color="var(--ink)",
             badge="SCHEDULE",
-            badge_color="#5794f2",
+            sparkline_vals=[120, 122, 123, 123],
+            state="ok",
             is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button("View Maintenance" if not is_active else "✓ Maintenance Scope", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button(f"✓ Active: Schedules ({maint_cnt})" if is_active else f"Filter: Schedules ({maint_cnt})", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "maintenance" if gov_drill != "maintenance" else "all"
             rerun()
 
     with kpi_c4:
         is_active = (gov_drill == "reminders")
         smtp_live = bool(os.environ.get("SMTP_HOST"))
-        st.markdown(ui.kpi_card(
+        audit_cnt = stats['reminder_log']
+        st.markdown(ui.grafana_stat_card(
             label="Alert Dispatch Audit",
-            value=f"{stats['reminder_log']} Logged",
+            value=f"{audit_cnt} Logged",
+            color="#73bf69" if smtp_live else "#5794f2",
             subtext="Live SMTP Configured" if smtp_live else "Daily dry-run audit @ 08:00 UTC",
-            glow="#5794f2",
-            val_color="var(--ink)",
             badge="LIVE SMTP" if smtp_live else "SIMULATED",
-            badge_color="#73bf69" if smtp_live else "#ff9830",
+            sparkline_vals=[1, 2, 2, 2],
+            state="ok",
             is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button("Audit Logs" if not is_active else "✓ Audit Log Scope", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
+        if st.button(f"✓ Active: Audit Logs ({audit_cnt})" if is_active else f"Filter: Audit Logs ({audit_cnt})", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
             st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
             rerun()
 
@@ -1770,7 +1777,7 @@ def render_governance_center() -> None:
                 f"<td class='m' style='font-weight:600;color:var(--text);padding:5px 6px;'>{p['team']}{active_badge}</td>"
                 f"<td style='color:var(--slate);padding:5px 6px;'>{p['lead']}<br/><code style='font-size:9.5px;color:var(--mute);'>{p['channel']}</code></td>"
                 f"<td class='m r' style='padding:5px 6px;'><b>{p['assets']}</b></td>"
-                f"<td style='padding:5px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:9px;border-radius:2px;'>{p['status']}</span></td>"
+                f"<td style='padding:5px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:9px;border-radius:2px;'><span style='margin-right:4px;'>{p.get('symbol', '●')}</span>{p['status']}</span></td>"
                 f"<td style='color:var(--mute);font-size:9.5px;padding:5px 6px;'>{p['cadence']}</td>"
                 f"</tr>"
             )
@@ -1785,7 +1792,7 @@ def render_governance_center() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div style="font-size:9.5px;font-weight:700;color:var(--mute);letter-spacing:0.04em;margin-top:4px;margin-bottom:3px;">FOCUS TEAM SCOPE:</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:9.5px;font-weight:700;color:var(--mute);letter-spacing:0.04em;margin-top:8px;margin-bottom:6px;">FOCUS TEAM SCOPE:</div>', unsafe_allow_html=True)
 
         # Team drill buttons (hidden but functional — triggered by the scorecard row clicks above)
         _drill_cols = st.columns(6)
@@ -1842,7 +1849,7 @@ def render_governance_center() -> None:
                     )
 
                 st.markdown(f"""
-                <div style="max-height:210px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;">
+                <div style="max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;">
                   <table class="tblx" style="font-size:10px;">
                     <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                     {''.join(q_rows)}
@@ -1850,9 +1857,9 @@ def render_governance_center() -> None:
                 </div>
                 """, unsafe_allow_html=True)
 
-                aq_c1, aq_c2 = st.columns([2.6, 1.4])
+                aq_c1, aq_c2 = st.columns([2.5, 1.5])
                 with aq_c1:
-                    st.markdown("<div style='font-size:10px;color:var(--mute);padding-top:4px;'>Execute batch renewal overrides for urgent items:</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-size:10px;color:var(--mute);line-height:26px;'>Execute batch renewal overrides for urgent items:</div>", unsafe_allow_html=True)
                 with aq_c2:
                     if st.button("⚡ Open Batch Editor", key="gov_send_batch", type="primary", use_container_width=True):
                         st.session_state["op_selected_entity_ids"] = set(urgent_records["id"].tolist())
@@ -1864,7 +1871,7 @@ def render_governance_center() -> None:
             sim_team_default = gov_team_filter if gov_team_filter in ui.TEAMS else ui.TEAMS[0]
             sim_team_idx = ui.TEAMS.index(sim_team_default) if sim_team_default in ui.TEAMS else 0
 
-            sim_c1, sim_c2, sim_c3 = st.columns([0.9, 1.1, 2.0])
+            sim_c1, sim_c2, sim_c3 = st.columns([0.8, 1.0, 2.2])
             sim_st = sim_c1.selectbox("State", STATES, key="sim_state", label_visibility="collapsed")
             sim_tm = sim_c2.selectbox("Team", ui.TEAMS, index=sim_team_idx, key="sim_team", label_visibility="collapsed")
 
@@ -1923,17 +1930,17 @@ def render_governance_center() -> None:
                     <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">{email_subject}</span></div>
                   </div>
                   <div style="background:#111217;padding:7px;">
-                    <div style="max-height:160px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
+                    <div style="max-height:220px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
                       {email_html}
                     </div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                disp_c1, disp_c2 = st.columns([2.6, 1.4])
+                disp_c1, disp_c2 = st.columns([2.5, 1.5])
                 with disp_c1:
                     st.markdown(
-                        f"<div style='font-size:10px;color:var(--mute);line-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                        f"<div style='font-size:10px;color:var(--mute);line-height:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
                         f"Simulate dispatch to <code style='color:var(--accent);font-size:9.5px;'>{sim_mock['owner_email']}</code> &amp; log audit:</div>",
                         unsafe_allow_html=True
                     )
@@ -2082,7 +2089,7 @@ def render_governance_center() -> None:
 
             conn_audit = get_connection(DB_PATH)
             recent_logs = conn_audit.execute(
-                "SELECT state, schema_name, last_sent_at, times_sent FROM reminder_log ORDER BY last_sent_at DESC LIMIT 4"
+                "SELECT state, schema_name, last_sent_at, times_sent FROM reminder_log ORDER BY last_sent_at DESC LIMIT 8"
             ).fetchall()
             conn_audit.close()
             if recent_logs:
@@ -2091,7 +2098,7 @@ def render_governance_center() -> None:
                     for r in recent_logs
                 )
                 st.markdown(f"""
-                <div style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;margin-bottom:6px;">
+                <div style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;margin-bottom:8px;">
                   <table class="tblx" style="font-size:9.5px;">
                     <tr><th>State</th><th>Entity Audited</th><th>Last Audit Date</th><th class="r">Dispatches</th></tr>
                     {rl_rows}
@@ -2099,14 +2106,18 @@ def render_governance_center() -> None:
                 </div>
                 """, unsafe_allow_html=True)
 
-            if st.button("⚡ Trigger Immediate Re-ingest (AST Parser)", key="gov_reingest_tab", type="primary", use_container_width=True):
-                t_start = datetime.now()
-                with st.spinner("Executing workbook parser..."):
-                    res = run_ingest(WORKBOOK_DIR, DB_PATH)
-                duration_ms = (datetime.now() - t_start).total_seconds() * 1000
-                bust_cache()
-                st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
-                rerun()
+            reing_c1, reing_c2 = st.columns([2.5, 1.5])
+            with reing_c1:
+                st.markdown("<div style='font-size:10px;color:var(--mute);line-height:26px;'>Zero-mock filesystem parser across all state workbooks:</div>", unsafe_allow_html=True)
+            with reing_c2:
+                if st.button("⚡ Trigger Re-ingest (AST)", key="gov_reingest_tab", type="primary", use_container_width=True):
+                    t_start = datetime.now()
+                    with st.spinner("Executing workbook parser..."):
+                        res = run_ingest(WORKBOOK_DIR, DB_PATH)
+                    duration_ms = (datetime.now() - t_start).total_seconds() * 1000
+                    bust_cache()
+                    st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
+                    rerun()
 
 
 # ==========================================================================

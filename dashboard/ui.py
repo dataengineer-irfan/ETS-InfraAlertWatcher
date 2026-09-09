@@ -259,7 +259,8 @@ def fmt_days(days) -> str:
     """
     Canonical enterprise duration format across the entire application:
     - Exact days under 60 days: '14d left', '0d left', '1d overdue'
-    - 'Xm Yd' format at 60+ days: '6m 5d left', '10m 2d overdue', '69m 8d overdue'
+    - 'Xm Yd' format from 60 to 364 days: '6m 5d left', '10m 2d overdue'
+    - 'Xy Ym' format at 365+ days: '5y 8m overdue', '2y 4m left'
     """
     if days is None:
         return "--"
@@ -271,12 +272,20 @@ def fmt_days(days) -> str:
         n = -d
         if n < 60:
             return f"{n}d overdue"
+        if n >= 365:
+            y = n // 365
+            rm = (n % 365) // 30
+            return f"{y}y {rm}m overdue" if rm else f"{y}y overdue"
         m, rd = divmod(n, 30)
-        return f"{m}m {rd}d overdue" if rd else f"{m}m 0d overdue"
+        return f"{m}m {rd}d overdue" if rd else f"{m}m overdue"
     if d < 60:
         return f"{d}d left"
+    if d >= 365:
+        y = d // 365
+        rm = (d % 365) // 30
+        return f"{y}y {rm}m left" if rm else f"{y}y left"
     m, rd = divmod(d, 30)
-    return f"{m}m {rd}d left" if rd else f"{m}m 0d left"
+    return f"{m}m {rd}d left" if rd else f"{m}m left"
 
 
 def fmt_heatmap_time(days) -> str:
@@ -1282,19 +1291,84 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   border-radius: 2px !important;
 }}
 
+/* Grafana stat card precise dimensions for seamless button docking */
+.grafana-card {{
+  padding: 6px 10px 6px !important;
+  min-height: 74px !important;
+  height: 74px !important;
+  box-sizing: border-box !important;
+  justify-content: flex-start !important;
+  gap: 1px !important;
+}}
+.grafana-card .stat-sub {{
+  margin-top: 3px !important;
+  font-size: 9.5px !important;
+  line-height: 12px !important;
+}}
+
 /* KPI button flush attachment under stat card — targeted ONLY by specific key */
 div.st-key-op_kpi_all button,
 div.st-key-op_kpi_exp button,
 div.st-key-op_kpi_urgent button,
-div.st-key-op_kpi_hlth button {{
+div.st-key-op_kpi_hlth button,
+div.st-key-gov_kpi_risk button,
+div.st-key-gov_kpi_teams button,
+div.st-key-gov_kpi_maint button,
+div.st-key-gov_kpi_rem button {{
   min-height: 24px !important;
   height: 24px !important;
   font-size: 10px !important;
   font-weight: 600 !important;
   padding: 2px 6px !important;
-  margin-top: -8px !important;
+  margin-top: -6px !important;
   border-top: 1px solid var(--rule-soft) !important;
   border-radius: 0 0 2px 2px !important;
+}}
+
+/* Governance scope reset button alignment */
+div.st-key-gov_reset_scope button {{
+  margin-top: 2px !important;
+  min-height: 31px !important;
+  height: 31px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  padding: 3px 8px !important;
+}}
+
+/* Governance team drill buttons — crisp styling and contrast */
+div[class*="st-key-tm_btn_"] button {{
+  min-height: 26px !important;
+  height: 26px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  padding: 2px 4px !important;
+  letter-spacing: .02em !important;
+  background: #1c1f24 !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+}}
+div[class*="st-key-tm_btn_"] button:hover {{
+  background: #252a31 !important;
+  border-color: var(--accent) !important;
+  color: #f8fafc !important;
+}}
+
+/* Governance Action Console toolbars and primary buttons */
+div.st-key-gov_send_batch button,
+div.st-key-gov_trigger_dispatch button,
+div.st-key-gov_reingest_tab button {{
+  min-height: 26px !important;
+  height: 26px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  padding: 2px 10px !important;
+}}
+div.st-key-gov_trigger_real_dispatch button {{
+  min-height: 28px !important;
+  height: 28px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 2px 12px !important;
 }}
 
 /* Tree action toolbar buttons — properly framed without overflow */
@@ -1676,11 +1750,12 @@ def grafana_stat_card(
     subtext: str = "",
     badge: str = "",
     badge_bg: str = "",
-    badge_fg: str = "#fff",
+    badge_fg: str = "",
     sparkline_vals: list[int] | None = None,
     donut_pct: float | None = None,
     delta: str = "",
     state: str = "ok",   # "ok" | "pending" | "firing"
+    is_active: bool = False,
 ) -> str:
     """
     Full Grafana-style stat panel — full background tint wash matching severity,
@@ -1704,7 +1779,14 @@ def grafana_stat_card(
         val_cls = "white"
         val_color = "var(--ink)"
 
-    sub_html = f'<div class="stat-sub">{escape(subtext)}</div>' if subtext else ""
+    badge_html = ""
+    if badge:
+        fg = badge_fg or val_color
+        bg = badge_bg or ("rgba(242,73,92,0.18)" if state == "firing" else ("rgba(255,152,48,0.18)" if state == "pending" else "rgba(255,255,255,0.08)"))
+        badge_html = f'<span style="font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:2px;background:{bg};color:{fg};">{escape(badge)}</span>'
+
+    delta_html = f' · <span style="font-size:9px;font-weight:600;color:var(--mute);">{escape(delta)}</span>' if delta and subtext else (f'<span style="font-size:9px;font-weight:600;color:var(--mute);">{escape(delta)}</span>' if delta else "")
+    sub_html = f'<div class="stat-sub" style="font-size:9.5px;color:var(--mute);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(subtext)}{delta_html}</div>' if (subtext or delta) else ""
 
     # Right-side visual: donut for healthy, sparkline for others
     visual_html = ""
@@ -1714,13 +1796,17 @@ def grafana_stat_card(
         visual_html = grafana_sparkline(sparkline_vals, val_color, height=18, width=54)
 
     right_visual = f'<div style="flex:none;margin-left:auto;">{visual_html}</div>' if visual_html else ""
+    active_border = "border:1px solid var(--accent);" if is_active else "border:1px solid var(--rule);"
 
     return f"""
-    <div class="panel stat-panel {fill_cls}" style="border:1px solid var(--rule);border-radius:2px;">
+    <div class="panel stat-panel grafana-card {fill_cls}" style="{active_border}border-radius:2px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1px;">
+        <div class="stat-label" style="font-size:9.5px;font-weight:600;color:var(--slate);text-transform:uppercase;letter-spacing:.02em;">{escape(label)}</div>
+        {badge_html}
+      </div>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
         <div style="flex:1;min-width:0;">
-          <div class="stat-label">{escape(label)}</div>
-          <div class="stat-val {val_cls}" style="font-size:26px;font-weight:600;line-height:1.1;margin-top:4px;">{escape(str(value))}</div>
+          <div class="stat-val {val_cls}" style="font-size:22px;font-weight:600;line-height:1.1;margin-top:1px;">{escape(str(value))}</div>
         </div>
         {right_visual}
       </div>
