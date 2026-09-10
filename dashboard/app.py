@@ -70,7 +70,7 @@ STATES = ui.STATES
 COMPONENT_ORDER = ui.COMPONENT_ORDER
 ENV_ORDER = ui.ENV_ORDER
 
-CANVAS_OVERVIEW = 525
+CANVAS_OVERVIEW = 580
 CANVAS_STATE = 510
 EDITOR_HEIGHT = 380
 
@@ -220,6 +220,7 @@ def render_login_gate(db_path: str) -> None:
                         st.session_state["active_user"] = user["username"]
                         st.session_state["user_role"] = user["role"]
                         st.session_state["user_full_name"] = user.get("full_name") or user["username"]
+                        st.session_state["assigned_state"] = user.get("assigned_state")
                         st.rerun()
                     else:
                         st.error("Authentication failed: Invalid username or password.")
@@ -229,8 +230,9 @@ def render_login_gate(db_path: str) -> None:
           <div style="font-weight:700;color:#e2e8f0;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
             <span>🔐</span> Security Verification Credentials
           </div>
-          <div>• Initial Administrative Access: <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">admin</code> / <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">Admin@ETS2026!</code></div>
-          <div>• Role entitlements (Admin, Operator, Auditor, Viewer) are authenticated in database WAL storage.</div>
+          <div>• Administrative Access: <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">admin</code> / <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">Admin@ETS2026!</code></div>
+          <div>• State RM Logins: <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">ak_rm</code> (<code style="color:#cbd5e1;">AkRM@ETS2026!</code>) • <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">nd_rm</code> (<code style="color:#cbd5e1;">NdRM@ETS2026!</code>) • <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">nh_rm</code> (<code style="color:#cbd5e1;">NhRM@ETS2026!</code>)</div>
+          <div>• Strict State RM RBAC Isolation: 1 State RM cannot view another state's releases or operations.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -243,6 +245,7 @@ if "authenticated" not in st.session_state:
     st.session_state["active_user"] = None
     st.session_state["user_role"] = None
     st.session_state["user_full_name"] = None
+    st.session_state["assigned_state"] = None
 
 if not st.session_state.get("authenticated", False):
     render_login_gate(DB_PATH)
@@ -2940,6 +2943,7 @@ with st.sidebar:
         st.session_state["active_user"] = None
         st.session_state["user_role"] = None
         st.session_state["user_full_name"] = None
+        st.session_state["assigned_state"] = None
         st.rerun()
 
     st.markdown("""
@@ -2968,64 +2972,6 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-def render_live_flight_deck(active_releases: list[dict]) -> None:
-    """Renders the top executive multi-state active release flight deck."""
-    if not active_releases:
-        return
-
-    cards_html = []
-    for r in active_releases:
-        st_code = r["state"]
-        st_icon = r["state_icon"]
-        rel_id = r["release_id"]
-        cutover = r["prod_deploy_date"]
-        cnt_label = r["countdown_label"]
-        cnt_color = r["countdown_color"]
-        cnt_bg = r["countdown_bg"]
-        cnt_border = r["countdown_border"]
-        gate = r["current_milestone_task"]
-        ready = r["readiness_pct"]
-
-        card = f"""
-        <div style="flex:1;min-width:240px;background:#0f172a;border:1px solid #1e293b;border-top:2.5px solid {cnt_border};border-radius:6px;padding:6px 10px;display:flex;flex-direction:column;gap:3px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:14px;">{st_icon}</span>
-              <span style="font-size:11.5px;font-weight:800;color:#f8fafc;">{st_code} MMIS</span>
-              <span style="font-size:11px;font-weight:700;color:#38bdf8;font-family:var(--mono);">{rel_id}</span>
-            </div>
-            <span style="font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:10px;background:{cnt_bg};color:{cnt_color};border:1px solid {cnt_border};letter-spacing:0.04em;">
-              {cnt_label}
-            </span>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;font-size:9.5px;color:#94a3b8;">
-            <span>Cutover: <b style="color:#f8fafc;font-family:var(--mono);">{cutover}</b></span>
-            <span>Gate: <b style="color:#e2e8f0;">{gate[:26]}</b></span>
-            <span style="color:#10b981;font-weight:700;">{ready:.0f}% Ready</span>
-          </div>
-        </div>
-        """
-        cards_html.append("\n".join(l.strip() for l in card.splitlines() if l.strip()))
-
-    all_cards = "".join(cards_html)
-    deck_html = f"""
-    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px;">
-        <div style="font-size:9.5px;font-weight:800;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;">
-          <span>🚀</span>
-          <span>Current Active Releases // Multi-State Flight Deck (As of {datetime.now().strftime('%d %b %Y')})</span>
-        </div>
-        <span style="font-size:9px;color:#38bdf8;font-family:var(--mono);font-weight:700;">LIVE SYSTEM OF RECORD: _Input/*.xlsx</span>
-      </div>
-      <div style="display:flex;gap:8px;align-items:stretch;">
-        {all_cards}
-      </div>
-    </div>
-    """
-    cleaned = "\n".join(l.strip() for l in deck_html.splitlines() if l.strip())
-    st.markdown(cleaned, unsafe_allow_html=True)
-
-
 tab_overview, tab_operations, tab_governance, tab_rbac, tab_releases = st.tabs([
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
@@ -3035,10 +2981,6 @@ tab_overview, tab_operations, tab_governance, tab_rbac, tab_releases = st.tabs([
 ])
 
 with tab_overview:
-    conn = get_connection(DB_PATH)
-    active_releases = get_current_active_releases(conn)
-    conn.close()
-    render_live_flight_deck(active_releases)
     canvas("all", None, CANVAS_OVERVIEW)
 
 with tab_operations:

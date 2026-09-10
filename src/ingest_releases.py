@@ -350,6 +350,36 @@ def parse_nd_calendar(file_path: pathlib.Path) -> list[dict]:
     return results
 
 
+def _parse_nh_date_range(s: Any, prod_date_str: str | None, rel_year: int = 2026) -> tuple[str | None, str | None]:
+    """Parse NH date range like '6/8-7/10' or single date into (YYYY-MM-DD, YYYY-MM-DD)."""
+    if s is None:
+        return None, None
+    str_val = str(s).strip()
+    clean_single = _clean_date_str(str_val)
+    if clean_single:
+        return clean_single, clean_single
+
+    m = re.search(r"(\d{1,2})/(\d{1,2})\s*-\s*(\d{1,2})/(\d{1,2})", str_val)
+    if not m:
+        return None, None
+
+    m1, d1, m2, d2 = [int(x) for x in m.groups()]
+    if prod_date_str:
+        try:
+            py = int(prod_date_str[:4])
+            pm = int(prod_date_str[5:7])
+            y1 = py - 1 if (pm <= 4 and m1 >= 8) else py
+            y2 = py - 1 if (pm <= 4 and m2 >= 8) else (y1 + 1 if m2 < m1 else y1)
+        except Exception:
+            y1 = rel_year
+            y2 = rel_year if m2 >= m1 else rel_year + 1
+    else:
+        y1 = rel_year
+        y2 = rel_year if m2 >= m1 else rel_year + 1
+
+    return f"{y1:04d}-{m1:02d}-{d1:02d}", f"{y2:04d}-{m2:02d}-{d2:02d}"
+
+
 # ==============================================================================
 # 3. New Hampshire (NH) Parser
 # ==============================================================================
@@ -377,7 +407,6 @@ def parse_nh_calendar(file_path: pathlib.Path) -> list[dict]:
             nh_raw_releases.append(cur_nh_rel)
 
         if cur_nh_rel and env:
-            # Find non-empty date values across the row
             non_empty_dates = [c for c in r[3:] if c is not None]
             cur_nh_rel["tracks"].append({
                 "env": str(env).strip(),
@@ -388,6 +417,25 @@ def parse_nh_calendar(file_path: pathlib.Path) -> list[dict]:
     results = []
     for rel in nh_raw_releases:
         prod_date = None
+        for trk in rel["tracks"]:
+            env = trk["env"]
+            dates = trk["dates"]
+            if "ENV05" in env or "PROD" in env.upper():
+                for d in dates:
+                    clean_d = _clean_date_str(d)
+                    if clean_d:
+                        prod_date = clean_d
+                        break
+                if prod_date:
+                    break
+
+        if not prod_date:
+            continue
+
+        year, quarter = _get_quarter(prod_date)
+        now_dt = datetime.now().date()
+        now_str = now_dt.strftime("%Y-%m-%d")
+
         dev_start, dev_end = None, None
         sit_start, sit_end = None, None
         uat_start, uat_end = None, None
@@ -398,14 +446,11 @@ def parse_nh_calendar(file_path: pathlib.Path) -> list[dict]:
             env = trk["env"]
             dates = trk["dates"]
             phase_name = trk["phase"]
+            date_label = str(dates[0]) if dates else ""
+            s_dt, f_dt = _parse_nh_date_range(dates[0] if dates else None, prod_date, year)
 
-            # Check if this track is Prod
             if "ENV05" in env or "PROD" in env.upper():
-                for d in dates:
-                    clean_d = _clean_date_str(d)
-                    if clean_d:
-                        prod_date = clean_d
-                        break
+                m_status = "Passed" if prod_date < now_str else ("Active" if prod_date == now_str else "Scheduled")
                 normalized_milestones.append({
                     "task_name": f"Production Deployment ({env})",
                     "phase_category": "Production",
@@ -415,80 +460,98 @@ def parse_nh_calendar(file_path: pathlib.Path) -> list[dict]:
                     "finish_date": prod_date,
                     "predecessors": "UAT Sign-off",
                     "holiday_impact": "",
-                    "status": "Passed" if (prod_date and prod_date < "2026-03-01") else "Active",
+                    "status": m_status,
                 })
             elif "ENV52" in env or "DEV" in phase_name.upper():
-                date_label = str(dates[0]) if dates else ""
+                dev_start, dev_end = s_dt, f_dt
+                m_status = "Passed" if (f_dt and f_dt < now_str) else ("Active" if (s_dt and s_dt <= now_str) else "Scheduled")
                 normalized_milestones.append({
                     "task_name": f"MMIS Development ({env})",
                     "phase_category": "Development",
                     "env_target": "ENV52 (Dev)",
                     "duration_str": date_label,
-                    "start_date": None,
-                    "finish_date": None,
+                    "start_date": s_dt,
+                    "finish_date": f_dt,
                     "predecessors": "Scope Freeze",
                     "holiday_impact": "",
-                    "status": "Active",
+                    "status": m_status,
                 })
             elif "ENV57" in env or "SIT" in phase_name.upper():
-                date_label = str(dates[0]) if dates else ""
+                if not sit_start and s_dt:
+                    sit_start = s_dt
+                if not sit_end and f_dt:
+                    sit_end = f_dt
+                m_status = "Passed" if (f_dt and f_dt < now_str) else ("Active" if (s_dt and s_dt <= now_str) else "Scheduled")
                 normalized_milestones.append({
                     "task_name": f"MMIS SIT Testing ({env})",
                     "phase_category": "SIT",
                     "env_target": "ENV57 (SIT)",
                     "duration_str": date_label,
-                    "start_date": None,
-                    "finish_date": None,
+                    "start_date": s_dt,
+                    "finish_date": f_dt,
                     "predecessors": "Dev Drop",
                     "holiday_impact": "",
-                    "status": "Active",
+                    "status": m_status,
                 })
             elif "ENV53" in env or "REGRESSION" in phase_name.upper():
-                date_label = str(dates[0]) if dates else ""
+                if f_dt:
+                    sit_end = f_dt
+                m_status = "Passed" if (f_dt and f_dt < now_str) else ("Active" if (s_dt and s_dt <= now_str) else "Scheduled")
                 normalized_milestones.append({
                     "task_name": f"Regression Execution ({env})",
                     "phase_category": "SIT",
                     "env_target": "ENV53 (Regression)",
                     "duration_str": date_label,
-                    "start_date": None,
-                    "finish_date": None,
+                    "start_date": s_dt,
+                    "finish_date": f_dt,
                     "predecessors": "SIT Complete",
                     "holiday_impact": "",
-                    "status": "Active",
+                    "status": m_status,
                 })
             elif "ENV04" in env or "UAT" in phase_name.upper():
-                date_label = str(dates[0]) if dates else ""
+                uat_start, uat_end = s_dt, f_dt
+                m_status = "Passed" if (f_dt and f_dt < now_str) else ("Active" if (s_dt and s_dt <= now_str) else "Scheduled")
                 normalized_milestones.append({
                     "task_name": f"State UAT Acceptance ({env})",
                     "phase_category": "UAT",
                     "env_target": "ENV04 (UAT)",
                     "duration_str": date_label,
-                    "start_date": None,
-                    "finish_date": None,
+                    "start_date": s_dt,
+                    "finish_date": f_dt,
                     "predecessors": "Regression Complete",
                     "holiday_impact": "",
-                    "status": "Active",
+                    "status": m_status,
+                })
+            elif "SCOPE FREEZE" in env.upper() or "REQ" in env.upper():
+                scope_freeze = f_dt or s_dt
+                m_status = "Passed" if (f_dt and f_dt < now_str) else ("Active" if (s_dt and s_dt <= now_str) else "Scheduled")
+                normalized_milestones.append({
+                    "task_name": "Scope Freeze & Requirements Approval",
+                    "phase_category": "Planning",
+                    "env_target": "MGMT",
+                    "duration_str": date_label,
+                    "start_date": s_dt,
+                    "finish_date": f_dt,
+                    "predecessors": "",
+                    "holiday_impact": "",
+                    "status": m_status,
                 })
             elif "SYSDOC" in env.upper():
+                m_status = "Passed" if prod_date < now_str else "Active"
                 normalized_milestones.append({
                     "task_name": "System Documentation & NTT Data QA Review",
                     "phase_category": "Gate",
                     "env_target": "SysDoc",
                     "duration_str": "Check-out / Check-in",
-                    "start_date": None,
-                    "finish_date": None,
+                    "start_date": s_dt or sit_start,
+                    "finish_date": f_dt or uat_end,
                     "predecessors": "",
                     "holiday_impact": "",
-                    "status": "Active",
+                    "status": m_status,
                 })
 
-        if not prod_date:
-            continue
+        go_nogo = (datetime.strptime(prod_date, "%Y-%m-%d") - timedelta(days=2)).strftime("%Y-%m-%d")
 
-        year, quarter = _get_quarter(prod_date)
-
-        now_dt = datetime.now().date()
-        now_str = now_dt.strftime("%Y-%m-%d")
         if prod_date < now_str:
             status = "Completed"
             readiness = 100.0
@@ -521,7 +584,7 @@ def parse_nh_calendar(file_path: pathlib.Path) -> list[dict]:
             "sit_end_date": sit_end,
             "uat_start_date": uat_start,
             "uat_end_date": uat_end,
-            "go_nogo_date": None,
+            "go_nogo_date": go_nogo,
             "prod_deploy_date": prod_date,
             "status": status,
             "risk_level": risk,

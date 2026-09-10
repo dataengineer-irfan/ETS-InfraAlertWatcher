@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'Viewer',
+    assigned_state TEXT,
     full_name TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
@@ -227,16 +228,23 @@ def get_connection(db_path: str) -> sqlite3.Connection:
         conn.executescript(SCHEMA)
         conn.commit()
 
-    # Seed default administrative identity if users table is empty
-    user_count = conn.execute("SELECT count(*) FROM users").fetchone()[0]
-    if user_count == 0:
+    # Migrate users table if assigned_state column is missing
+    u_cols = [col[1] for col in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "assigned_state" not in u_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN assigned_state TEXT;")
+        conn.commit()
+
+    # Seed default administrative and state RM identities if not present
+    existing_users = {r[0] for r in conn.execute("SELECT username FROM users").fetchall()}
+    if "admin" not in existing_users:
         create_user(
             conn,
             username="admin",
             password="Admin@ETS2026!",
             role="Admin",
-            full_name="ETS System Administrator",
+            full_name="ETS Enterprise Administrator",
             email="admin@ets.internal",
+            assigned_state=None,
         )
         log_audit_event(
             conn,
@@ -246,6 +254,36 @@ def get_connection(db_path: str) -> sqlite3.Connection:
             target_entity="Security Subsystem",
             details="Default administrative identity provisioned with PBKDF2-HMAC-SHA256.",
             ip_address="127.0.0.1",
+        )
+    if "ak_rm" not in existing_users:
+        create_user(
+            conn,
+            username="ak_rm",
+            password="AkRM@ETS2026!",
+            role="Operator",
+            full_name="Alaska State RM Lead",
+            email="ak-rm@ets.state.gov",
+            assigned_state="AK",
+        )
+    if "nd_rm" not in existing_users:
+        create_user(
+            conn,
+            username="nd_rm",
+            password="NdRM@ETS2026!",
+            role="Operator",
+            full_name="North Dakota State RM Lead",
+            email="nd-rm@ets.state.gov",
+            assigned_state="ND",
+        )
+    if "nh_rm" not in existing_users:
+        create_user(
+            conn,
+            username="nh_rm",
+            password="NhRM@ETS2026!",
+            role="Operator",
+            full_name="New Hampshire State RM Lead",
+            email="nh-rm@ets.state.gov",
+            assigned_state="NH",
         )
 
     conn.commit()
@@ -578,6 +616,7 @@ def create_user(
     role: str = "Viewer",
     full_name: str = "",
     email: str = "",
+    assigned_state: str | None = None,
 ) -> dict:
     """
     Creates a new user record with salted PBKDF2 hash.
@@ -595,15 +634,16 @@ def create_user(
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
         """
-        INSERT INTO users (username, password_hash, salt, role, full_name, email, created_at, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        INSERT INTO users (username, password_hash, salt, role, assigned_state, full_name, email, created_at, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
         """,
-        (clean_username, pwd_hash, salt, role, full_name.strip(), email.strip(), now),
+        (clean_username, pwd_hash, salt, role, assigned_state, full_name.strip(), email.strip(), now),
     )
     conn.commit()
     return {
         "username": clean_username,
         "role": role,
+        "assigned_state": assigned_state,
         "full_name": full_name.strip(),
         "email": email.strip(),
         "created_at": now,
@@ -613,7 +653,7 @@ def create_user(
 
 def get_users(conn: sqlite3.Connection, include_inactive: bool = False) -> list[dict]:
     """Returns list of configured user accounts."""
-    query = "SELECT id, username, role, full_name, email, created_at, last_login_at, is_active FROM users"
+    query = "SELECT id, username, role, assigned_state, full_name, email, created_at, last_login_at, is_active FROM users"
     if not include_inactive:
         query += " WHERE is_active = 1"
     query += " ORDER BY id ASC"
@@ -704,7 +744,7 @@ def authenticate_user(
 
     row = conn.execute(
         """
-        SELECT id, username, password_hash, salt, role, full_name, email, is_active
+        SELECT id, username, password_hash, salt, role, assigned_state, full_name, email, is_active
         FROM users
         WHERE LOWER(username) = LOWER(?)
         """,
@@ -766,6 +806,7 @@ def authenticate_user(
         "id": user["id"],
         "username": user["username"],
         "role": user["role"],
+        "assigned_state": user.get("assigned_state"),
         "full_name": user["full_name"],
         "email": user["email"],
         "last_login_at": now_iso,
