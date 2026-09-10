@@ -1875,7 +1875,7 @@ def render_governance_center() -> None:
     if gov_team_filter != "All":
         scope_name += f" - {gov_team_filter}"
 
-    s_c1, s_c2, s_c3, s_c4 = st.columns([3.0, 0.7, 0.7, 0.6])
+    s_c1, s_c2, s_c3, s_c4 = st.columns([2.6, 0.8, 0.8, 0.8])
     with s_c1:
         st.markdown(f"""
         <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
