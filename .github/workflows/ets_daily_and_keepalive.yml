@@ -1,10 +1,12 @@
-name: ETS Watchtower - 100% Free Daily Check & Keep-Alive
+name: ETS Watchtower - Daily Expiry Check & Keep-Alive
 
 on:
+  push:
+    branches: [ main ]
   schedule:
-    # 1. Keep-Alive Ping every 12 minutes (Prevents Render free tier from sleeping)
+    # Keep-Alive Ping every 12 minutes (Prevents Render free tier from sleeping)
     - cron: '*/12 * * * *'
-  # 2. Manual trigger from GitHub UI
+  # Manual trigger from GitHub UI
   workflow_dispatch:
     inputs:
       action:
@@ -41,7 +43,7 @@ jobs:
       # Step 1: 24/7 Keep-Alive Ping (Keeps Render Free Tier Awake)
       # ------------------------------------------------------------------------
       - name: Run Keep-Alive Ping
-        if: github.event_name == 'schedule' || inputs.action == 'both' || inputs.action == 'keepalive_only'
+        if: github.event_name == 'push' || github.event_name == 'schedule' || inputs.action == 'both' || inputs.action == 'keepalive_only'
         env:
           APP_URL: ${{ secrets.RENDER_APP_URL || 'https://ets-expiry-alert-system.onrender.com' }}
         run: |
@@ -49,7 +51,7 @@ jobs:
           python scripts/keepalive.py --url "$APP_URL" || echo "Server starting up or offline, ping logged."
 
       # ------------------------------------------------------------------------
-      # Step 2: Daily Expiry Check & Automated Remediation (09:00 UTC)
+      # Step 2: Daily Expiry Check & Automated Remediation
       # ------------------------------------------------------------------------
       - name: Check Current UTC Hour
         id: check_hour
@@ -59,13 +61,14 @@ jobs:
 
       - name: Run Daily Expiry Pipeline
         if: >
+          (github.event_name == 'push') ||
           (github.event_name == 'schedule' && steps.check_hour.outputs.current_hour == '09') ||
           (github.event_name == 'workflow_dispatch' && (inputs.action == 'both' || inputs.action == 'daily_check_only'))
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
