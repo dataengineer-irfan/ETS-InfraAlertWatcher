@@ -491,14 +491,14 @@ def render_release_plan_workspace(db_path: str) -> None:
 
     with story_c1:
         prev_r = completed_releases[-1] if completed_releases else None
-        st.markdown(_render_story_card("Previous Release", prev_r, "#73bf69", "📁"), unsafe_allow_html=True)
+        render_html(_render_story_card("Previous Release", prev_r, "#73bf69", "📁"))
         
     with story_c2:
         curr_r = current_releases[0] if current_releases else None
-        st.markdown(_render_story_card("Current Release", curr_r, "#38bdf8", "🎯"), unsafe_allow_html=True)
+        render_html(_render_story_card("Current Release", curr_r, "#38bdf8", "🎯"))
         
     with story_c3:
         next_r = upcoming_releases[0] if upcoming_releases else None
-        st.markdown(_render_story_card("Upcoming Release", next_r, "#f59e0b", "🚀"), unsafe_allow_html=True)
+        render_html(_render_story_card("Upcoming Release", next_r, "#f59e0b", "🚀"))
 
     conn.close()
