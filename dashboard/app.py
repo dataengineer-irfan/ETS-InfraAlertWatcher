@@ -59,6 +59,8 @@ from notifier import (  # noqa: E402
     render_maintenance_cadence_email,
     dispatch_cadence_alert_real,
 )
+from ingest_releases import run_release_ingest  # noqa: E402
+from release_plan import render_release_plan_workspace  # noqa: E402
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
 WORKBOOK_DIR = os.environ.get("EXPIRY_WORKBOOK_DIR", str(ROOT))
@@ -130,22 +132,32 @@ def build_page(db_path: str, mode: str, state: str | None, _bust: int = 0) -> st
 
 
 def ensure_ingested() -> None:
-    """Auto-ingest workbooks on fresh startup if database table is empty."""
+    """Auto-ingest workbooks and release schedules on fresh startup if database table is empty."""
     conn = get_connection(DB_PATH)
     count = conn.execute("SELECT count(*) FROM component_records").fetchone()[0]
+    rel_count = 0
+    try:
+        rel_count = conn.execute("SELECT count(*) FROM release_schedules").fetchone()[0]
+    except Exception:
+        pass
     conn.close()
-    if count:
-        return
-    with st.spinner("Reading component workbooks for the first time..."):
-        result = run_ingest(WORKBOOK_DIR, DB_PATH)
-    if result["total_rows_read"]:
-        st.cache_data.clear()
-    else:
-        st.error(
-            f"No component data found in `{WORKBOOK_DIR}`. "
-            + ", ".join(f"`{stem}.xlsx`" for stem in COMPONENTS)
-        )
-        st.stop()
+
+    if not count:
+        with st.spinner("Reading component workbooks for the first time..."):
+            result = run_ingest(WORKBOOK_DIR, DB_PATH)
+        if result["total_rows_read"]:
+            st.cache_data.clear()
+        else:
+            st.error(
+                f"No component data found in `{WORKBOOK_DIR}`. "
+                + ", ".join(f"`{stem}.xlsx`" for stem in COMPONENTS)
+            )
+            st.stop()
+
+    if not rel_count:
+        input_dir = ROOT / "_Input"
+        if input_dir.exists():
+            run_release_ingest(input_dir, DB_PATH)
 
 
 def rerun() -> None:
@@ -2904,6 +2916,10 @@ with st.sidebar:
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🔐</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Access Control (RBAC)</span>
       </button>
+      <button class="ets-nav-item" data-nav-idx="4" title="Schedule Release Plan">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">📅</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Schedule Release Plan</span>
+      </button>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2951,11 +2967,12 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
+tab_overview, tab_operations, tab_governance, tab_rbac, tab_releases = st.tabs([
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
     "Governance & Alerts",
     "Access Control & Audit (RBAC)",
+    "Schedule Release Plan",
 ])
 
 with tab_overview:
@@ -2969,3 +2986,6 @@ with tab_governance:
 
 with tab_rbac:
     render_rbac_workspace()
+
+with tab_releases:
+    render_release_plan_workspace(DB_PATH)

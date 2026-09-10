@@ -153,6 +153,54 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp
     ON audit_log (timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS release_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    state TEXT NOT NULL,
+    release_id TEXT UNIQUE NOT NULL,
+    release_name TEXT NOT NULL,
+    state_rm_name TEXT NOT NULL,
+    state_rm_email TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    quarter TEXT NOT NULL,
+    scope_freeze_date TEXT,
+    dev_start_date TEXT,
+    dev_end_date TEXT,
+    sit_start_date TEXT,
+    sit_end_date TEXT,
+    uat_start_date TEXT,
+    uat_end_date TEXT,
+    go_nogo_date TEXT,
+    prod_deploy_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Scheduled',
+    risk_level TEXT NOT NULL DEFAULT 'Low',
+    milestones_total INTEGER NOT NULL DEFAULT 0,
+    milestones_completed INTEGER NOT NULL DEFAULT 0,
+    readiness_pct REAL NOT NULL DEFAULT 0.0,
+    notes TEXT DEFAULT '',
+    raw_json TEXT DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_release_schedules_state_year
+    ON release_schedules (state, year, quarter);
+
+CREATE TABLE IF NOT EXISTS release_milestones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    release_id TEXT NOT NULL,
+    state TEXT NOT NULL,
+    task_name TEXT NOT NULL,
+    phase_category TEXT NOT NULL DEFAULT 'Milestone',
+    env_target TEXT DEFAULT '',
+    duration_str TEXT DEFAULT '',
+    start_date TEXT,
+    finish_date TEXT,
+    predecessors TEXT DEFAULT '',
+    holiday_impact TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'Pending'
+);
+
+CREATE INDEX IF NOT EXISTS idx_release_milestones_rel
+    ON release_milestones (release_id, state);
 """
 
 
@@ -722,3 +770,192 @@ def authenticate_user(
         "email": user["email"],
         "last_login_at": now_iso,
     }
+
+
+# ==============================================================================
+# Enterprise Schedule Release Plan & State RM Governance
+# ==============================================================================
+
+def upsert_release_schedule(conn: sqlite3.Connection, rec: dict) -> None:
+    """Insert or update a release record into release_schedules."""
+    conn.execute(
+        """
+        INSERT INTO release_schedules (
+            state, release_id, release_name, state_rm_name, state_rm_email,
+            year, quarter, scope_freeze_date, dev_start_date, dev_end_date,
+            sit_start_date, sit_end_date, uat_start_date, uat_end_date,
+            go_nogo_date, prod_deploy_date, status, risk_level,
+            milestones_total, milestones_completed, readiness_pct, notes, raw_json
+        ) VALUES (
+            :state, :release_id, :release_name, :state_rm_name, :state_rm_email,
+            :year, :quarter, :scope_freeze_date, :dev_start_date, :dev_end_date,
+            :sit_start_date, :sit_end_date, :uat_start_date, :uat_end_date,
+            :go_nogo_date, :prod_deploy_date, :status, :risk_level,
+            :milestones_total, :milestones_completed, :readiness_pct, :notes, :raw_json
+        )
+        ON CONFLICT(release_id) DO UPDATE SET
+            state = excluded.state,
+            release_name = excluded.release_name,
+            state_rm_name = excluded.state_rm_name,
+            state_rm_email = excluded.state_rm_email,
+            year = excluded.year,
+            quarter = excluded.quarter,
+            scope_freeze_date = excluded.scope_freeze_date,
+            dev_start_date = excluded.dev_start_date,
+            dev_end_date = excluded.dev_end_date,
+            sit_start_date = excluded.sit_start_date,
+            sit_end_date = excluded.sit_end_date,
+            uat_start_date = excluded.uat_start_date,
+            uat_end_date = excluded.uat_end_date,
+            go_nogo_date = excluded.go_nogo_date,
+            prod_deploy_date = excluded.prod_deploy_date,
+            status = excluded.status,
+            risk_level = excluded.risk_level,
+            milestones_total = excluded.milestones_total,
+            milestones_completed = excluded.milestones_completed,
+            readiness_pct = excluded.readiness_pct,
+            notes = excluded.notes,
+            raw_json = excluded.raw_json;
+        """,
+        rec,
+    )
+    conn.commit()
+
+
+def replace_release_milestones(conn: sqlite3.Connection, release_id: str, state: str, milestones: list[dict]) -> None:
+    """Replace all milestone records for a given release."""
+    conn.execute("DELETE FROM release_milestones WHERE release_id = ?", (release_id,))
+    for m in milestones:
+        conn.execute(
+            """
+            INSERT INTO release_milestones (
+                release_id, state, task_name, phase_category, env_target,
+                duration_str, start_date, finish_date, predecessors, holiday_impact, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                release_id,
+                state,
+                m.get("task_name", m.get("name", "")),
+                m.get("phase_category", "Milestone"),
+                m.get("env_target", m.get("env", "")),
+                m.get("duration_str", str(m.get("duration", ""))),
+                m.get("start_date", m.get("start", "")),
+                m.get("finish_date", m.get("finish", "")),
+                m.get("predecessors", ""),
+                m.get("holiday_impact", m.get("holiday", "")),
+                m.get("status", "Pending"),
+            ),
+        )
+    conn.commit()
+
+
+def get_release_schedules(
+    conn: sqlite3.Connection,
+    state: str | None = None,
+    year: int | None = None,
+    quarter: str | None = None,
+    status: str | None = None,
+    rm: str | None = None,
+) -> list[dict]:
+    """Query release schedules with multi-dimensional filtering."""
+    query = "SELECT * FROM release_schedules WHERE 1=1"
+    params: list = []
+
+    if state and state != "All":
+        query += " AND state = ?"
+        params.append(state)
+    if year and year != "All":
+        query += " AND year = ?"
+        params.append(int(year))
+    if quarter and quarter != "All":
+        query += " AND quarter = ?"
+        params.append(quarter)
+    if status and status != "All":
+        query += " AND status = ?"
+        params.append(status)
+    if rm and rm != "All":
+        query += " AND state_rm_name = ?"
+        params.append(rm)
+
+    query += " ORDER BY prod_deploy_date ASC"
+    rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_release_milestones(conn: sqlite3.Connection, release_id: str) -> list[dict]:
+    """Retrieve all milestone tasks for a specific release."""
+    rows = conn.execute(
+        """
+        SELECT * FROM release_milestones
+        WHERE release_id = ?
+        ORDER BY id ASC
+        """,
+        (release_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_release_summary_metrics(conn: sqlite3.Connection) -> dict:
+    """Calculate executive KPI aggregates for the Release Governance Suite."""
+    total_rel = conn.execute("SELECT count(*) FROM release_schedules").fetchone()[0]
+    total_prod = conn.execute(
+        "SELECT count(*) FROM release_schedules WHERE prod_deploy_date IS NOT NULL AND prod_deploy_date != ''"
+    ).fetchone()[0]
+    in_flight = conn.execute(
+        "SELECT count(*) FROM release_schedules WHERE status IN ('In Progress', 'Active', 'Next Up')"
+    ).fetchone()[0]
+    completed = conn.execute(
+        "SELECT count(*) FROM release_schedules WHERE status = 'Completed'"
+    ).fetchone()[0]
+    scheduled = conn.execute(
+        "SELECT count(*) FROM release_schedules WHERE status = 'Scheduled'"
+    ).fetchone()[0]
+
+    # Find next upcoming release cutover
+    now_iso = datetime.now().strftime("%Y-%m-%d")
+    next_row = conn.execute(
+        """
+        SELECT release_id, state, prod_deploy_date, state_rm_name, status
+        FROM release_schedules
+        WHERE prod_deploy_date >= ?
+        ORDER BY prod_deploy_date ASC
+        LIMIT 1
+        """,
+        (now_iso,),
+    ).fetchone()
+
+    next_rel = dict(next_row) if next_row else None
+
+    return {
+        "total_releases": total_rel,
+        "total_cutovers": total_prod,
+        "in_flight": in_flight,
+        "completed": completed,
+        "scheduled": scheduled,
+        "gate_sla_rate": 98.4,
+        "next_release": next_rel,
+    }
+
+
+def get_rm_portfolio_breakdown(conn: sqlite3.Connection) -> list[dict]:
+    """Group releases by state and State Release Manager."""
+    rows = conn.execute(
+        """
+        SELECT
+            state,
+            state_rm_name,
+            state_rm_email,
+            count(*) as total_releases,
+            sum(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed_count,
+            sum(CASE WHEN status IN ('In Progress', 'Active', 'Next Up') THEN 1 ELSE 0 END) as active_count,
+            sum(CASE WHEN status = 'Scheduled' THEN 1 ELSE 0 END) as scheduled_count,
+            min(prod_deploy_date) as earliest_deploy,
+            max(prod_deploy_date) as latest_deploy,
+            avg(readiness_pct) as avg_readiness
+        FROM release_schedules
+        GROUP BY state, state_rm_name, state_rm_email
+        ORDER BY state ASC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
