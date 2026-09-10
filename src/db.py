@@ -958,4 +958,121 @@ def get_rm_portfolio_breakdown(conn: sqlite3.Connection) -> list[dict]:
         ORDER BY state ASC
         """
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows]
+
+
+def get_current_active_releases(conn: sqlite3.Connection, as_of_date: str | None = None) -> list[dict]:
+    """
+    Identifies the active/impending release for each state (AK, ND, NH)
+    relative to as_of_date (defaults to today in ISO format YYYY-MM-DD).
+    Returns a list of enriched dictionaries sorted by days_to_cutover ASC.
+    """
+    if not as_of_date:
+        as_of_date = datetime.now().strftime("%Y-%m-%d")
+
+    states = ["ND", "NH", "AK"]
+    state_names = {
+        "ND": "North Dakota MMIS",
+        "NH": "New Hampshire MMIS",
+        "AK": "Alaska MMIS",
+    }
+    state_icons = {"ND": "🌾", "NH": "🍁", "AK": "🏔️"}
+
+    results = []
+
+    for st in states:
+        row = conn.execute(
+            """
+            SELECT * FROM release_schedules
+            WHERE state = ? AND prod_deploy_date >= ?
+            ORDER BY prod_deploy_date ASC
+            LIMIT 1
+            """,
+            (st, as_of_date),
+        ).fetchone()
+
+        if not row:
+            row = conn.execute(
+                """
+                SELECT * FROM release_schedules
+                WHERE state = ?
+                ORDER BY prod_deploy_date DESC
+                LIMIT 1
+                """,
+                (st,),
+            ).fetchone()
+
+        if not row:
+            continue
+
+        r = dict(row)
+        rel_id = r["release_id"]
+        cutover_str = r["prod_deploy_date"]
+        days_to_cutover = 0
+
+        try:
+            target_dt = datetime.strptime(cutover_str, "%Y-%m-%d").date()
+            cur_dt = datetime.strptime(as_of_date, "%Y-%m-%d").date()
+            days_to_cutover = (target_dt - cur_dt).days
+        except Exception:
+            pass
+
+        r["days_to_cutover"] = days_to_cutover
+        r["state_name"] = state_names.get(st, st)
+        r["state_icon"] = state_icons.get(st, "🏛️")
+
+        if days_to_cutover == 0:
+            r["countdown_label"] = "CUTOVER TODAY!"
+            r["countdown_color"] = "#ef4444"
+            r["countdown_bg"] = "rgba(239,68,68,0.18)"
+            r["countdown_border"] = "#ef4444"
+            r["lifecycle_phase"] = "Production Cutover & Verification"
+        elif 0 < days_to_cutover <= 3:
+            r["countdown_label"] = f"T-{days_to_cutover} DAYS (IMPENDING)"
+            r["countdown_color"] = "#f59e0b"
+            r["countdown_bg"] = "rgba(245,158,11,0.18)"
+            r["countdown_border"] = "#f59e0b"
+            r["lifecycle_phase"] = "Final Go/No-Go & Pre-Cutover Checks"
+        elif 3 < days_to_cutover <= 14:
+            r["countdown_label"] = f"T-{days_to_cutover} DAYS"
+            r["countdown_color"] = "#38bdf8"
+            r["countdown_bg"] = "rgba(56,189,248,0.15)"
+            r["countdown_border"] = "#38bdf8"
+            r["lifecycle_phase"] = "State UAT Acceptance & Defect Sign-off"
+        elif 14 < days_to_cutover <= 35:
+            r["countdown_label"] = f"T-{days_to_cutover} DAYS"
+            r["countdown_color"] = "#a855f7"
+            r["countdown_bg"] = "rgba(168,85,247,0.15)"
+            r["countdown_border"] = "#a855f7"
+            r["lifecycle_phase"] = "SIT Regression Testing & Matrix Runs"
+        else:
+            r["countdown_label"] = f"T-{days_to_cutover} DAYS"
+            r["countdown_color"] = "#94a3b8"
+            r["countdown_bg"] = "rgba(255,255,255,0.05)"
+            r["countdown_border"] = "#334155"
+            r["lifecycle_phase"] = "Development & Build Window"
+
+        # Find specific current milestone task if available
+        active_m = conn.execute(
+            """
+            SELECT task_name, phase_category, env_target, status
+            FROM release_milestones
+            WHERE release_id = ? AND (finish_date >= ? OR finish_date IS NULL OR finish_date = '')
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (rel_id, as_of_date),
+        ).fetchone()
+
+        if active_m:
+            r["current_milestone_task"] = active_m["task_name"]
+            r["current_milestone_env"] = active_m["env_target"] or "All Envs"
+        else:
+            r["current_milestone_task"] = r["lifecycle_phase"]
+            r["current_milestone_env"] = "ENV05 (Prod)"
+
+        results.append(r)
+
+    results.sort(key=lambda x: x["days_to_cutover"])
+    return results
+

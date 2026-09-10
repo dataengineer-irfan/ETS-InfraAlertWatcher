@@ -252,14 +252,16 @@ def render_release_plan_workspace(db_path: str) -> None:
     </div>
     """)
 
-    # Manage active selected release in session state
-    if "selected_release_id" not in st.session_state:
-        st.session_state["selected_release_id"] = releases[0]["release_id"] if releases else None
-
-    # Verify selected release is in current filtered list, else reset to first
+    # Manage active selected release in session state based on current date
     valid_ids = [r["release_id"] for r in releases]
-    if st.session_state["selected_release_id"] not in valid_ids:
-        st.session_state["selected_release_id"] = valid_ids[0] if valid_ids else None
+    now_iso = datetime.now().strftime("%Y-%m-%d")
+
+    # Smart determination of current active release based on today's date
+    active_cand = [r for r in releases if r.get("prod_deploy_date", "") >= now_iso]
+    smart_active_id = active_cand[0]["release_id"] if active_cand else (valid_ids[0] if valid_ids else None)
+
+    if "selected_release_id" not in st.session_state or st.session_state["selected_release_id"] not in valid_ids:
+        st.session_state["selected_release_id"] = smart_active_id
 
     master_col, detail_col = st.columns([1.25, 1.0])
 
@@ -282,21 +284,38 @@ def render_release_plan_workspace(db_path: str) -> None:
                 is_sel = rel_id == st.session_state["selected_release_id"]
                 row_bg = "background:rgba(56,189,248,0.15);border-left:3px solid #38bdf8;" if is_sel else "background:rgba(255,255,255,0.015);"
                 
+                # Check date relative to today
+                c_date = r.get("prod_deploy_date", "")
+                days_diff = 999
+                try:
+                    days_diff = (datetime.strptime(c_date, "%Y-%m-%d").date() - datetime.strptime(now_iso, "%Y-%m-%d").date()).days
+                except Exception:
+                    pass
+
+                live_badge = ""
+                if days_diff == 0:
+                    live_badge = '<span style="font-size:8px;font-weight:800;padding:2px 5px;border-radius:10px;background:rgba(239,68,68,0.25);color:#fca5a5;border:1px solid #ef4444;margin-left:4px;white-space:nowrap;">● CUTOVER TODAY</span>'
+                elif 0 < days_diff <= 3:
+                    live_badge = f'<span style="font-size:8px;font-weight:800;padding:2px 5px;border-radius:10px;background:rgba(245,158,11,0.25);color:#fcd34d;border:1px solid #f59e0b;margin-left:4px;white-space:nowrap;">● T-{days_diff}d IMPENDING</span>'
+                elif 3 < days_diff <= 20:
+                    live_badge = f'<span style="font-size:8px;font-weight:800;padding:2px 5px;border-radius:10px;background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);margin-left:4px;white-space:nowrap;">● T-{days_diff}d ACTIVE</span>'
+
                 # Status pill
-                st_color = "#10b981" if r["status"] == "Completed" else ("#38bdf8" if r["status"] == "In Progress" else "#94a3b8")
-                st_bg = "rgba(16,185,129,0.12)" if r["status"] == "Completed" else ("rgba(56,189,248,0.12)" if r["status"] == "In Progress" else "rgba(255,255,255,0.05)")
+                st_color = "#10b981" if r["status"] == "Completed" else ("#ef4444" if days_diff == 0 else ("#f59e0b" if 0 < days_diff <= 3 else ("#38bdf8" if r["status"] == "In Progress" else "#94a3b8")))
+                st_bg = "rgba(16,185,129,0.12)" if r["status"] == "Completed" else ("rgba(239,68,68,0.18)" if days_diff == 0 else ("rgba(245,158,11,0.18)" if 0 < days_diff <= 3 else ("rgba(56,189,248,0.12)" if r["status"] == "In Progress" else "rgba(255,255,255,0.05)")))
+                display_status = "Cutover Today" if days_diff == 0 else r["status"]
 
                 st_badge = f'<span style="font-size:9px;font-weight:800;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:#f8fafc;font-family:var(--mono);">{r["state"]}</span>'
 
                 row_html = f"""
                 <tr style="{row_bg}border-bottom:1px solid #1e293b;">
                   <td style="padding:6px 8px;">{st_badge}</td>
-                  <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#f8fafc;font-family:var(--mono);">{rel_id}</td>
+                  <td style="padding:6px 8px;font-size:11px;font-weight:700;color:#f8fafc;font-family:var(--mono);">{rel_id}{live_badge}</td>
                   <td style="padding:6px 8px;font-size:10.5px;color:#94a3b8;font-family:var(--mono);">{r['quarter']} {r['year']}</td>
                   <td style="padding:6px 8px;font-size:10.5px;font-weight:700;color:#f8fafc;font-family:var(--mono);">{r['prod_deploy_date']}</td>
                   <td style="padding:6px 8px;">
                     <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:{st_bg};color:{st_color};">
-                      {r['status']}
+                      {display_status}
                     </span>
                   </td>
                   <td style="padding:6px 8px;font-size:10px;color:#38bdf8;font-family:var(--mono);font-weight:700;">
@@ -357,7 +376,42 @@ def render_release_plan_workspace(db_path: str) -> None:
         else:
             milestones = get_release_milestones(conn, active_rel["release_id"])
 
+            active_days_diff = 999
+            try:
+                active_days_diff = (datetime.strptime(active_rel["prod_deploy_date"], "%Y-%m-%d").date() - datetime.strptime(now_iso, "%Y-%m-%d").date()).days
+            except Exception:
+                pass
+
+            cutover_alert_html = ""
+            if active_days_diff == 0:
+                cutover_alert_html = """
+                <div style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.5);border-radius:6px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:18px;">🚨</span>
+                    <div>
+                      <div style="font-size:11px;font-weight:800;color:#fca5a5;letter-spacing:0.02em;">PRODUCTION CUTOVER ACTIVE TODAY // SEP 10, 2026</div>
+                      <div style="font-size:9.5px;color:#cbd5e1;">Deployment pipeline executing in weekend cutover window. Formal Go/No-Go Gate Approved.</div>
+                    </div>
+                  </div>
+                  <span style="font-size:9px;font-weight:800;background:#ef4444;color:#fff;padding:3px 8px;border-radius:12px;letter-spacing:0.05em;">LIVE CUTOVER</span>
+                </div>
+                """
+            elif 0 < active_days_diff <= 3:
+                cutover_alert_html = f"""
+                <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:6px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:18px;">⚠️</span>
+                    <div>
+                      <div style="font-size:11px;font-weight:800;color:#fcd34d;letter-spacing:0.02em;">IMPENDING CUTOVER // T-{active_days_diff} DAYS REMAINING</div>
+                      <div style="font-size:9.5px;color:#cbd5e1;">Pre-cutover smoke tests & State UAT sign-off in final sign-off stage.</div>
+                    </div>
+                  </div>
+                  <span style="font-size:9px;font-weight:800;background:#f59e0b;color:#1e293b;padding:3px 8px;border-radius:12px;letter-spacing:0.05em;">STAGE GATE CRITICAL</span>
+                </div>
+                """
+
             render_html(f"""
+            {cutover_alert_html}
             <div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 12px;margin-bottom:8px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -387,6 +441,9 @@ def render_release_plan_workspace(db_path: str) -> None:
 
             # Tab 1: Stage Gates & Dates
             with d_tab1:
+                cutover_box_style = "background:rgba(239,68,68,0.14);border:1px solid #ef4444;" if active_days_diff == 0 else "background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);"
+                cutover_title = "🚨 ACTIVE CUTOVER TODAY — Production Deployment Window" if active_days_diff == 0 else "🛡️ Production Deployment Cutover Details"
+                cutover_title_color = "#f87171" if active_days_diff == 0 else "#10b981"
                 render_html(f"""
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;font-size:10.5px;">
                   <div style="background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:4px;border:1px solid #1e293b;">
@@ -406,8 +463,8 @@ def render_release_plan_workspace(db_path: str) -> None:
                     <b style="color:#f8fafc;font-family:var(--mono);">{active_rel['uat_start_date'] or 'Scheduled'} ➔ {active_rel['uat_end_date'] or 'Sign-Off'}</b>
                   </div>
                 </div>
-                <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:6px;padding:8px 10px;font-size:10.5px;margin-bottom:6px;">
-                  <div style="color:#10b981;font-weight:700;margin-bottom:2px;">🛡️ Production Deployment Cutover Details</div>
+                <div style="{cutover_box_style}border-radius:6px;padding:8px 10px;font-size:10.5px;margin-bottom:6px;">
+                  <div style="color:{cutover_title_color};font-weight:700;margin-bottom:2px;">{cutover_title}</div>
                   <div style="color:#94a3b8;">Target Weekend Cutover Date: <b style="color:#f8fafc;font-family:var(--mono);">{active_rel['prod_deploy_date']}</b></div>
                   <div style="color:#94a3b8;">Formal Go / No-Go Decision: <b style="color:#f8fafc;font-family:var(--mono);">{active_rel['go_nogo_date'] or 'Thursday Prior to Cutover'}</b></div>
                   <div style="color:#94a3b8;">RM Sign-off Contact: <b style="color:#38bdf8;">{active_rel['state_rm_email']}</b></div>

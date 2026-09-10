@@ -15,7 +15,7 @@ import json
 import pathlib
 import re
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import openpyxl
@@ -162,6 +162,9 @@ def parse_ak_calendar(file_path: pathlib.Path) -> list[dict]:
                 cat = "Planning"
                 env = "MGMT"
 
+            now_dt = datetime.now().date()
+            now_str = now_dt.strftime("%Y-%m-%d")
+            m_status = "Passed" if (m["finish"] and m["finish"] <= now_str) else ("Active" if (m["start"] and m["start"] <= now_str) else "Scheduled")
             normalized_milestones.append({
                 "task_name": m["name"],
                 "phase_category": cat,
@@ -171,16 +174,21 @@ def parse_ak_calendar(file_path: pathlib.Path) -> list[dict]:
                 "finish_date": m["finish"],
                 "predecessors": m["predecessors"],
                 "holiday_impact": m["holiday"],
-                "status": "Passed" if (m["finish"] and m["finish"] < "2026-03-01") else "Active",
+                "status": m_status,
             })
 
         # Calculate status & readiness
-        now_str = "2026-03-10"
+        now_dt = datetime.now().date()
+        now_str = now_dt.strftime("%Y-%m-%d")
         if prod_date and prod_date < now_str:
             status = "Completed"
             readiness = 100.0
             risk = "Low"
-        elif prod_date and prod_date < "2026-05-01":
+        elif prod_date and prod_date == now_str:
+            status = "In Progress"
+            readiness = 96.0
+            risk = "High"
+        elif prod_date and prod_date <= (now_dt + timedelta(days=35)).strftime("%Y-%m-%d"):
             status = "In Progress"
             readiness = 88.5
             risk = "Medium"
@@ -276,9 +284,13 @@ def parse_nd_calendar(file_path: pathlib.Path) -> list[dict]:
             ("Production Live Deployment (Week 2 Cutover)", "Production", "PROD", prod_date, prod_date),
         ]
 
+        now_dt = datetime.now().date()
+        now_str = now_dt.strftime("%Y-%m-%d")
+
         normalized_milestones = []
         for name, cat, env, s_dt, f_dt in ms_defs:
             if s_dt or f_dt:
+                m_status = "Passed" if (f_dt and f_dt <= now_str) else ("Active" if (s_dt and s_dt <= now_str) else "Scheduled")
                 normalized_milestones.append({
                     "task_name": name,
                     "phase_category": cat,
@@ -288,15 +300,18 @@ def parse_nd_calendar(file_path: pathlib.Path) -> list[dict]:
                     "finish_date": f_dt or s_dt,
                     "predecessors": "",
                     "holiday_impact": "",
-                    "status": "Passed" if (f_dt and f_dt < "2026-03-01") else "Active",
+                    "status": m_status,
                 })
 
-        now_str = "2026-03-10"
         if prod_date < now_str:
             status = "Completed"
             readiness = 100.0
             risk = "Low"
-        elif prod_date < "2026-05-01":
+        elif prod_date == now_str:
+            status = "In Progress"
+            readiness = 96.0
+            risk = "High"
+        elif prod_date <= (now_dt + timedelta(days=35)).strftime("%Y-%m-%d"):
             status = "In Progress"
             readiness = 90.0
             risk = "Medium"
@@ -472,14 +487,19 @@ def parse_nh_calendar(file_path: pathlib.Path) -> list[dict]:
 
         year, quarter = _get_quarter(prod_date)
 
-        now_str = "2026-03-10"
+        now_dt = datetime.now().date()
+        now_str = now_dt.strftime("%Y-%m-%d")
         if prod_date < now_str:
             status = "Completed"
             readiness = 100.0
             risk = "Low"
-        elif prod_date < "2026-05-01":
+        elif prod_date == now_str:
             status = "In Progress"
-            readiness = 92.0
+            readiness = 96.0
+            risk = "High"
+        elif prod_date <= (now_dt + timedelta(days=35)).strftime("%Y-%m-%d"):
+            status = "In Progress"
+            readiness = 94.0
             risk = "Medium"
         else:
             status = "Scheduled"
