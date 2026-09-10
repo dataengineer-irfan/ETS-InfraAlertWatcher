@@ -430,9 +430,11 @@ def load_env():
 
 def smtp_config_from_env() -> dict:
     load_env()
+    raw_port = (os.environ.get("SMTP_PORT") or "").strip()
+    port = int(raw_port) if raw_port.isdigit() else 587
     return {
         "host": os.environ.get("SMTP_HOST"),
-        "port": int(os.environ.get("SMTP_PORT", "587")),
+        "port": port,
         "user": os.environ.get("SMTP_USER"),
         "password": os.environ.get("SMTP_PASSWORD"),
         "from_addr": os.environ.get("SMTP_FROM", os.environ.get("SMTP_USER", "")),

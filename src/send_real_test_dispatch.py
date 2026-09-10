@@ -57,7 +57,9 @@ def main():
     parser = argparse.ArgumentParser(description="Send real test email for expired items.")
     parser.add_argument("--db", default=str(ROOT / "data" / "expiry.db"), help="Path to SQLite DB")
     parser.add_argument("--host", default=os.environ.get("SMTP_HOST"), help="SMTP Server host")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("SMTP_PORT", "587")), help="SMTP Server port")
+    raw_port = (os.environ.get("SMTP_PORT") or "").strip()
+    default_port = int(raw_port) if raw_port.isdigit() else 587
+    parser.add_argument("--port", type=int, default=default_port, help="SMTP Server port")
     parser.add_argument("--user", default=os.environ.get("SMTP_USER"), help="SMTP Username / Auth user")
     parser.add_argument("--password", default=os.environ.get("SMTP_PASSWORD"), help="SMTP Password or App Password")
     parser.add_argument("--from-addr", default=os.environ.get("SMTP_FROM"), help="From address (optional)")
