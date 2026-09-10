@@ -3181,6 +3181,41 @@ function initParentSidebarEngine() {
     const pWin = window.parent;
     if (!pDoc || !pWin) return;
 
+    // Filter harmless Streamlit-internal permissions policy and sandbox console notices
+    try {
+      const filterHarmless = (w) => {
+        if (!w || !w.console || !w.console.warn) return;
+        const orig = w.console.warn;
+        if (orig.__ets_filtered) return;
+        w.console.warn = function(...args) {
+          const str = (args || []).map(a => (typeof a === 'object' ? '' : String(a))).join(' ');
+          if (str.includes('legacy-image-formats') ||
+              str.includes('oversized-images') ||
+              str.includes('wake-lock') ||
+              str.includes('escape its sandboxing')) {
+            return;
+          }
+          orig.apply(w.console, args);
+        };
+        w.console.warn.__ets_filtered = true;
+      };
+      filterHarmless(window);
+      if (pWin && pWin !== window) filterHarmless(pWin);
+
+      // Clean deprecated permission policy attributes on all iframes
+      pDoc.querySelectorAll('iframe').forEach(ifr => {
+        const al = ifr.getAttribute('allow');
+        if (al && (al.includes('legacy-image-formats') || al.includes('oversized-images') || al.includes('vr') || al.includes('wake-lock'))) {
+          const cleaned = al.replace(/legacy-image-formats;?/g, '')
+                            .replace(/oversized-images;?/g, '')
+                            .replace(/\bvr;?/g, '')
+                            .replace(/wake-lock;?/g, '')
+                            .trim();
+          ifr.setAttribute('allow', cleaned);
+        }
+      });
+    } catch(_f) {}
+
     function getSidebar() { return pDoc.querySelector('[data-testid="stSidebar"]'); }
 
     let closeTimer = null;
