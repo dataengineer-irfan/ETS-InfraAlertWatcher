@@ -229,9 +229,123 @@ def send_real_smtp_email(
         raise
 
 
+def send_api_email(
+    api_key: str,
+    to_emails: list[str] | str,
+    subject: str,
+    html_body: str,
+    from_addr: str | None = None,
+    service: str = "auto",
+) -> dict:
+    """
+    Transmits an email via HTTPS REST API (Port 443) using Resend or Brevo.
+    Completely bypasses cloud firewall restrictions on outbound SMTP ports (25, 465, 587).
+    """
+    import json
+    import urllib.request
+
+    if isinstance(to_emails, str):
+        recipients = [e.strip() for e in to_emails.split(",") if e.strip()]
+    else:
+        recipients = [e.strip() for e in to_emails if e and e.strip()]
+
+    if not recipients:
+        raise ValueError("Recipient list cannot be empty.")
+
+    clean_subject = subject.replace("\r", "").replace("\n", "")
+    now_utc = datetime.now(timezone.utc)
+
+    # Auto-detect service: Resend keys start with 're_', Brevo keys start with 'xkeysib-'
+    is_resend = service == "resend" or api_key.startswith("re_") or "RESEND" in service.upper()
+
+    if is_resend:
+        url = "https://api.resend.com/emails"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "ETS-Watchtower/1.0 (Enterprise Expiry Alert System)",
+        }
+        sender = from_addr if (from_addr and "@" in from_addr and not from_addr.endswith(".internal")) else "onboarding@resend.dev"
+        payload = {
+            "from": sender,
+            "to": recipients,
+            "subject": clean_subject,
+            "html": html_body,
+        }
+    else:
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {
+            "api-key": api_key,
+            "Content-Type": "application/json",
+            "User-Agent": "ETS-Watchtower/1.0 (Enterprise Expiry Alert System)",
+        }
+        sender_email = from_addr if (from_addr and "@" in from_addr and not from_addr.endswith(".internal")) else "alerts@ets-watchtower.com"
+        payload = {
+            "sender": {"email": sender_email, "name": "ETS Watchtower"},
+            "to": [{"email": r} for r in recipients],
+            "subject": clean_subject,
+            "htmlContent": html_body,
+        }
+
+    data_bytes = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        resp_body = resp.read().decode("utf-8")
+        msg_id = ""
+        try:
+            parsed = json.loads(resp_body)
+            msg_id = parsed.get("id") or parsed.get("messageId") or ""
+        except Exception:
+            pass
+
+        return {
+            "status": "DELIVERED",
+            "message_id": msg_id,
+            "smtp_response": f"200 OK (HTTPS REST API Port 443 - {'Resend' if is_resend else 'Brevo'})",
+            "refused_recipients": [],
+            "recipients": recipients,
+            "from_addr": sender if is_resend else sender_email,
+            "host": "api.resend.com:443" if is_resend else "api.brevo.com:443",
+            "timestamp": now_utc.isoformat(),
+            "subject": clean_subject,
+            "delivery_channel": "HTTPS_REST_API",
+        }
+
+
+def send_flexible_email(
+    smtp_config: dict | None,
+    to_emails: list[str] | str,
+    subject: str,
+    html_body: str,
+    item_count: int = 1,
+) -> dict:
+    """
+    Intelligently routes email dispatch:
+    - If RESEND_API_KEY or BREVO_API_KEY is configured in env or smtp_config, routes via HTTPS API (Port 443).
+    - Otherwise falls back to direct SMTP transport (ports 587/465).
+    """
+    load_env()
+    api_key = (
+        (smtp_config.get("api_key") if smtp_config else None)
+        or os.environ.get("RESEND_API_KEY")
+        or os.environ.get("BREVO_API_KEY")
+    )
+    if api_key:
+        from_addr = (smtp_config.get("from_addr") if smtp_config else None) or os.environ.get("SMTP_FROM")
+        return send_api_email(
+            api_key=api_key,
+            to_emails=to_emails,
+            subject=subject,
+            html_body=html_body,
+            from_addr=from_addr,
+        )
+    return send_real_smtp_email(smtp_config or smtp_config_from_env(), to_emails, subject, html_body, item_count)
+
+
 def send_email(smtp_config: dict, to_email: str, subject: str, html_body: str):
-    """Backwards-compatible wrapper around send_real_smtp_email."""
-    return send_real_smtp_email(smtp_config, [to_email], subject, html_body)
+    """Backwards-compatible wrapper routing to flexible mail transport."""
+    return send_flexible_email(smtp_config, [to_email], subject, html_body)
 
 
 def dispatch_expired_alert_real(
@@ -242,7 +356,7 @@ def dispatch_expired_alert_real(
 ) -> dict:
     """
     Compiles and transmits a live alert email for all expired/overdue items
-    strictly to the designated test recipients.
+    strictly to the designated test recipients via SMTP or HTTPS REST API.
     """
     if smtp_config is None:
         smtp_config = smtp_config_from_env()
@@ -259,7 +373,7 @@ def dispatch_expired_alert_real(
     subject = f"[URGENT ACTION] ETS Infrastructure Alert: {len(prepared)} Overdue Component Expirations Detected"
     html_body = render_expired_alert_email(prepared)
 
-    return send_real_smtp_email(
+    return send_flexible_email(
         smtp_config=smtp_config,
         to_emails=recipients,
         subject=subject,
@@ -291,7 +405,7 @@ def dispatch_cadence_alert_real(
 
     target_schedules = [s for s in schedules if not state or s.get("state") == state]
 
-    return send_real_smtp_email(
+    return send_flexible_email(
         smtp_config=smtp_config,
         to_emails=recipients,
         subject=subject,
