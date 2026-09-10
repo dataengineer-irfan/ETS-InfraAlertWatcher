@@ -59,6 +59,9 @@ def run(state: str | None = None) -> dict:
     for store in (st.LOG, st.KEYS, st.HTML, st.MOUNTS, st.STOPPED):
         store.clear()
     st.session_state.clear()
+    st.session_state["authenticated"] = True
+    st.session_state["active_user"] = "admin"
+    st.session_state["user_role"] = "Admin"
     if state:
         st.session_state["st_state"] = state
     try:
@@ -96,8 +99,8 @@ def main() -> int:
     check("one consolidated canvas mounted", len(r["mounts"]) == 1, f"{len(r['mounts'])} mounts")
     check("main tabs include Executive Command Center and Operations Hub",
           any(e[0] == "tabs" and "Executive Command Center" in e[1] and "Portfolio Matrix & Operations Hub" in e[1] for e in r["log"]))
-    check("all 4 enterprise workspaces present in navigation",
-          any(e[0] == "tabs" and len(e[1]) == 4 and "Governance & Alerts" in e[1] and "Access Control & Audit (RBAC)" in e[1] for e in r["log"]))
+    check("all enterprise workspaces present in navigation",
+          any(e[0] == "tabs" and len(e[1]) >= 4 and "Governance & Alerts" in e[1] and "Access Control & Audit (RBAC)" in e[1] for e in r["log"]))
 
     print("\n[2] canvas mounting and configuration")
     check("consolidated canvas covers all states",

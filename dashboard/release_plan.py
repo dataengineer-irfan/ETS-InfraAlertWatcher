@@ -2,13 +2,13 @@
 release_plan.py
 ===============
 Enterprise Schedule Release Plan & Environment Pipeline Workspace.
-Clean, static, high-density release tracking organized strictly into:
-  1. Current Release (Immediate Cutover Focus)
-  2. Active Releases (In-Flight across DEV / SIT / UAT)
-  3. Upcoming Releases (Scheduled Roadmap)
-  4. Completed Releases (Historical Archive)
-
-Strict RBAC isolation enforced silently under the hood without narrative banners.
+Strictly follows Grafana Flat Design System tokens:
+  - 2px sharp corners across all cards, panels, and chips
+  - 1px #2c3235 borders, #181b1f panel backgrounds, #141619 sunken tiles
+  - Grafana stat cards (ui.grafana_stat_card) with sparklines and donut visual
+  - Grafana alert chips (.alert-chip.firing, .alert-chip.pending, .alert-chip.ok)
+  - Monospace tabular dates and telemetry
+  - Zero narrative banners; silent RBAC isolation under the hood
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+import ui
 from db import (
     get_connection,
     get_release_schedules,
@@ -33,15 +34,15 @@ def render_html(html_str: str) -> None:
 def _calc_stage_pill(s_date: str | None, f_date: str | None, now_iso: str) -> tuple[str, str, str, str]:
     """Returns (label, bg, color, border)."""
     if not s_date and not f_date:
-        return "SCHEDULED", "rgba(255,255,255,0.04)", "#64748b", "#1e293b"
+        return "SCHEDULED", "rgba(255,255,255,0.04)", "var(--mute)", "var(--rule)"
     eff_start = s_date or f_date
     eff_finish = f_date or s_date
     if eff_finish < now_iso:
-        return "COMPLETED", "rgba(16,185,129,0.12)", "#34d399", "rgba(16,185,129,0.3)"
+        return "COMPLETED", "rgba(115,191,105,0.18)", "#73bf69", "rgba(115,191,105,0.4)"
     elif eff_start <= now_iso <= eff_finish:
-        return "ACTIVE TODAY", "rgba(56,189,248,0.2)", "#38bdf8", "#38bdf8"
+        return "ACTIVE TODAY", "rgba(242,73,92,0.2)", "#f2495c", "#f2495c"
     else:
-        return "SCHEDULED", "rgba(255,255,255,0.04)", "#94a3b8", "#1e293b"
+        return "SCHEDULED", "rgba(255,255,255,0.04)", "var(--mute)", "var(--rule)"
 
 
 def _get_stage_info(r: dict, now_iso: str) -> tuple[str, str, str]:
@@ -85,7 +86,7 @@ def _get_stage_info(r: dict, now_iso: str) -> tuple[str, str, str]:
 
 
 def render_release_plan_workspace(db_path: str) -> None:
-    """Render static, high-density Schedule Release Plan workspace."""
+    """Render Grafana-grade Schedule Release Plan workspace."""
     conn = get_connection(db_path)
     now_iso = datetime.now().strftime("%Y-%m-%d")
 
@@ -108,19 +109,18 @@ def render_release_plan_workspace(db_path: str) -> None:
     is_enterprise_admin = (user_role == "Admin" and user_assigned_state is None)
 
     # --------------------------------------------------------------------------
-    # 2. Header & State Selection (Clean, No RBAC Banners)
+    # 2. Header & State Selection (Grafana Style: 2px sharp, thin border, live telemetry)
     # --------------------------------------------------------------------------
-    h_col1, h_col2 = st.columns([3.0, 1.2])
+    h_col1, h_col2 = st.columns([3.2, 1.0])
     with h_col1:
         render_html("""
-        <div style="display:flex;align-items:center;gap:12px;padding:4px 0 8px 0;">
-          <span style="font-size:24px;">📅</span>
+        <div style="display:flex;align-items:center;gap:10px;padding:3px 0 6px 0;border-left:3px solid var(--accent);padding-left:8px;">
           <div>
-            <div style="font-size:18px;font-weight:900;color:#f8fafc;letter-spacing:-0.02em;text-transform:uppercase;">
+            <div style="font-size:14px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">
               Schedule Release Plan & Environment Pipeline
             </div>
-            <div style="font-size:11px;color:#94a3b8;font-family:var(--mono);margin-top:2px;">
-              CURRENT RELEASES • ACTIVE IN-FLIGHT PIPELINE • UPCOMING ROADMAP
+            <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:1px;">
+              CURRENT CUTOVER FOCUS • ACTIVE IN-FLIGHT PIPELINE • UPCOMING ROADMAP
             </div>
           </div>
         </div>
@@ -186,9 +186,9 @@ def render_release_plan_workspace(db_path: str) -> None:
             upcoming_releases.append(r)
 
     # --------------------------------------------------------------------------
-    # 4. BIG Executive KPI Metric Cards (Enhanced, Bold & Spacious)
+    # 4. Strict Grafana Metric Ribbon (ui.grafana_stat_card)
     # --------------------------------------------------------------------------
-    kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
 
     cur_rel = current_releases[0] if current_releases else None
     cur_label = cur_rel["release_id"] if cur_rel else "None"
@@ -201,94 +201,81 @@ def render_release_plan_workspace(db_path: str) -> None:
     except Exception:
         pass
 
-    if days_to_cutover == 0:
-        cur_badge_html = '<span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:12px;background:rgba(239,68,68,0.25);color:#fca5a5;border:1px solid #ef4444;letter-spacing:0.04em;">● CUTOVER TODAY</span>'
-    elif days_to_cutover <= 3:
-        cur_badge_html = f'<span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:12px;background:rgba(245,158,11,0.25);color:#fcd34d;border:1px solid #f59e0b;letter-spacing:0.04em;">● {days_to_cutover} DAYS TO CUTOVER</span>'
-    else:
-        cur_badge_html = f'<span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:12px;background:rgba(56,189,248,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);letter-spacing:0.04em;">● {days_to_cutover} DAYS TO CUTOVER</span>'
-
     uat_count = sum(1 for r in active_releases if _get_stage_info(r, now_iso)[0].startswith("State UAT"))
     sit_count = sum(1 for r in active_releases if _get_stage_info(r, now_iso)[0].startswith("SIT"))
     dev_count = sum(1 for r in active_releases if _get_stage_info(r, now_iso)[0].startswith("Development"))
 
+    # Calculate average gate readiness across active + current releases
+    monitored_pool = (current_releases + active_releases)
+    avg_readiness = (sum(r.get("readiness_pct", 0) for r in monitored_pool) / len(monitored_pool)) if monitored_pool else 100.0
+
+    # Card 1: Immediate Cutover Focus
     with kpi_col1:
-        render_html(f"""
-        <div style="background:linear-gradient(145deg, #0f172a, #1e293b);border:1px solid rgba(239,68,68,0.4);border-top:4px solid #ef4444;border-radius:8px;padding:16px 20px;box-shadow:0 6px 18px rgba(0,0,0,0.3);">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;">Immediate Cutover Target</span>
-            {cur_badge_html}
-          </div>
-          <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px;">
-            <span style="font-size:28px;font-weight:900;color:#f8fafc;font-family:var(--mono);letter-spacing:-0.02em;">{cur_label}</span>
-            <span style="font-size:11px;font-weight:800;color:#cbd5e1;background:rgba(255,255,255,0.08);padding:2px 8px;border-radius:4px;font-family:var(--mono);">{cur_state} MMIS</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:11.5px;">
-            <span style="color:#94a3b8;">Target Cutover: <b style="color:#f8fafc;font-family:var(--mono);font-size:12px;">{cur_date}</b></span>
-            <span style="color:#10b981;font-weight:800;">Gate Readiness: {cur_rel['readiness_pct']:.0f}%</span>
-          </div>
-        </div>
-        """)
+        k1_state = "firing" if days_to_cutover == 0 else "pending"
+        k1_badge = "CUTOVER TODAY" if days_to_cutover == 0 else f"D-{days_to_cutover} CUTOVER"
+        st.markdown(ui.grafana_stat_card(
+            label="Immediate Cutover Target",
+            value=cur_label,
+            color="#f2495c" if days_to_cutover == 0 else "#ff9830",
+            subtext=f"Cutover: {cur_date} · {cur_state} MMIS",
+            badge=k1_badge,
+            sparkline_vals=[100, 85, 90, 95, 100] if days_to_cutover == 0 else [60, 70, 75, 80, 88],
+            delta=f"Gate: {cur_rel['readiness_pct']:.0f}%" if cur_rel else "100%",
+            state=k1_state,
+        ), unsafe_allow_html=True)
 
+    # Card 2: Active In-Flight Pipeline
     with kpi_col2:
-        render_html(f"""
-        <div style="background:linear-gradient(145deg, #0f172a, #1e293b);border:1px solid rgba(56,189,248,0.4);border-top:4px solid #38bdf8;border-radius:8px;padding:16px 20px;box-shadow:0 6px 18px rgba(0,0,0,0.3);">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;">Active In-Flight Pipeline</span>
-            <span style="font-size:10px;font-weight:800;color:#38bdf8;background:rgba(56,189,248,0.15);padding:3px 9px;border-radius:10px;border:1px solid rgba(56,189,248,0.35);">LIVE TESTING</span>
-          </div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px;">
-            <span style="font-size:28px;font-weight:900;color:#38bdf8;font-family:var(--mono);letter-spacing:-0.02em;">{len(active_releases)} Active Releases</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:11.5px;color:#94a3b8;">
-            <span><b style="color:#38bdf8;">{uat_count}</b> in UAT</span>
-            <span>•</span>
-            <span><b style="color:#fcd34d;">{sit_count}</b> in SIT</span>
-            <span>•</span>
-            <span><b style="color:#a78bfa;">{dev_count}</b> in DEV</span>
-          </div>
-        </div>
-        """)
+        st.markdown(ui.grafana_stat_card(
+            label="Active In-Flight Pipeline",
+            value=f"{len(active_releases)} Active",
+            color="#5794f2",
+            subtext=f"{uat_count} in UAT · {sit_count} in SIT · {dev_count} in DEV",
+            badge="LIVE TESTING",
+            sparkline_vals=[dev_count, sit_count, uat_count, len(active_releases)] if active_releases else [0],
+            delta=f"DEV➔SIT➔UAT Flow",
+            state="ok",
+        ), unsafe_allow_html=True)
 
+    # Card 3: Scheduled Roadmap
     with kpi_col3:
         next_up_date = upcoming_releases[0]["prod_deploy_date"] if upcoming_releases else "—"
         next_up_rel = upcoming_releases[0]["release_id"] if upcoming_releases else "None"
-        render_html(f"""
-        <div style="background:linear-gradient(145deg, #0f172a, #1e293b);border:1px solid rgba(16,185,129,0.4);border-top:4px solid #10b981;border-radius:8px;padding:16px 20px;box-shadow:0 6px 18px rgba(0,0,0,0.3);">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;">Scheduled Roadmap Horizon</span>
-            <span style="font-size:10px;font-weight:800;color:#10b981;background:rgba(16,185,129,0.15);padding:3px 9px;border-radius:10px;border:1px solid rgba(16,185,129,0.35);">ROADMAP</span>
-          </div>
-          <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px;">
-            <span style="font-size:28px;font-weight:900;color:#10b981;font-family:var(--mono);letter-spacing:-0.02em;">{len(upcoming_releases)} Scheduled</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:11.5px;color:#94a3b8;">
-            <span>Next Target: <b style="color:#f8fafc;font-family:var(--mono);font-size:12px;">{next_up_rel}</b></span>
-            <span style="color:#34d399;font-family:var(--mono);font-size:12px;font-weight:700;">{next_up_date}</span>
-          </div>
-        </div>
-        """)
+        st.markdown(ui.grafana_stat_card(
+            label="Scheduled Roadmap",
+            value=f"{len(upcoming_releases)} Planned",
+            color="#73bf69",
+            subtext=f"Next: {next_up_rel} ({next_up_date})",
+            badge="ROADMAP",
+            sparkline_vals=[len(upcoming_releases), max(0, len(upcoming_releases) - 2), len(upcoming_releases)],
+            delta=f"Target: {next_up_date}",
+            state="ok",
+        ), unsafe_allow_html=True)
 
-    st.markdown('<div style="margin-top:14px;"></div>', unsafe_allow_html=True)
+    # Card 4: Pipeline Gate Readiness (Compliance Donut)
+    with kpi_col4:
+        st.markdown(ui.grafana_stat_card(
+            label="Pipeline Gate Readiness",
+            value=f"{avg_readiness:.0f}%",
+            color="#73bf69" if avg_readiness >= 80 else "#ff9830",
+            subtext=f"{len(monitored_pool)} releases in active gates",
+            badge="ON SCHEDULE" if avg_readiness >= 80 else "ATTENTION",
+            donut_pct=avg_readiness,
+            delta=f"✓ Gate Exit Score",
+            state="ok" if avg_readiness >= 80 else "pending",
+        ), unsafe_allow_html=True)
+
+    st.markdown('<div style="margin-top:6px;"></div>', unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # SECTION 1: HERO CURRENT RELEASE FLIGHT DECK (ENLARGED & PROMINENT)
+    # SECTION 1: HERO CURRENT RELEASE FLIGHT DECK (Grafana Panel Chrome)
     # --------------------------------------------------------------------------
-    render_html("""
-    <div style="font-size:13px;font-weight:800;color:#f8fafc;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;display:flex;align-items:center;gap:8px;">
-      <span style="color:#ef4444;font-size:15px;">🚨</span>
-      <span>1. Current Release — Live Environment Flight Deck</span>
-    </div>
-    """)
-
     if not current_releases:
         st.info("No active cutover release found.")
     else:
         for cur_rel_item in current_releases:
             stg_name, env_tag, badge_lbl = _get_stage_info(cur_rel_item, now_iso)
-            badge_bg = "rgba(239,68,68,0.25)" if "TODAY" in badge_lbl else "rgba(245,158,11,0.22)"
-            badge_fg = "#fca5a5" if "TODAY" in badge_lbl else "#fcd34d"
-            badge_bd = "#ef4444" if "TODAY" in badge_lbl else "#f59e0b"
+            chip_cls = "firing" if "TODAY" in badge_lbl else ("pending" if "PROGRESS" in badge_lbl else "ok")
 
             dev_s, dev_f = cur_rel_item.get("dev_start_date"), cur_rel_item.get("dev_end_date")
             sit_s, sit_f = cur_rel_item.get("sit_start_date"), cur_rel_item.get("sit_end_date")
@@ -307,106 +294,89 @@ def render_release_plan_workspace(db_path: str) -> None:
             env_name_uat = "ENV04 UAT" if cur_rel_item["state"] == "NH" else "State Acceptance"
             env_name_prod = "ENV05 Live" if cur_rel_item["state"] == "NH" else "PROD Cutover"
 
-            top_border_dev = "#10b981" if "COMPLETED" in stg_dev_l else ("#38bdf8" if "IN PROGRESS" in stg_dev_l else "#334155")
-            top_border_sit = "#10b981" if "COMPLETED" in stg_sit_l else ("#38bdf8" if "IN PROGRESS" in stg_sit_l else "#334155")
-            top_border_uat = "#10b981" if "COMPLETED" in stg_uat_l else ("#38bdf8" if "IN PROGRESS" in stg_uat_l else "#334155")
-            top_border_gn = "#10b981" if "COMPLETED" in stg_gn_l else ("#f59e0b" if "IN PROGRESS" in stg_gn_l else "#334155")
-            top_border_prod = "#10b981" if "COMPLETED" in stg_prod_l else ("#ef4444" if "TODAY" in stg_prod_l else "#334155")
+            top_border_dev = "#73bf69" if "COMPLETED" in stg_dev_l else ("#5794f2" if "IN PROGRESS" in stg_dev_l else "var(--rule)")
+            top_border_sit = "#73bf69" if "COMPLETED" in stg_sit_l else ("#5794f2" if "IN PROGRESS" in stg_sit_l else "var(--rule)")
+            top_border_uat = "#73bf69" if "COMPLETED" in stg_uat_l else ("#5794f2" if "IN PROGRESS" in stg_uat_l else "var(--rule)")
+            top_border_gn = "#73bf69" if "COMPLETED" in stg_gn_l else ("#ff9830" if "IN PROGRESS" in stg_gn_l else "var(--rule)")
+            top_border_prod = "#73bf69" if "COMPLETED" in stg_prod_l else ("#f2495c" if "TODAY" in stg_prod_l else "var(--rule)")
 
             render_html(f"""
-            <div style="background:#0f172a;border:1px solid #1e293b;border-left:6px solid #ef4444;border-radius:10px;padding:16px 20px;margin-bottom:16px;box-shadow:0 6px 20px rgba(0,0,0,0.3);">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid #f2495c;border-radius:2px;padding:12px 14px;margin-bottom:12px;">
               <!-- Top Row: Release Meta Strip -->
-              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-bottom:1px solid #1e293b;padding-bottom:12px;margin-bottom:14px;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <span style="font-size:24px;font-weight:900;color:#f8fafc;font-family:var(--mono);letter-spacing:-0.02em;">{cur_rel_item['release_id']}</span>
-                  <span style="font-size:11px;font-weight:800;background:rgba(255,255,255,0.08);color:#f8fafc;padding:3px 8px;border-radius:5px;font-family:var(--mono);">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #2c3235;padding-bottom:8px;margin-bottom:10px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:18px;font-weight:800;color:var(--ink);font-family:var(--mono);">{cur_rel_item['release_id']}</span>
+                  <span style="font-size:9.5px;font-weight:700;background:#141619;color:var(--slate);border:1px solid #2c3235;padding:1px 6px;border-radius:2px;font-family:var(--mono);">
                     {cur_rel_item['state']} MMIS ({cur_rel_item['quarter']} {cur_rel_item['year']})
                   </span>
-                  <span style="font-size:10.5px;font-weight:800;padding:3px 10px;border-radius:12px;background:{badge_bg};color:{badge_fg};border:1px solid {badge_bd};letter-spacing:0.04em;">
-                    ● {badge_lbl}
-                  </span>
+                  <span class="alert-chip {chip_cls}">● {badge_lbl}</span>
                 </div>
-                <div style="display:flex;align-items:center;gap:20px;font-size:12.5px;">
-                  <div><span style="color:#94a3b8;">Current Stage:</span> <b style="color:#38bdf8;">{stg_name} ({env_tag})</b></div>
-                  <div><span style="color:#94a3b8;">Target Cutover:</span> <b style="color:#f8fafc;font-family:var(--mono);font-size:13px;">{p_d}</b></div>
-                  <div><span style="color:#94a3b8;">Gate Readiness:</span> <b style="color:#10b981;font-family:var(--mono);font-size:13px;">{cur_rel_item['readiness_pct']:.0f}%</b></div>
+                <div style="display:flex;align-items:center;gap:16px;font-size:11.5px;">
+                  <div><span style="color:var(--slate);">Current Gate:</span> <b style="color:#5794f2;">{stg_name} ({env_tag})</b></div>
+                  <div><span style="color:var(--slate);">Cutover Target:</span> <b style="color:var(--ink);font-family:var(--mono);">{p_d}</b></div>
+                  <div><span style="color:var(--slate);">Readiness:</span> <b style="color:#73bf69;font-family:var(--mono);">{cur_rel_item['readiness_pct']:.0f}%</b></div>
                 </div>
               </div>
 
-              <!-- Expanded 5-Stage Stepper Grid -->
-              <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:12px;">
+              <!-- Expanded 5-Stage Stepper Grid (Strict Grafana Tiles) -->
+              <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;">
                 <!-- 1. DEV -->
-                <div style="background:#020617;border:1px solid {stg_dev_bd};border-top:4px solid {top_border_dev};border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;min-height:105px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_dev};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
                   <div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                      <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">1. DEV BUILD</span>
-                      <span style="font-size:14px;">🛠️</span>
-                    </div>
-                    <div style="font-size:13px;font-weight:800;color:#f8fafc;margin-top:4px;">{env_name_dev}</div>
-                    <div style="font-size:11px;color:#cbd5e1;font-family:var(--mono);margin-top:4px;font-weight:600;">{dev_s or '—'} ➔ {dev_f or '—'}</div>
+                    <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">1. DEV BUILD</div>
+                    <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_dev}</div>
+                    <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{dev_s or '—'} ➔ {dev_f or '—'}</div>
                   </div>
-                  <div style="margin-top:8px;">
-                    <span style="font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:4px;background:{stg_dev_bg};color:{stg_dev_fg};border:1px solid {stg_dev_bd};">{stg_dev_l}</span>
+                  <div style="margin-top:6px;">
+                    <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_dev_bg};color:{stg_dev_fg};border:1px solid {stg_dev_bd};">{stg_dev_l}</span>
                   </div>
                 </div>
 
                 <!-- 2. SIT -->
-                <div style="background:#020617;border:1px solid {stg_sit_bd};border-top:4px solid {top_border_sit};border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;min-height:105px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_sit};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
                   <div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                      <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">2. SIT REGRESSION</span>
-                      <span style="font-size:14px;">🧪</span>
-                    </div>
-                    <div style="font-size:13px;font-weight:800;color:#f8fafc;margin-top:4px;">{env_name_sit}</div>
-                    <div style="font-size:11px;color:#cbd5e1;font-family:var(--mono);margin-top:4px;font-weight:600;">{sit_s or '—'} ➔ {sit_f or '—'}</div>
+                    <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">2. SIT REGRESSION</div>
+                    <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_sit}</div>
+                    <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{sit_s or '—'} ➔ {sit_f or '—'}</div>
                   </div>
-                  <div style="margin-top:8px;">
-                    <span style="font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:4px;background:{stg_sit_bg};color:{stg_sit_fg};border:1px solid {stg_sit_bd};">{stg_sit_l}</span>
+                  <div style="margin-top:6px;">
+                    <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_sit_bg};color:{stg_sit_fg};border:1px solid {stg_sit_bd};">{stg_sit_l}</span>
                   </div>
                 </div>
 
                 <!-- 3. UAT -->
-                <div style="background:#020617;border:1px solid {stg_uat_bd};border-top:4px solid {top_border_uat};border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;min-height:105px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_uat};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
                   <div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                      <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">3. STATE UAT</span>
-                      <span style="font-size:14px;">📋</span>
-                    </div>
-                    <div style="font-size:13px;font-weight:800;color:#f8fafc;margin-top:4px;">{env_name_uat}</div>
-                    <div style="font-size:11px;color:#cbd5e1;font-family:var(--mono);margin-top:4px;font-weight:600;">{uat_s or '—'} ➔ {uat_f or '—'}</div>
+                    <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">3. STATE UAT</div>
+                    <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_uat}</div>
+                    <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{uat_s or '—'} ➔ {uat_f or '—'}</div>
                   </div>
-                  <div style="margin-top:8px;">
-                    <span style="font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:4px;background:{stg_uat_bg};color:{stg_uat_fg};border:1px solid {stg_uat_bd};">{stg_uat_l}</span>
+                  <div style="margin-top:6px;">
+                    <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_uat_bg};color:{stg_uat_fg};border:1px solid {stg_uat_bd};">{stg_uat_l}</span>
                   </div>
                 </div>
 
                 <!-- 4. GO/NO-GO -->
-                <div style="background:#020617;border:1px solid {stg_gn_bd};border-top:4px solid {top_border_gn};border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;min-height:105px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_gn};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
                   <div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                      <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">4. GO / NO-GO</span>
-                      <span style="font-size:14px;">🚦</span>
-                    </div>
-                    <div style="font-size:13px;font-weight:800;color:#f8fafc;margin-top:4px;">Decision Board</div>
-                    <div style="font-size:11px;color:#cbd5e1;font-family:var(--mono);margin-top:4px;font-weight:600;">{gn_d or 'Pre-Cutover'}</div>
+                    <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">4. GO / NO-GO</div>
+                    <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">Decision Board</div>
+                    <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{gn_d or 'Pre-Cutover'}</div>
                   </div>
-                  <div style="margin-top:8px;">
-                    <span style="font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:4px;background:{stg_gn_bg};color:{stg_gn_fg};border:1px solid {stg_gn_bd};">{stg_gn_l}</span>
+                  <div style="margin-top:6px;">
+                    <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_gn_bg};color:{stg_gn_fg};border:1px solid {stg_gn_bd};">{stg_gn_l}</span>
                   </div>
                 </div>
 
                 <!-- 5. PROD CUTOVER -->
-                <div style="background:#020617;border:1px solid {stg_prod_bd};border-top:4px solid {top_border_prod};border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;min-height:105px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_prod};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
                   <div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                      <span style="font-size:10.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;">5. PROD LIVE</span>
-                      <span style="font-size:14px;">🚀</span>
-                    </div>
-                    <div style="font-size:13px;font-weight:800;color:#f8fafc;margin-top:4px;">{env_name_prod}</div>
-                    <div style="font-size:11px;color:#f8fafc;font-weight:800;font-family:var(--mono);margin-top:4px;">{p_d}</div>
+                    <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">5. PROD LIVE</div>
+                    <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_prod}</div>
+                    <div style="font-size:10px;color:var(--ink);font-weight:700;font-family:var(--mono);margin-top:2px;">{p_d}</div>
                   </div>
-                  <div style="margin-top:8px;">
-                    <span style="font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:4px;background:{stg_prod_bg};color:{stg_prod_fg};border:1px solid {stg_prod_bd};">{stg_prod_l}</span>
+                  <div style="margin-top:6px;">
+                    <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_prod_bg};color:{stg_prod_fg};border:1px solid {stg_prod_bd};">{stg_prod_l}</span>
                   </div>
                 </div>
               </div>
@@ -414,14 +384,14 @@ def render_release_plan_workspace(db_path: str) -> None:
             """)
 
     # --------------------------------------------------------------------------
-    # SECTION 2: ACTIVE RELEASES (IN-FLIGHT) (HIGH-DENSITY MATRIX TABLE)
+    # SECTION 2: ACTIVE RELEASES (IN-FLIGHT) (Strict Grafana Table)
     # --------------------------------------------------------------------------
-    render_html(f"""
-    <div style="font-size:13px;font-weight:800;color:#f8fafc;text-transform:uppercase;letter-spacing:0.08em;margin:18px 0 8px 0;display:flex;align-items:center;gap:8px;">
-      <span style="color:#38bdf8;font-size:15px;">⚡</span>
-      <span>2. Active Releases (In-Flight across DEV / SIT / UAT) — {len(active_releases)} Releases</span>
-    </div>
-    """)
+    st.markdown(ui.panel_header(
+        "Active Releases In-Flight Pipeline (DEV ➔ SIT ➔ UAT)",
+        color="#5794f2",
+        live=True,
+        count=f"{len(active_releases)} Active Releases",
+    ), unsafe_allow_html=True)
 
     if not active_releases:
         st.info("No in-flight releases currently active.")
@@ -432,48 +402,48 @@ def render_release_plan_workspace(db_path: str) -> None:
             dev_str = f"{r.get('dev_start_date') or '—'} ➔ {r.get('dev_end_date') or '—'}"
             sit_str = f"{r.get('sit_start_date') or '—'} ➔ {r.get('sit_end_date') or '—'}"
             uat_str = f"{r.get('uat_start_date') or '—'} ➔ {r.get('uat_end_date') or '—'}"
-            row_bg = "#0f172a" if idx % 2 == 0 else "#090e1a"
+            row_bg = "#181b1f" if idx % 2 == 0 else "#141619"
             readiness = r.get('readiness_pct', 0)
             
             row_html = f"""
-            <tr style="background:{row_bg};border-bottom:1px solid #1e293b;font-size:12px;">
-              <td style="padding:10px 14px;"><span style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.08);color:#f8fafc;font-family:var(--mono);">{r['state']}</span></td>
-              <td style="padding:10px 14px;font-weight:800;color:#f8fafc;font-family:var(--mono);font-size:13px;">{r['release_id']}</td>
-              <td style="padding:10px 14px;">
-                <span style="background:rgba(56,189,248,0.14);color:#38bdf8;padding:3px 9px;border-radius:4px;font-weight:800;font-size:11.5px;border:1px solid rgba(56,189,248,0.3);">{stg_name}</span>
-                <span style="color:#94a3b8;font-family:var(--mono);font-size:11px;margin-left:5px;">({env_tag})</span>
+            <tr style="background:{row_bg};border-bottom:1px solid #22252b;font-size:11.5px;">
+              <td style="padding:6px 10px;"><span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:2px;background:#141619;border:1px solid #2c3235;color:var(--ink);font-family:var(--mono);">{r['state']}</span></td>
+              <td style="padding:6px 10px;font-weight:700;color:var(--ink);font-family:var(--mono);">{r['release_id']}</td>
+              <td style="padding:6px 10px;">
+                <span style="background:rgba(87,148,242,0.15);color:#5794f2;padding:1px 6px;border-radius:2px;font-weight:700;font-size:10px;border:1px solid rgba(87,148,242,0.3);">{stg_name}</span>
+                <span style="color:var(--slate);font-family:var(--mono);font-size:10px;margin-left:4px;">({env_tag})</span>
               </td>
-              <td style="padding:10px 14px;color:#cbd5e1;font-family:var(--mono);">{dev_str}</td>
-              <td style="padding:10px 14px;color:#cbd5e1;font-family:var(--mono);">{sit_str}</td>
-              <td style="padding:10px 14px;color:#cbd5e1;font-family:var(--mono);">{uat_str}</td>
-              <td style="padding:10px 14px;font-weight:800;color:#f8fafc;font-family:var(--mono);font-size:12.5px;">{r['prod_deploy_date']}</td>
-              <td style="padding:10px 14px;">
-                <div style="display:flex;align-items:center;gap:8px;min-width:110px;">
-                  <div style="flex:1;background:rgba(255,255,255,0.08);border-radius:4px;height:8px;overflow:hidden;">
-                    <div style="width:{readiness:.0f}%;background:linear-gradient(90deg,#10b981,#34d399);height:100%;border-radius:4px;"></div>
+              <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{dev_str}</td>
+              <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{sit_str}</td>
+              <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{uat_str}</td>
+              <td style="padding:6px 10px;font-weight:700;color:var(--ink);font-family:var(--mono);font-size:11.5px;">{r['prod_deploy_date']}</td>
+              <td style="padding:6px 10px;">
+                <div style="display:flex;align-items:center;gap:6px;min-width:90px;">
+                  <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:1px;height:5px;overflow:hidden;">
+                    <div style="width:{readiness:.0f}%;background:#73bf69;height:100%;"></div>
                   </div>
-                  <span style="font-family:var(--mono);font-size:11.5px;font-weight:800;color:#34d399;">{readiness:.0f}%</span>
+                  <span style="font-family:var(--mono);font-size:10.5px;font-weight:700;color:#73bf69;">{readiness:.0f}%</span>
                 </div>
               </td>
-              <td style="padding:10px 14px;"><span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:12px;background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);letter-spacing:0.04em;">IN PROGRESS</span></td>
+              <td style="padding:6px 10px;"><span class="alert-chip pending">IN PROGRESS</span></td>
             </tr>
             """
             active_rows.append("\n".join(l.strip() for l in row_html.splitlines() if l.strip()))
 
         render_html(f"""
-        <div style="border:1px solid #1e293b;border-radius:8px;background:#0f172a;overflow:hidden;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+        <div style="border:1px solid #2c3235;border-radius:2px;background:#181b1f;overflow:hidden;margin-bottom:14px;">
           <table style="width:100%;border-collapse:collapse;text-align:left;">
             <thead>
-              <tr style="background:#1e293b;border-bottom:2px solid #334155;font-size:11px;font-weight:800;text-transform:uppercase;color:#cbd5e1;letter-spacing:0.06em;">
-                <th style="padding:10px 14px;">State</th>
-                <th style="padding:10px 14px;">Release ID</th>
-                <th style="padding:10px 14px;">Current Stage & Environment</th>
-                <th style="padding:10px 14px;">DEV Window</th>
-                <th style="padding:10px 14px;">SIT Window</th>
-                <th style="padding:10px 14px;">UAT Window</th>
-                <th style="padding:10px 14px;">PROD Cutover</th>
-                <th style="padding:10px 14px;">Gate Readiness</th>
-                <th style="padding:10px 14px;">Status</th>
+              <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;">
+                <th style="padding:6px 10px;">State</th>
+                <th style="padding:6px 10px;">Release ID</th>
+                <th style="padding:6px 10px;">Current Gate & Environment</th>
+                <th style="padding:6px 10px;">DEV Window</th>
+                <th style="padding:6px 10px;">SIT Window</th>
+                <th style="padding:6px 10px;">UAT Window</th>
+                <th style="padding:6px 10px;">Cutover Date</th>
+                <th style="padding:6px 10px;">Gate Readiness</th>
+                <th style="padding:6px 10px;">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -484,14 +454,14 @@ def render_release_plan_workspace(db_path: str) -> None:
         """)
 
     # --------------------------------------------------------------------------
-    # SECTION 3: UPCOMING RELEASES (SCHEDULED ROADMAP)
+    # SECTION 3: UPCOMING RELEASES (SCHEDULED ROADMAP) (Strict Grafana Table)
     # --------------------------------------------------------------------------
-    render_html(f"""
-    <div style="font-size:13px;font-weight:800;color:#f8fafc;text-transform:uppercase;letter-spacing:0.08em;margin:18px 0 8px 0;display:flex;align-items:center;gap:8px;">
-      <span style="color:#10b981;font-size:15px;">🗓️</span>
-      <span>3. Upcoming Releases (Scheduled Roadmap Pipeline) — {len(upcoming_releases)} Releases</span>
-    </div>
-    """)
+    st.markdown(ui.panel_header(
+        "Upcoming Scheduled Releases (Pipeline Roadmap)",
+        color="#73bf69",
+        live=False,
+        count=f"{len(upcoming_releases)} Scheduled",
+    ), unsafe_allow_html=True)
 
     if not upcoming_releases:
         st.info("No upcoming releases scheduled.")
@@ -501,35 +471,35 @@ def render_release_plan_workspace(db_path: str) -> None:
             dev_start = r.get("dev_start_date") or "—"
             sit_start = r.get("sit_start_date") or "—"
             uat_start = r.get("uat_start_date") or "—"
-            row_bg = "#0f172a" if idx % 2 == 0 else "#090e1a"
+            row_bg = "#181b1f" if idx % 2 == 0 else "#141619"
 
             row_html = f"""
-            <tr style="background:{row_bg};border-bottom:1px solid #1e293b;font-size:12px;">
-              <td style="padding:10px 14px;"><span style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.08);color:#f8fafc;font-family:var(--mono);">{r['state']}</span></td>
-              <td style="padding:10px 14px;font-weight:800;color:#f8fafc;font-family:var(--mono);font-size:13px;">{r['release_id']}</td>
-              <td style="padding:10px 14px;color:#cbd5e1;font-family:var(--mono);">{r['quarter']} {r['year']}</td>
-              <td style="padding:10px 14px;color:#94a3b8;font-family:var(--mono);">{dev_start}</td>
-              <td style="padding:10px 14px;color:#94a3b8;font-family:var(--mono);">{sit_start}</td>
-              <td style="padding:10px 14px;color:#94a3b8;font-family:var(--mono);">{uat_start}</td>
-              <td style="padding:10px 14px;font-weight:800;color:#f8fafc;font-family:var(--mono);font-size:12.5px;">{r['prod_deploy_date']}</td>
-              <td style="padding:10px 14px;"><span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:12px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid #334155;letter-spacing:0.04em;">SCHEDULED</span></td>
+            <tr style="background:{row_bg};border-bottom:1px solid #22252b;font-size:11.5px;">
+              <td style="padding:6px 10px;"><span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:2px;background:#141619;border:1px solid #2c3235;color:var(--ink);font-family:var(--mono);">{r['state']}</span></td>
+              <td style="padding:6px 10px;font-weight:700;color:var(--ink);font-family:var(--mono);">{r['release_id']}</td>
+              <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{r['quarter']} {r['year']}</td>
+              <td style="padding:6px 10px;color:var(--mute);font-family:var(--mono);font-size:11px;">{dev_start}</td>
+              <td style="padding:6px 10px;color:var(--mute);font-family:var(--mono);font-size:11px;">{sit_start}</td>
+              <td style="padding:6px 10px;color:var(--mute);font-family:var(--mono);font-size:11px;">{uat_start}</td>
+              <td style="padding:6px 10px;font-weight:700;color:var(--ink);font-family:var(--mono);font-size:11.5px;">{r['prod_deploy_date']}</td>
+              <td style="padding:6px 10px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:2px;background:rgba(255,255,255,0.04);color:var(--mute);border:1px solid var(--rule);">SCHEDULED</span></td>
             </tr>
             """
             upcoming_rows.append("\n".join(l.strip() for l in row_html.splitlines() if l.strip()))
 
         render_html(f"""
-        <div style="border:1px solid #1e293b;border-radius:8px;background:#0f172a;overflow:hidden;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,0.2);">
+        <div style="border:1px solid #2c3235;border-radius:2px;background:#181b1f;overflow:hidden;margin-bottom:14px;">
           <table style="width:100%;border-collapse:collapse;text-align:left;">
             <thead>
-              <tr style="background:#1e293b;border-bottom:2px solid #334155;font-size:11px;font-weight:800;text-transform:uppercase;color:#cbd5e1;letter-spacing:0.06em;">
-                <th style="padding:10px 14px;">State</th>
-                <th style="padding:10px 14px;">Release ID</th>
-                <th style="padding:10px 14px;">Quarter / Cadence</th>
-                <th style="padding:10px 14px;">DEV Start</th>
-                <th style="padding:10px 14px;">SIT Start</th>
-                <th style="padding:10px 14px;">UAT Start</th>
-                <th style="padding:10px 14px;">PROD Cutover</th>
-                <th style="padding:10px 14px;">Status</th>
+              <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;">
+                <th style="padding:6px 10px;">State</th>
+                <th style="padding:6px 10px;">Release ID</th>
+                <th style="padding:6px 10px;">Cadence</th>
+                <th style="padding:6px 10px;">DEV Start</th>
+                <th style="padding:6px 10px;">SIT Start</th>
+                <th style="padding:6px 10px;">UAT Start</th>
+                <th style="padding:6px 10px;">Cutover Date</th>
+                <th style="padding:6px 10px;">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -548,28 +518,28 @@ def render_release_plan_workspace(db_path: str) -> None:
         else:
             comp_rows = []
             for idx, r in enumerate(completed_releases):
-                row_bg = "#020617" if idx % 2 == 0 else "#0b1220"
+                row_bg = "#181b1f" if idx % 2 == 0 else "#141619"
                 row_html = f"""
-                <tr style="background:{row_bg};border-bottom:1px solid #1e293b;font-size:11.5px;">
-                  <td style="padding:8px 12px;"><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:#94a3b8;">{r['state']}</span></td>
-                  <td style="padding:8px 12px;font-weight:800;color:#f8fafc;font-family:var(--mono);">{r['release_id']}</td>
-                  <td style="padding:8px 12px;color:#cbd5e1;font-family:var(--mono);">{r['quarter']} {r['year']}</td>
-                  <td style="padding:8px 12px;color:#f8fafc;font-family:var(--mono);font-weight:700;">{r['prod_deploy_date']}</td>
-                  <td style="padding:8px 12px;"><span style="font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:8px;background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.35);">✓ DEPLOYED (100%)</span></td>
+                <tr style="background:{row_bg};border-bottom:1px solid #22252b;font-size:11px;">
+                  <td style="padding:5px 8px;"><span style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--slate);">{r['state']}</span></td>
+                  <td style="padding:5px 8px;font-weight:700;color:var(--ink);font-family:var(--mono);">{r['release_id']}</td>
+                  <td style="padding:5px 8px;color:var(--slate);font-family:var(--mono);">{r['quarter']} {r['year']}</td>
+                  <td style="padding:5px 8px;color:var(--ink);font-family:var(--mono);font-weight:700;">{r['prod_deploy_date']}</td>
+                  <td style="padding:5px 8px;"><span class="alert-chip ok">DEPLOYED (100%)</span></td>
                 </tr>
                 """
                 comp_rows.append("\n".join(l.strip() for l in row_html.splitlines() if l.strip()))
 
             render_html(f"""
-            <div style="border:1px solid #1e293b;border-radius:6px;background:#020617;max-height:240px;overflow-y:auto;">
+            <div style="border:1px solid #2c3235;border-radius:2px;background:#141619;max-height:220px;overflow-y:auto;">
               <table style="width:100%;border-collapse:collapse;text-align:left;">
                 <thead>
-                  <tr style="background:#1e293b;font-size:10px;font-weight:800;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.05em;">
-                    <th style="padding:8px 12px;">State</th>
-                    <th style="padding:8px 12px;">Release ID</th>
-                    <th style="padding:8px 12px;">Quarter</th>
-                    <th style="padding:8px 12px;">Cutover Date</th>
-                    <th style="padding:8px 12px;">Status</th>
+                  <tr style="background:#181b1f;font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">
+                    <th style="padding:5px 8px;">State</th>
+                    <th style="padding:5px 8px;">Release ID</th>
+                    <th style="padding:5px 8px;">Quarter</th>
+                    <th style="padding:5px 8px;">Cutover Date</th>
+                    <th style="padding:5px 8px;">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -580,4 +550,3 @@ def render_release_plan_workspace(db_path: str) -> None:
             """)
 
     conn.close()
-

@@ -50,6 +50,7 @@ def markdown(body, unsafe_allow_html=False, **kw):
     LOG.append(("markdown", len(body)))
     if unsafe_allow_html: HTML.append(body)
 def caption(t, **kw): LOG.append(("caption", t))
+def html(body, **kw): LOG.append(("html", len(body)))
 def write(*a, **kw): LOG.append(("write", a))
 def success(t, **kw): LOG.append(("success", t))
 def error(t, **kw): LOG.append(("error", t))

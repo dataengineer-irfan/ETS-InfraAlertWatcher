@@ -81,6 +81,127 @@ st.set_page_config(
 )
 st.markdown(ui.css(), unsafe_allow_html=True)
 
+if hasattr(st, "html"):
+    st.html("""
+<script>
+(function() {
+  if (window.__ets_patch_applied) return;
+  window.__ets_patch_applied = true;
+
+  // 1. Intercept iframe creation to strip deprecated features and avoid sandbox escape warning
+  const origSetAttr = HTMLIFrameElement.prototype.setAttribute;
+  HTMLIFrameElement.prototype.setAttribute = function(name, val) {
+    if (typeof name === 'string') {
+      const lower = name.toLowerCase();
+      if (lower === 'allow' && typeof val === 'string') {
+        val = val.replace(/\\b(legacy-image-formats|oversized-images|vr|wake-lock|ambient-light-sensor|battery|document-domain|layout-animations)\\b;?/gi, '').replace(/;\\s*;/g, ';').trim();
+      } else if (lower === 'sandbox' && typeof val === 'string') {
+        val = val.replace(/\\ballow-same-origin\\b/gi, '').trim();
+      }
+    }
+    return origSetAttr.call(this, name, val);
+  };
+
+  // 2. Intercept property assignment on iframe.allow
+  const allowDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'allow');
+  if (allowDesc && allowDesc.set) {
+    const origSet = allowDesc.set;
+    Object.defineProperty(HTMLIFrameElement.prototype, 'allow', {
+      get: allowDesc.get,
+      set: function(val) {
+        if (typeof val === 'string') {
+          val = val.replace(/\\b(legacy-image-formats|oversized-images|vr|wake-lock|ambient-light-sensor|battery|document-domain|layout-animations)\\b;?/gi, '').replace(/;\\s*;/g, ';').trim();
+        }
+        return origSet.call(this, val);
+      },
+      configurable: true,
+      enumerable: true
+    });
+  }
+
+  // 3. Filter console warning/error notices
+  const _warn = console.warn;
+  const _err = console.error;
+  const isSuppressed = function(m) {
+    if (typeof m !== 'string') return false;
+    return m.indexOf('Unrecognized feature:') !== -1 ||
+           m.indexOf('escape its sandboxing') !== -1 ||
+           m.indexOf('ambient-light-sensor') !== -1 ||
+           m.indexOf('legacy-image-formats') !== -1 ||
+           m.indexOf('oversized-images') !== -1 ||
+           m.indexOf('wake-lock') !== -1;
+  };
+  console.warn = function(...args) {
+    if (args.length > 0 && isSuppressed(args[0])) return;
+    return _warn.apply(console, args);
+  };
+  console.error = function(...args) {
+    if (args.length > 0 && isSuppressed(args[0])) return;
+    return _err.apply(console, args);
+  };
+
+  // 4. Native Sidebar Rail Toggle & Navigation Engine (Self-contained in parent window)
+  function setupNav() {
+    function getSidebar() { return document.querySelector('[data-testid="stSidebar"]'); }
+
+    document.addEventListener('click', function(e) {
+      const toggleBtn = e.target ? e.target.closest('#ets-rail-toggle-btn') : null;
+      if (toggleBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const sb = getSidebar();
+        if (sb) {
+          const cur = sb.getAttribute('data-rail-state') || 'collapsed';
+          sb.setAttribute('data-rail-state', cur === 'expanded' ? 'collapsed' : 'expanded');
+        }
+        return;
+      }
+
+      const closeBtn = e.target ? e.target.closest('#ets-close-panel-btn') : null;
+      if (closeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const sb = getSidebar();
+        if (sb) sb.setAttribute('data-rail-state', 'collapsed');
+        return;
+      }
+
+      const navBtn = e.target ? e.target.closest('.ets-nav-item') : null;
+      if (navBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = parseInt(navBtn.getAttribute('data-nav-idx'), 10);
+        if (!isNaN(idx)) {
+          const topTabs = document.querySelectorAll('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] [role="tab"]');
+          if (topTabs && topTabs[idx]) {
+            topTabs[idx].click();
+          } else {
+            const topTabsContainer = document.querySelector('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"]');
+            const tl = topTabsContainer ? topTabsContainer.querySelector('[role="tablist"]') : null;
+            if (tl && tl.children[idx]) {
+              tl.children[idx].click();
+            }
+          }
+          document.querySelectorAll('.ets-nav-item').forEach(function(b) { b.classList.remove('active'); });
+          navBtn.classList.add('active');
+          const sb = getSidebar();
+          if (sb) setTimeout(function() { sb.setAttribute('data-rail-state', 'collapsed'); }, 120);
+        }
+        return;
+      }
+    }, true);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupNav);
+  } else {
+    setupNav();
+  }
+})();
+</script>
+""", unsafe_allow_javascript=True)
+
+
 
 # ==========================================================================
 # Data Loading & Ingestion
