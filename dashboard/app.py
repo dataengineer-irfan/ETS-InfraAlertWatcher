@@ -47,6 +47,7 @@ from db import (  # noqa: E402
     get_audit_logs,
     authenticate_user,
     get_current_active_releases,
+    get_release_schedules,
 )
 from ingest_components import COMPONENTS, run as run_ingest  # noqa: E402
 from expiry_checker import get_due_reminders, mark_sent  # noqa: E402
@@ -70,7 +71,7 @@ STATES = ui.STATES
 COMPONENT_ORDER = ui.COMPONENT_ORDER
 ENV_ORDER = ui.ENV_ORDER
 
-CANVAS_OVERVIEW = 580
+CANVAS_OVERVIEW = 600
 CANVAS_STATE = 510
 EDITOR_HEIGHT = 380
 
@@ -1993,10 +1994,10 @@ def render_governance_center() -> None:
     st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
     # 4. Level 5 & Level 3: Left Team Scorecard (Always 5 Teams) vs Right Action Console
-    g_col1, _, g_col2 = st.columns([2.0, 0.03, 2.0])
+    g_col1, g_col2 = st.columns([1, 1], gap="medium")
 
     with g_col1:
-        # Team Governance & Risk Distribution Matrix (ALWAYS DISPLAYS ALL 5 TEAMS TO PREVENT EMPTY CAVITY)
+        st.markdown(ui.panel_header("Team Governance & Risk Distribution Matrix", color="#ff9830", live=True, count="5 Teams"), unsafe_allow_html=True)
         team_profiles = list(TEAM_GOVERNANCE_PROFILES.values())
 
         t_rows = []
@@ -2015,18 +2016,19 @@ def render_governance_center() -> None:
             )
 
         st.markdown(f"""
-        <div class="panel" style="margin-bottom:6px;">
-          <div class="panel-head"><span class="panel-title">Team Governance & Risk Distribution Matrix</span><span class="panel-menu">⋮</span></div>
-          <table class="tblx" style="font-size:10.5px;">
-            <tr><th>Functional Team</th><th>Owner & Channel</th><th class="r">Assets</th><th>Risk Posture</th><th>Cadence</th></tr>
+        <div class="panel" style="margin-bottom:8px;border:1px solid #2c3235;border-radius:2px;background:#181b1f;overflow:hidden;">
+          <table class="tblx" style="font-size:10.5px;width:100%;border-collapse:collapse;">
+            <tr style="background:#141619;border-bottom:1px solid #2c3235;"><th>Functional Team</th><th>Owner & Channel</th><th class="r">Assets</th><th>Risk Posture</th><th>Cadence</th></tr>
             {''.join(t_rows)}
           </table>
+          <div style="background:#141619;border-top:1px solid #2c3235;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:9.5px;font-weight:700;color:var(--mute);letter-spacing:0.04em;">FOCUS TEAM SCOPE:</span>
+            <span style="font-size:9px;color:var(--slate);font-family:var(--mono);">Active: {gov_team_filter}</span>
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div style="font-size:9.5px;font-weight:700;color:var(--mute);letter-spacing:0.04em;margin-top:8px;margin-bottom:6px;">FOCUS TEAM SCOPE:</div>', unsafe_allow_html=True)
-
-        # Team drill buttons (hidden but functional — triggered by the scorecard row clicks above)
+        # Team drill buttons (cleanly aligned)
         _drill_cols = st.columns(6)
         _teams_map = [("All","All"),("Core","Core"),("Letters","Letters"),("Cognos","Cognos"),("Informatica","Infa"),("App Server","AppSrv")]
         for _col, (_tv, _tl) in zip(_drill_cols, _teams_map):
@@ -2040,8 +2042,10 @@ def render_governance_center() -> None:
     with g_col2:
         # Right Pane: Structured Action Console & Synchronized Email Inspector
         q_count_label = f" ({len(urgent_records)})" if not urgent_records.empty else " (0)"
-        act_tab1, act_tab2, act_tab3, act_tab4 = st.tabs([
+        st.markdown(ui.panel_header("Operational Action Console & Cutoff Dispatch", color="#38bdf8", live=True, count=f"{len(urgent_records)} Urgent"), unsafe_allow_html=True)
+        act_tab1, act_tab_release, act_tab2, act_tab3, act_tab4 = st.tabs([
             f"⚡ Actionable Risk Queue{q_count_label}",
+            "🚀 Release Cutoff Alerts",
             "📧 Expiry Alert Dispatch",
             "🛠️ Weekly Cadence Alert Console",
             "📋 Compliance & Audit Ledger"
@@ -2152,11 +2156,146 @@ def render_governance_center() -> None:
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div style="max-height:250px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
+                    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
                       </table>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        with act_tab_release:
+            conn_rel = get_connection(DB_PATH)
+            rel_all = get_release_schedules(conn_rel, state=None)
+            conn_rel.close()
+
+            today_date = date.today()
+            milestone_rows = []
+            for r in rel_all:
+                st_code = r.get("state", "")
+                rid = r.get("release_id", "")
+                rm_name = r.get("state_rm_name", f"{st_code} Release Manager")
+                rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
+
+                gates = [
+                    ("DEV Freeze", r.get("dev_end_date"), "ENV52 Dev" if st_code == "NH" else "Build-76"),
+                    ("SIT QA Gate", r.get("sit_end_date"), "ENV57 / ENV53" if st_code == "NH" else "SIT QA"),
+                    ("State UAT Gate", r.get("uat_end_date"), "ENV04 UAT" if st_code == "NH" else "State Acceptance"),
+                    ("Go / No-Go Board", r.get("go_nogo_date"), "Decision Board"),
+                    ("Production Cutover", r.get("prod_deploy_date"), "ENV05 Live" if st_code == "NH" else "PROD Cutover"),
+                ]
+                for g_name, g_date, g_env in gates:
+                    if g_date:
+                        try:
+                            diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
+                            if -14 <= diff <= 45:
+                                if diff < 0:
+                                    s_lbl = f"{abs(diff)}d OVERDUE"
+                                    s_chip = "firing"
+                                elif diff == 0:
+                                    s_lbl = "CUTOFF TODAY"
+                                    s_chip = "firing"
+                                elif diff <= 3:
+                                    s_lbl = f"{diff}d REMAINING"
+                                    s_chip = "firing"
+                                elif diff <= 7:
+                                    s_lbl = f"{diff}d REMAINING"
+                                    s_chip = "pending"
+                                else:
+                                    s_lbl = f"{diff}d REMAINING"
+                                    s_chip = "ok"
+
+                                milestone_rows.append({
+                                    "state": st_code,
+                                    "release_id": rid,
+                                    "phase": g_name,
+                                    "env": g_env,
+                                    "cutoff_date": g_date,
+                                    "days_left": diff,
+                                    "status_label": s_lbl,
+                                    "chip": s_chip,
+                                    "rm_name": rm_name,
+                                    "rm_email": rm_email,
+                                })
+                        except Exception:
+                            pass
+
+            milestone_rows.sort(key=lambda m: (0 if m["chip"] == "firing" else (1 if m["chip"] == "pending" else 2), m["days_left"]))
+
+            st.markdown("""
+            <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:2px;padding:6px 10px;margin-bottom:6px;font-size:10px;color:var(--slate);">
+              <b>Release Cutoff Trigger Engine:</b> Monitor upcoming DEV / SIT / UAT freeze milestones and dispatch cutoff alerts to state release managers.
+            </div>
+            """, unsafe_allow_html=True)
+
+            if not milestone_rows:
+                st.info("No release cutoffs within the next 45 days.")
+            else:
+                m_table_rows = []
+                for m in milestone_rows[:10]:
+                    m_table_rows.append(
+                        f"<tr>"
+                        f"<td style='padding:5px 8px;'><span style='font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;background:#141619;border:1px solid #2c3235;color:var(--ink);font-family:var(--mono);'>{m['state']}</span></td>"
+                        f"<td style='padding:5px 8px;font-weight:700;color:var(--ink);font-family:var(--mono);'>{m['release_id']}</td>"
+                        f"<td style='padding:5px 8px;color:#5794f2;font-weight:600;'>{m['phase']} <span style='color:var(--mute);font-size:9.5px;'>({m['env']})</span></td>"
+                        f"<td style='padding:5px 8px;font-family:var(--mono);color:var(--slate);'>{m['cutoff_date']}</td>"
+                        f"<td style='padding:5px 8px;'><span class='alert-chip {m['chip']}'>{m['status_label']}</span></td>"
+                        f"</tr>"
+                    )
+
+                st.markdown(f"""
+                <div style="max-height:180px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
+                  <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
+                    <tr style="background:#141619;border-bottom:1px solid #2c3235;position:sticky;top:0;z-index:2;">
+                      <th>State</th><th>Release</th><th>Milestone Phase</th><th>Cutoff Date</th><th>Alert Status</th>
+                    </tr>
+                    {''.join(m_table_rows)}
+                  </table>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Dispatch control row
+                rc_c1, rc_c2 = st.columns([2.2, 1.8])
+                with rc_c1:
+                    m_opts = {f"{m['state']} · {m['release_id']} ({m['phase']}) — {m['cutoff_date']}": m for m in milestone_rows}
+                    chosen_m_lbl = st.selectbox("Target Cutoff Milestone", list(m_opts.keys()), key="gov_rel_cutoff_pick", label_visibility="collapsed")
+                    chosen_m = m_opts[chosen_m_lbl]
+                with rc_c2:
+                    if st.button("🚀 Dispatch Cutoff Alert (Simulate)", key="gov_dispatch_cutoff_btn", type="primary", use_container_width=True):
+                        try:
+                            conn_aud = get_connection(DB_PATH)
+                            log_audit_event(
+                                conn_aud,
+                                actor=st.session_state.get("active_user", "admin"),
+                                role="Admin",
+                                action="EMAIL_DISPATCHED",
+                                target_entity=f"{chosen_m['state']} {chosen_m['release_id']} {chosen_m['phase']}",
+                                details=f"Release cutoff alert dispatched to {chosen_m['rm_name']} <{chosen_m['rm_email']}> for cutoff {chosen_m['cutoff_date']} ({chosen_m['status_label']}).",
+                            )
+                            conn_aud.close()
+                            st.success(f"✓ Cutoff Alert dispatched for {chosen_m['release_id']} ({chosen_m['phase']}) to {chosen_m['rm_name']}!")
+                        except Exception as ex:
+                            st.error(f"Dispatch failed: {ex}")
+
+                # Email Preview expander
+                with st.expander("📧 Preview Release Cutoff Alert Email Template", expanded=False):
+                    st.markdown(f"""
+                    <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:10px;font-family:var(--mono);font-size:11px;">
+                      <div style="color:var(--slate);margin-bottom:4px;"><b style="color:var(--text);">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
+                      <div style="color:var(--slate);margin-bottom:6px;"><b style="color:var(--text);">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
+                      <div style="border-top:1px solid #2c3235;padding-top:8px;color:var(--text);line-height:1.5;">
+                        <p>Attention State Release Management,</p>
+                        <p>This is an automated ETS Watchtower notification regarding the upcoming pipeline gate cutoff for <b>{chosen_m['release_id']}</b>.</p>
+                        <table style="border:1px solid #2c3235;background:#181b1f;padding:6px;width:100%;margin:6px 0;font-size:10.5px;">
+                          <tr><td style="color:var(--slate);">State Scope:</td><td><b>{chosen_m['state']} MMIS</b></td></tr>
+                          <tr><td style="color:var(--slate);">Release ID:</td><td><b>{chosen_m['release_id']}</b></td></tr>
+                          <tr><td style="color:var(--slate);">Phase / Gate:</td><td><b style="color:#5794f2;">{chosen_m['phase']}</b></td></tr>
+                          <tr><td style="color:var(--slate);">Environment:</td><td><b>{chosen_m['env']}</b></td></tr>
+                          <tr><td style="color:var(--slate);">Cutoff Deadline:</td><td><b style="color:#f2495c;">{chosen_m['cutoff_date']}</b></td></tr>
+                          <tr><td style="color:var(--slate);">Remaining Window:</td><td><b style="color:#ff9830;">{chosen_m['status_label']}</b></td></tr>
+                        </table>
+                        <p style="font-size:9.5px;color:var(--mute);">All code freezes, test run artifacts, and compliance exit criteria must be completed prior to 17:00 local state time on the cutoff date.</p>
+                      </div>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -2693,8 +2832,12 @@ if diff_info is not None:
 def render_rbac_workspace() -> None:
     """
     Dedicated Role-Based Access Control (RBAC) & Enterprise Security Audit Console.
-    Provides user identity provisioning, role configuration (Admin, Operator, Auditor, Viewer),
-    and immutable security audit logging with compliance CSV export.
+    Strictly follows Grafana Flat Design System tokens:
+      - 2px sharp corners across cards, panels, and chips
+      - #181b1f panel backgrounds, #141619 sunken headers/tiles, #2c3235 borders
+      - Grafana stat cards (ui.grafana_stat_card)
+      - Grafana alert chips (.alert-chip.firing, .alert-chip.pending, .alert-chip.ok)
+      - Monospace tabular data
     """
     conn = get_connection(DB_PATH)
     users = get_users(conn)
@@ -2708,46 +2851,84 @@ def render_rbac_workspace() -> None:
     viewer_count = sum(1 for u in users if u["role"] == "Viewer")
     total_audit_events = len(audit_logs)
 
-    # Top Security Posture & Identity Strip
+    # 1. Grafana Metric Ribbon (4 Stat Panels)
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    with rc1:
+        st.markdown(ui.grafana_stat_card(
+            label="Total Enterprise Users",
+            value=f"{total_users} Accounts",
+            color="#5794f2",
+            subtext=f"{admin_count} Admin · {op_count} Operator · {audit_count} Auditor",
+            badge="DIRECTORY",
+            sparkline_vals=[1, 2, 3, total_users],
+            delta="RBAC Active",
+            state="ok",
+        ), unsafe_allow_html=True)
+    with rc2:
+        st.markdown(ui.grafana_stat_card(
+            label="Security Administrators",
+            value=f"{admin_count} Admin",
+            color="#f2495c",
+            subtext="Privileged enterprise access",
+            badge="PRIVILEGED",
+            sparkline_vals=[1, 1, 1, 1],
+            delta="Zero-Trust Root",
+            state="firing",
+        ), unsafe_allow_html=True)
+    with rc3:
+        st.markdown(ui.grafana_stat_card(
+            label="Operational Personnel",
+            value=f"{op_count} Operators",
+            color="#73bf69",
+            subtext="AK, ND, NH State RM Entitlements",
+            badge="ISOLATED",
+            sparkline_vals=[1, 2, 3, op_count],
+            delta="Silent RBAC Scope",
+            state="ok",
+        ), unsafe_allow_html=True)
+    with rc4:
+        st.markdown(ui.grafana_stat_card(
+            label="Security Audit Density",
+            value=f"{total_audit_events} Events",
+            color="#ff9830",
+            subtext="Immutable event ledger active",
+            badge="IMMUTABLE",
+            sparkline_vals=[90, 100, 110, total_audit_events],
+            delta="PBKDF2-SHA256",
+            state="pending",
+        ), unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
+
+    # 2. Security Posture Strip (Grafana Panel)
     st.markdown(f"""
-    <div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:36px;height:36px;border-radius:6px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;">
-          🔐
-        </div>
-        <div>
-          <div style="font-size:13px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">ACCESS CONTROL & AUDIT TRAIL (RBAC)</div>
-          <div style="font-size:10px;color:#94a3b8;font-family:var(--mono);">Zero-Trust Enterprise Identity & Compliance System</div>
-        </div>
+    <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid #5794f2;border-radius:2px;padding:8px 12px;margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:13px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">Access Control &amp; Audit Trail (RBAC)</span>
+        <span style="font-size:9.5px;color:var(--slate);font-family:var(--mono);">Zero-Trust Enterprise Identity &amp; Compliance System</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--mono);">
-        <span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#34d399;padding:3px 8px;border-radius:4px;font-weight:600;">
-          🛡️ PBKDF2-SHA256
-        </span>
-        <span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;padding:3px 8px;border-radius:4px;font-weight:600;">
-          ⚡ WAL Mode
-        </span>
-        <span style="background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.3);color:#c084fc;padding:3px 8px;border-radius:4px;font-weight:600;">
-          🔒 TLS 1.2+ Transport
-        </span>
+      <div style="display:flex;align-items:center;gap:6px;font-size:9.5px;font-family:var(--mono);">
+        <span class="alert-chip ok">🛡️ PBKDF2-SHA256</span>
+        <span class="alert-chip pending">⚡ WAL Mode</span>
+        <span class="alert-chip ok">🔒 TLS 1.2+ Transport</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Sub-tabs for RBAC workspace
+    # 3. Sub-tabs for RBAC workspace
     subtab_users, subtab_audit = st.tabs([
-        "👥 Enterprise User Management",
+        "👥 Enterprise User Directory & Provisioning",
         "🛡️ Compliance & Security Audit Trail",
     ])
 
     with subtab_users:
-        uc1, uc2 = st.columns([1.1, 1.9])
+        uc1, uc2 = st.columns([1.1, 1.9], gap="medium")
 
         with uc1:
+            st.markdown(ui.panel_header("Provision Enterprise User", color="#5794f2", count="Admin Only"), unsafe_allow_html=True)
             st.markdown("""
-            <div style="background:#141b26;border:1px solid #1e293b;border-radius:6px;padding:12px 14px;margin-bottom:10px;">
-              <div style="font-size:12px;font-weight:700;color:#f8fafc;margin-bottom:2px;">➕ PROVISION ENTERPRISE USER</div>
-              <div style="font-size:10.5px;color:#94a3b8;line-height:1.4;">Add authenticated credentials with explicit role entitlement. Passwords are automatically hashed via PBKDF2-HMAC-SHA256 with cryptographically generated 16-byte salts.</div>
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:10px 12px;margin-bottom:8px;">
+              <div style="font-size:10px;color:var(--slate);line-height:1.4;">Add authenticated credentials with explicit role entitlement. Passwords are salted and hashed via PBKDF2-HMAC-SHA256.</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -2759,12 +2940,12 @@ def render_rbac_workspace() -> None:
                 new_role = st.selectbox("Assign Enterprise Role *", ["Operator", "Viewer", "Auditor", "Admin"], index=0, key="rbac_user_role")
 
                 st.markdown("""
-                <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;padding:6px 8px;font-size:9.5px;color:#94a3b8;margin-bottom:10px;line-height:1.4;">
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;font-size:9.5px;color:var(--slate);margin-bottom:8px;line-height:1.4;">
                   <b>Role Entitlements:</b><br/>
-                  &bull; <span style="color:#ef4444;font-weight:600;">Admin</span>: Full system access, user management, sync, alert dispatch.<br/>
-                  &bull; <span style="color:#38bdf8;font-weight:600;">Operator</span>: Expiry date renewals, maintenance cadence updates.<br/>
-                  &bull; <span style="color:#c084fc;font-weight:600;">Auditor</span>: Read-only access to all dashboards & compliance audit log.<br/>
-                  &bull; <span style="color:#94a3b8;font-weight:600;">Viewer</span>: Executive Command Center & Operations view only.
+                  &bull; <span class="alert-chip firing" style="font-size:8px;">Admin</span>: Full system access, user management, alert dispatch.<br/>
+                  &bull; <span class="alert-chip pending" style="font-size:8px;">Operator</span>: Expiry date renewals, maintenance cadence updates.<br/>
+                  &bull; <span class="alert-chip ok" style="font-size:8px;">Auditor</span>: Read-only access to all dashboards &amp; audit log.<br/>
+                  &bull; <span class="alert-chip ok" style="font-size:8px;">Viewer</span>: Executive Command Center &amp; Operations view only.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -2800,51 +2981,42 @@ def render_rbac_workspace() -> None:
                             st.error(f"Failed to create user: {ex}")
 
         with uc2:
-            st.markdown(f"""
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <div style="font-size:12px;font-weight:700;color:#f8fafc;">ACTIVE USER DIRECTORY ({total_users} ACCOUNTS)</div>
-              <div style="font-size:10px;color:#94a3b8;font-family:var(--mono);display:flex;gap:6px;">
-                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{admin_count} Admin</span>
-                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{op_count} Operator</span>
-                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{audit_count} Auditor</span>
-                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{viewer_count} Viewer</span>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(ui.panel_header(f"Active User Directory ({total_users} Accounts)", color="#73bf69", count=f"{admin_count} Admin · {op_count} Op · {audit_count} Aud"), unsafe_allow_html=True)
 
-            role_colors = {
-                "Admin": "background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);",
-                "Operator": "background:rgba(56,189,248,0.15);color:#7dd3fc;border:1px solid rgba(56,189,248,0.35);",
-                "Auditor": "background:rgba(168,85,247,0.15);color:#d8b4fe;border:1px solid rgba(168,85,247,0.35);",
-                "Viewer": "background:rgba(148,163,184,0.15);color:#cbd5e1;border:1px solid rgba(148,163,184,0.35);",
+            role_chips = {
+                "Admin": '<span class="alert-chip firing">Admin</span>',
+                "Operator": '<span class="alert-chip pending">Operator</span>',
+                "Auditor": '<span class="alert-chip ok">Auditor</span>',
+                "Viewer": '<span class="alert-chip ok">Viewer</span>',
             }
 
             user_rows_html = []
-            for u in users:
-                rc = role_colors.get(u["role"], role_colors["Viewer"])
+            for idx, u in enumerate(users):
+                rc = role_chips.get(u["role"], '<span class="alert-chip ok">Viewer</span>')
                 created_str = u.get("created_at", "")[:19].replace("T", " ")
+                row_bg = "#181b1f" if idx % 2 == 0 else "#141619"
                 user_rows_html.append(
-                    f"<tr>"
-                    f"<td style='font-family:var(--mono);font-weight:700;color:#f8fafc;'>{u['username']}</td>"
-                    f"<td style='color:#e2e8f0;'>{u.get('full_name') or '—'}</td>"
-                    f"<td style='color:#94a3b8;font-size:11px;'>{u.get('email') or '—'}</td>"
-                    f"<td><span class='pill' style='font-size:9.5px;padding:2px 7px;border-radius:3px;font-weight:700;{rc}'>{u['role']}</span></td>"
-                    f"<td style='font-family:var(--mono);font-size:10.5px;color:#94a3b8;'>{created_str}</td>"
-                    f"<td><span style='color:#34d399;font-weight:700;font-size:10.5px;'>Active</span></td>"
+                    f"<tr style='background:{row_bg};border-bottom:1px solid #22252b;font-size:11.5px;'>"
+                    f"<td style='padding:6px 10px;font-family:var(--mono);font-weight:700;color:var(--ink);'>{u['username']}</td>"
+                    f"<td style='padding:6px 10px;color:var(--slate);'>{u.get('full_name') or '—'}</td>"
+                    f"<td style='padding:6px 10px;color:var(--slate);font-size:11px;font-family:var(--mono);'>{u.get('email') or '—'}</td>"
+                    f"<td style='padding:6px 10px;'>{rc}</td>"
+                    f"<td style='padding:6px 10px;font-family:var(--mono);font-size:10.5px;color:var(--mute);'>{created_str}</td>"
+                    f"<td style='padding:6px 10px;'><span class='alert-chip ok'>ACTIVE</span></td>"
                     f"</tr>"
                 )
 
             table_html = f"""
-            <div style="border:1px solid #1e293b;border-radius:6px;overflow:hidden;background:#0d131f;margin-bottom:12px;">
-              <table class="tblx" style="width:100%;border-collapse:collapse;font-size:11.5px;">
+            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;margin-bottom:10px;">
+              <table style="width:100%;border-collapse:collapse;text-align:left;">
                 <thead>
-                  <tr style="background:#141b26;border-bottom:1px solid #1e293b;">
-                    <th>Username</th>
-                    <th>Full Name</th>
-                    <th>Email</th>
-                    <th>Assigned Role</th>
-                    <th>Provisioned (UTC)</th>
-                    <th>Status</th>
+                  <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;">
+                    <th style="padding:6px 10px;">Username</th>
+                    <th style="padding:6px 10px;">Full Name</th>
+                    <th style="padding:6px 10px;">Email</th>
+                    <th style="padding:6px 10px;">Assigned Role</th>
+                    <th style="padding:6px 10px;">Provisioned (UTC)</th>
+                    <th style="padding:6px 10px;">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2898,17 +3070,7 @@ def render_rbac_workspace() -> None:
                             rerun()
 
     with subtab_audit:
-        st.markdown(f"""
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <div>
-            <div style="font-size:12px;font-weight:700;color:#f8fafc;">IMMUTABLE SECURITY AUDIT TRAIL</div>
-            <div style="font-size:10.5px;color:#94a3b8;">Cryptographically anchored administrative, configuration, and alerting event log.</div>
-          </div>
-          <div style="font-family:var(--mono);font-size:11px;color:#38bdf8;background:rgba(56,189,248,0.1);padding:4px 9px;border-radius:4px;border:1px solid rgba(56,189,248,0.25);">
-            {total_audit_events} Events Recorded
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(ui.panel_header("Immutable Security Audit Trail", color="#5794f2", count=f"{total_audit_events} Events Recorded"), unsafe_allow_html=True)
 
         aud_f1, aud_f2, aud_f3 = st.columns([1.5, 1.5, 1.0])
         with aud_f1:
@@ -2948,44 +3110,45 @@ def render_rbac_workspace() -> None:
                 or sq in str(l.get("action", "")).lower()
             ]
 
-        action_pill_styles = {
-            "SYSTEM_INITIALIZATION": "background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);",
-            "USER_CREATED": "background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);",
-            "USER_DELETED": "background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);",
-            "ROLE_MODIFIED": "background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3);",
-            "EXPIRY_EDITED": "background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);",
-            "EMAIL_DISPATCHED": "background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);",
+        action_chips = {
+            "SYSTEM_INITIALIZATION": '<span class="alert-chip ok">SYSTEM_INIT</span>',
+            "USER_CREATED": '<span class="alert-chip ok">USER_CREATED</span>',
+            "USER_DELETED": '<span class="alert-chip firing">USER_DELETED</span>',
+            "ROLE_MODIFIED": '<span class="alert-chip pending">ROLE_MODIFIED</span>',
+            "EXPIRY_EDITED": '<span class="alert-chip pending">EXPIRY_EDITED</span>',
+            "EMAIL_DISPATCHED": '<span class="alert-chip ok">EMAIL_SENT</span>',
         }
 
         audit_rows_html = []
-        for a in filtered_logs[:100]:
-            pill_style = action_pill_styles.get(a["action"], "background:rgba(148,163,184,0.15);color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);")
+        for idx, a in enumerate(filtered_logs[:100]):
+            chip = action_chips.get(a["action"], f'<span class="alert-chip ok">{a["action"]}</span>')
             ts_str = a.get("timestamp", "")[:19].replace("T", " ")
+            row_bg = "#181b1f" if idx % 2 == 0 else "#141619"
             audit_rows_html.append(
-                f"<tr>"
-                f"<td style='font-family:var(--mono);font-size:10.5px;color:#94a3b8;white-space:nowrap;'>{ts_str}</td>"
-                f"<td style='font-weight:700;color:#f8fafc;font-family:var(--mono);'>{a.get('actor', 'system')}</td>"
-                f"<td style='font-size:10px;color:#94a3b8;'>{a.get('role', 'Viewer')}</td>"
-                f"<td><span class='pill' style='font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;white-space:nowrap;{pill_style}'>{a['action']}</span></td>"
-                f"<td style='font-weight:600;color:#e2e8f0;font-size:11px;'>{a.get('target_entity', '—')}</td>"
-                f"<td style='color:#94a3b8;font-size:11px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{a.get('details', '')}</td>"
-                f"<td style='font-family:var(--mono);font-size:10px;color:#64748b;'>{a.get('ip_address', '127.0.0.1')}</td>"
+                f"<tr style='background:{row_bg};border-bottom:1px solid #22252b;font-size:11px;'>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--mute);white-space:nowrap;'>{ts_str}</td>"
+                f"<td style='padding:5px 8px;font-weight:700;color:var(--ink);font-family:var(--mono);'>{a.get('actor', 'system')}</td>"
+                f"<td style='padding:5px 8px;font-size:10px;color:var(--slate);'>{a.get('role', 'Viewer')}</td>"
+                f"<td style='padding:5px 8px;'>{chip}</td>"
+                f"<td style='padding:5px 8px;font-weight:600;color:var(--text);font-size:10.5px;'>{a.get('target_entity', '—')}</td>"
+                f"<td style='padding:5px 8px;color:var(--slate);font-size:10.5px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{a.get('details', '')}</td>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--mute);'>{a.get('ip_address', '127.0.0.1')}</td>"
                 f"</tr>"
             )
 
-        audit_body_content = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No audit records match the current filter.</td></tr>'
+        audit_body_content = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--mute);">No audit records match the current filter.</td></tr>'
         audit_table_html = f"""
-        <div style="border:1px solid #1e293b;border-radius:6px;overflow:hidden;background:#0d131f;max-height:480px;overflow-y:auto;">
-          <table class="tblx" style="width:100%;border-collapse:collapse;font-size:11px;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:480px;overflow-y:auto;">
+          <table style="width:100%;border-collapse:collapse;text-align:left;">
             <thead>
-              <tr style="background:#141b26;border-bottom:1px solid #1e293b;position:sticky;top:0;z-index:2;">
-                <th>Timestamp (UTC)</th>
-                <th>Actor</th>
-                <th>Role</th>
-                <th>Action Category</th>
-                <th>Target Entity</th>
-                <th>Audit Details</th>
-                <th>Source IP</th>
+              <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
+                <th style="padding:5px 8px;">Timestamp (UTC)</th>
+                <th style="padding:5px 8px;">Actor</th>
+                <th style="padding:5px 8px;">Role</th>
+                <th style="padding:5px 8px;">Action Category</th>
+                <th style="padding:5px 8px;">Target Entity</th>
+                <th style="padding:5px 8px;">Audit Details</th>
+                <th style="padding:5px 8px;">Source IP</th>
               </tr>
             </thead>
             <tbody>

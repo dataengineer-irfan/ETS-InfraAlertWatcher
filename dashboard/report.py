@@ -125,7 +125,7 @@ _CSS = r"""
 }
 
 *{ box-sizing:border-box; }
-html,body{ height:100%; margin:0; overflow:hidden; }
+html,body{ height:100%; margin:0; overflow-y:auto; overflow-x:hidden; }
 body{
   background:var(--paper); color:var(--ink); font-family:var(--ui);
   font-size:12px; line-height:1.35;
@@ -794,19 +794,19 @@ body{
   height:100%; min-height:0; overflow:hidden;
 }
 .triage-col{
-  display:flex; flex-direction:column; gap:6px; height:100%; min-height:0; overflow:hidden;
+  display:flex; flex-direction:column; gap:4px; height:100%; min-height:0; overflow-y:auto; overflow-x:hidden;
 }
 .triage-col-header{
   display:flex; align-items:center; justify-content:space-between;
   font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
-  color:var(--slate); padding:2px 4px 4px; border-bottom:1px solid var(--rule);
+  color:var(--slate); padding:2px 4px 3px; border-bottom:1px solid var(--rule);
   flex:none;
 }
 .team-row{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding:4px 8px; border-radius:3px; background:rgba(255,255,255,0.02);
+  display:flex; align-items:center; justify-content:space-between; gap:6px;
+  padding:2px 6px; border-radius:2px; background:rgba(255,255,255,0.02);
   border:1px solid rgba(255,255,255,0.04); cursor:pointer; transition:all .15s ease;
-  min-height:36px; flex:1;
+  min-height:22px; flex:none;
 }
 .team-row:hover{
   background:rgba(56,189,248,0.08); border-color:rgba(56,189,248,0.3);
@@ -816,14 +816,14 @@ body{
   box-shadow:0 0 6px rgba(56,189,248,0.25);
 }
 .team-bar-wrap{
-  display:flex; height:8px; width:80px; border-radius:2px; overflow:hidden;
+  display:flex; height:6px; width:70px; border-radius:2px; overflow:hidden;
   background:rgba(255,255,255,0.06); flex:none;
 }
 .cluster-card{
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-  padding:8px 10px; border-radius:3px; background:rgba(255,255,255,0.02);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:4px 8px; border-radius:2px; background:rgba(255,255,255,0.02);
   border:1px solid var(--rule); border-left:3px solid var(--accent);
-  transition:all .15s ease; cursor:pointer; min-height:62px; flex:1;
+  transition:all .15s ease; cursor:pointer; min-height:38px; flex:none;
 }
 .cluster-card:hover{
   background:rgba(255,255,255,0.04); border-color:rgba(56,189,248,0.4);

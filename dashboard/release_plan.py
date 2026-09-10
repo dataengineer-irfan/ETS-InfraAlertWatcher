@@ -9,12 +9,13 @@ Strictly follows Grafana Flat Design System tokens:
   - Grafana alert chips (.alert-chip.firing, .alert-chip.pending, .alert-chip.ok)
   - Monospace tabular dates and telemetry
   - Zero narrative banners; silent RBAC isolation under the hood
+  - Release cutoff alert strip: DEV/SIT/UAT/Go-NoGo/PROD countdown chips
 """
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
 import streamlit as st
 
@@ -29,6 +30,16 @@ def render_html(html_str: str) -> None:
     """Render HTML safely without markdown 4-space code-block escaping."""
     cleaned = "\n".join(line.strip() for line in html_str.splitlines() if line.strip())
     st.markdown(cleaned, unsafe_allow_html=True)
+
+
+def _days_between(d1: str | None, d2: str) -> int | None:
+    """Return integer days between date strings. Positive = d1 is in future."""
+    if not d1:
+        return None
+    try:
+        return (datetime.strptime(d1, "%Y-%m-%d").date() - datetime.strptime(d2, "%Y-%m-%d").date()).days
+    except Exception:
+        return None
 
 
 def _calc_stage_pill(s_date: str | None, f_date: str | None, now_iso: str) -> tuple[str, str, str, str]:
@@ -85,6 +96,84 @@ def _get_stage_info(r: dict, now_iso: str) -> tuple[str, str, str]:
     return "Scheduled Roadmap", "Pipeline", "SCHEDULED"
 
 
+def _build_alert_chips(releases: list[dict], now_iso: str) -> list[dict]:
+    """
+    Scan all releases and return list of cutoff alert dicts:
+    { release_id, state, phase, date, days, chip_cls, label }
+    Thresholds: PROD ≤3d (firing), Go/NoGo ≤2d (firing),
+                DEV/SIT/UAT ≤7d (pending), any gate overdue (firing)
+    """
+    alerts = []
+    for r in releases:
+        rid = r.get("release_id", "")
+        st_code = r.get("state", "")
+        p_d = r.get("prod_deploy_date")
+
+        # Skip already-deployed
+        if p_d and p_d < now_iso:
+            continue
+
+        # DEV freeze
+        dev_f = r.get("dev_end_date")
+        d = _days_between(dev_f, now_iso)
+        if d is not None:
+            if d < 0:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "DEV FREEZE",
+                                "date": dev_f, "days": d, "chip_cls": "firing", "label": f"DEV FREEZE OVERDUE {abs(d)}d"})
+            elif d <= 7:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "DEV FREEZE",
+                                "date": dev_f, "days": d, "chip_cls": "pending",
+                                "label": f"DEV FREEZE IN {d}d" if d > 0 else "DEV FREEZE TODAY"})
+
+        # SIT gate
+        sit_f = r.get("sit_end_date")
+        d = _days_between(sit_f, now_iso)
+        if d is not None:
+            if d < 0:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "SIT GATE",
+                                "date": sit_f, "days": d, "chip_cls": "firing", "label": f"SIT GATE OVERDUE {abs(d)}d"})
+            elif d <= 7:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "SIT GATE",
+                                "date": sit_f, "days": d, "chip_cls": "pending",
+                                "label": f"SIT GATE IN {d}d" if d > 0 else "SIT GATE TODAY"})
+
+        # UAT gate
+        uat_f = r.get("uat_end_date")
+        d = _days_between(uat_f, now_iso)
+        if d is not None:
+            if d < 0:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "UAT GATE",
+                                "date": uat_f, "days": d, "chip_cls": "firing", "label": f"UAT GATE OVERDUE {abs(d)}d"})
+            elif d <= 7:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "UAT GATE",
+                                "date": uat_f, "days": d, "chip_cls": "pending",
+                                "label": f"UAT GATE IN {d}d" if d > 0 else "UAT GATE TODAY"})
+
+        # Go/NoGo
+        gn_d = r.get("go_nogo_date")
+        d = _days_between(gn_d, now_iso)
+        if d is not None:
+            if d < 0:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "GO/NOGO",
+                                "date": gn_d, "days": d, "chip_cls": "firing", "label": f"GO/NOGO OVERDUE {abs(d)}d"})
+            elif d <= 2:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "GO/NOGO",
+                                "date": gn_d, "days": d, "chip_cls": "firing",
+                                "label": f"GO/NOGO IN {d}d" if d > 0 else "GO/NOGO TODAY"})
+
+        # PROD cutover
+        d = _days_between(p_d, now_iso)
+        if d is not None:
+            if d == 0:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "CUTOVER",
+                                "date": p_d, "days": 0, "chip_cls": "firing", "label": "CUTOVER TODAY"})
+            elif d <= 3:
+                alerts.append({"release_id": rid, "state": st_code, "phase": "CUTOVER",
+                                "date": p_d, "days": d, "chip_cls": "firing", "label": f"CUTOVER IN {d}d"})
+
+    return alerts
+
+
 def render_release_plan_workspace(db_path: str) -> None:
     """Render Grafana-grade Schedule Release Plan workspace."""
     conn = get_connection(db_path)
@@ -117,7 +206,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         <div style="display:flex;align-items:center;gap:10px;padding:3px 0 6px 0;border-left:3px solid var(--accent);padding-left:8px;">
           <div>
             <div style="font-size:14px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">
-              Schedule Release Plan & Environment Pipeline
+              Schedule Release Plan &amp; Environment Pipeline
             </div>
             <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:1px;">
               CURRENT CUTOVER FOCUS • ACTIVE IN-FLIGHT PIPELINE • UPCOMING ROADMAP
@@ -174,10 +263,10 @@ def render_release_plan_workspace(db_path: str) -> None:
         rid = r["release_id"]
         p_d = r.get("prod_deploy_date", "")
         d_s = r.get("dev_start_date")
-        
+
         if rid in current_ids:
             continue
-            
+
         if p_d < now_iso:
             completed_releases.append(r)
         elif r["status"] == "In Progress" or (d_s and d_s <= now_iso <= p_d):
@@ -194,7 +283,7 @@ def render_release_plan_workspace(db_path: str) -> None:
     cur_label = cur_rel["release_id"] if cur_rel else "None"
     cur_date = cur_rel["prod_deploy_date"] if cur_rel else "—"
     cur_state = cur_rel["state"] if cur_rel else ""
-    
+
     days_to_cutover = 0
     try:
         days_to_cutover = (datetime.strptime(cur_date, "%Y-%m-%d").date() - datetime.strptime(now_iso, "%Y-%m-%d").date()).days
@@ -265,7 +354,49 @@ def render_release_plan_workspace(db_path: str) -> None:
             state="ok" if avg_readiness >= 80 else "pending",
         ), unsafe_allow_html=True)
 
-    st.markdown('<div style="margin-top:6px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:4px;"></div>', unsafe_allow_html=True)
+
+    # --------------------------------------------------------------------------
+    # 5. RELEASE CUTOFF ALERT STRIP (DEV / SIT / UAT / GO-NOGO / PROD)
+    # --------------------------------------------------------------------------
+    alert_chips = _build_alert_chips(all_releases, now_iso)
+
+    if alert_chips:
+        # Deduplicate — prioritize firing over pending for same release+phase
+        seen = {}
+        for a in alert_chips:
+            key = f"{a['release_id']}_{a['phase']}"
+            if key not in seen or a["chip_cls"] == "firing":
+                seen[key] = a
+        deduped = list(seen.values())
+        # Sort: firing first, then by days ascending
+        deduped.sort(key=lambda x: (0 if x["chip_cls"] == "firing" else 1, x["days"]))
+
+        chips_html = ""
+        for a in deduped:
+            state_badge = f'<span style="font-size:8px;font-weight:700;color:var(--slate);background:#141619;border:1px solid #2c3235;padding:0px 4px;border-radius:2px;margin-right:2px;">{a["state"]}</span>'
+            rel_badge = f'<span style="font-size:8px;font-weight:700;color:var(--mute);margin-right:4px;font-family:var(--mono);">{a["release_id"]}</span>'
+            chips_html += f'<span style="display:inline-flex;align-items:center;gap:2px;margin-right:6px;">{state_badge}{rel_badge}<span class="alert-chip {a["chip_cls"]}" style="font-size:9px;">{a["label"]}</span></span>'
+
+        n_firing = sum(1 for a in deduped if a["chip_cls"] == "firing")
+        n_pending = sum(1 for a in deduped if a["chip_cls"] == "pending")
+        severity_txt = f'<span style="color:#f2495c;font-weight:700;font-size:9px;">{n_firing} FIRING</span>' if n_firing else ''
+        pending_txt = f'<span style="color:#ff9830;font-weight:700;font-size:9px;">{n_pending} PENDING</span>' if n_pending else ''
+        dot_color = "#f2495c" if n_firing else "#ff9830"
+
+        render_html(f"""
+        <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid {dot_color};border-radius:2px;padding:6px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;flex:none;">
+            <span style="width:7px;height:7px;border-radius:50%;background:{dot_color};box-shadow:0 0 6px {dot_color};display:inline-block;"></span>
+            <span style="font-size:10px;font-weight:700;color:var(--ink);letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;">Release Gate Alerts</span>
+            <span style="display:flex;gap:5px;">{severity_txt}{pending_txt}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;flex:1;">
+            {chips_html}
+          </div>
+          <div style="flex:none;font-size:9px;color:var(--mute);white-space:nowrap;font-family:var(--mono);">{len(deduped)} gate event{'s' if len(deduped)!=1 else ''}</div>
+        </div>
+        """)
 
     # --------------------------------------------------------------------------
     # SECTION 1: HERO CURRENT RELEASE FLIGHT DECK (Grafana Panel Chrome)
@@ -294,11 +425,30 @@ def render_release_plan_workspace(db_path: str) -> None:
             env_name_uat = "ENV04 UAT" if cur_rel_item["state"] == "NH" else "State Acceptance"
             env_name_prod = "ENV05 Live" if cur_rel_item["state"] == "NH" else "PROD Cutover"
 
-            top_border_dev = "#73bf69" if "COMPLETED" in stg_dev_l else ("#5794f2" if "IN PROGRESS" in stg_dev_l else "var(--rule)")
-            top_border_sit = "#73bf69" if "COMPLETED" in stg_sit_l else ("#5794f2" if "IN PROGRESS" in stg_sit_l else "var(--rule)")
-            top_border_uat = "#73bf69" if "COMPLETED" in stg_uat_l else ("#5794f2" if "IN PROGRESS" in stg_uat_l else "var(--rule)")
-            top_border_gn = "#73bf69" if "COMPLETED" in stg_gn_l else ("#ff9830" if "IN PROGRESS" in stg_gn_l else "var(--rule)")
+            top_border_dev = "#73bf69" if "COMPLETED" in stg_dev_l else ("#5794f2" if "ACTIVE" in stg_dev_l else "var(--rule)")
+            top_border_sit = "#73bf69" if "COMPLETED" in stg_sit_l else ("#5794f2" if "ACTIVE" in stg_sit_l else "var(--rule)")
+            top_border_uat = "#73bf69" if "COMPLETED" in stg_uat_l else ("#5794f2" if "ACTIVE" in stg_uat_l else "var(--rule)")
+            top_border_gn = "#73bf69" if "COMPLETED" in stg_gn_l else ("#ff9830" if "ACTIVE" in stg_gn_l else "var(--rule)")
             top_border_prod = "#73bf69" if "COMPLETED" in stg_prod_l else ("#f2495c" if "TODAY" in stg_prod_l else "var(--rule)")
+
+            # Cutoff countdown chips for each stage
+            def _stage_countdown(end_date: str | None, now: str, phase: str) -> str:
+                d = _days_between(end_date, now)
+                if end_date is None or d is None:
+                    return ""
+                if d < 0:
+                    return f'<span style="font-size:8px;color:#f2495c;font-weight:700;font-family:var(--mono);">{abs(d)}d OVERDUE</span>'
+                elif d == 0:
+                    return f'<span style="font-size:8px;color:#f2495c;font-weight:700;font-family:var(--mono);">CUTOFF TODAY</span>'
+                elif d <= 7:
+                    return f'<span style="font-size:8px;color:#ff9830;font-weight:700;font-family:var(--mono);">{d}d to gate</span>'
+                return ""
+
+            dev_cd = _stage_countdown(dev_f, now_iso, "DEV")
+            sit_cd = _stage_countdown(sit_f, now_iso, "SIT")
+            uat_cd = _stage_countdown(uat_f, now_iso, "UAT")
+            gn_cd = _stage_countdown(gn_d, now_iso, "GoNoGo")
+            prod_cd = _stage_countdown(p_d, now_iso, "PROD")
 
             render_html(f"""
             <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid #f2495c;border-radius:2px;padding:12px 14px;margin-bottom:12px;">
@@ -321,11 +471,12 @@ def render_release_plan_workspace(db_path: str) -> None:
               <!-- Expanded 5-Stage Stepper Grid (Strict Grafana Tiles) -->
               <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:6px;">
                 <!-- 1. DEV -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_dev};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_dev};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:95px;">
                   <div>
                     <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">1. DEV BUILD</div>
                     <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_dev}</div>
                     <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{dev_s or '—'} ➔ {dev_f or '—'}</div>
+                    <div style="margin-top:3px;">{dev_cd}</div>
                   </div>
                   <div style="margin-top:6px;">
                     <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_dev_bg};color:{stg_dev_fg};border:1px solid {stg_dev_bd};">{stg_dev_l}</span>
@@ -333,11 +484,12 @@ def render_release_plan_workspace(db_path: str) -> None:
                 </div>
 
                 <!-- 2. SIT -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_sit};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_sit};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:95px;">
                   <div>
                     <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">2. SIT REGRESSION</div>
                     <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_sit}</div>
                     <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{sit_s or '—'} ➔ {sit_f or '—'}</div>
+                    <div style="margin-top:3px;">{sit_cd}</div>
                   </div>
                   <div style="margin-top:6px;">
                     <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_sit_bg};color:{stg_sit_fg};border:1px solid {stg_sit_bd};">{stg_sit_l}</span>
@@ -345,11 +497,12 @@ def render_release_plan_workspace(db_path: str) -> None:
                 </div>
 
                 <!-- 3. UAT -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_uat};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_uat};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:95px;">
                   <div>
                     <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">3. STATE UAT</div>
                     <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_uat}</div>
                     <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{uat_s or '—'} ➔ {uat_f or '—'}</div>
+                    <div style="margin-top:3px;">{uat_cd}</div>
                   </div>
                   <div style="margin-top:6px;">
                     <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_uat_bg};color:{stg_uat_fg};border:1px solid {stg_uat_bd};">{stg_uat_l}</span>
@@ -357,11 +510,12 @@ def render_release_plan_workspace(db_path: str) -> None:
                 </div>
 
                 <!-- 4. GO/NO-GO -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_gn};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_gn};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:95px;">
                   <div>
                     <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">4. GO / NO-GO</div>
                     <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">Decision Board</div>
                     <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{gn_d or 'Pre-Cutover'}</div>
+                    <div style="margin-top:3px;">{gn_cd}</div>
                   </div>
                   <div style="margin-top:6px;">
                     <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_gn_bg};color:{stg_gn_fg};border:1px solid {stg_gn_bd};">{stg_gn_l}</span>
@@ -369,11 +523,12 @@ def render_release_plan_workspace(db_path: str) -> None:
                 </div>
 
                 <!-- 5. PROD CUTOVER -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_prod};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:85px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_prod};border-radius:2px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:95px;">
                   <div>
                     <div style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">5. PROD LIVE</div>
                     <div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_prod}</div>
                     <div style="font-size:10px;color:var(--ink);font-weight:700;font-family:var(--mono);margin-top:2px;">{p_d}</div>
+                    <div style="margin-top:3px;">{prod_cd}</div>
                   </div>
                   <div style="margin-top:6px;">
                     <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:2px;background:{stg_prod_bg};color:{stg_prod_fg};border:1px solid {stg_prod_bd};">{stg_prod_l}</span>
@@ -404,7 +559,11 @@ def render_release_plan_workspace(db_path: str) -> None:
             uat_str = f"{r.get('uat_start_date') or '—'} ➔ {r.get('uat_end_date') or '—'}"
             row_bg = "#181b1f" if idx % 2 == 0 else "#141619"
             readiness = r.get('readiness_pct', 0)
-            
+
+            # Compute days-to-cutover for urgency color
+            d2c = _days_between(r.get("prod_deploy_date"), now_iso)
+            cutover_color = "#f2495c" if (d2c is not None and d2c <= 3) else ("var(--ink)")
+
             row_html = f"""
             <tr style="background:{row_bg};border-bottom:1px solid #22252b;font-size:11.5px;">
               <td style="padding:6px 10px;"><span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:2px;background:#141619;border:1px solid #2c3235;color:var(--ink);font-family:var(--mono);">{r['state']}</span></td>
@@ -416,7 +575,7 @@ def render_release_plan_workspace(db_path: str) -> None:
               <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{dev_str}</td>
               <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{sit_str}</td>
               <td style="padding:6px 10px;color:var(--slate);font-family:var(--mono);font-size:11px;">{uat_str}</td>
-              <td style="padding:6px 10px;font-weight:700;color:var(--ink);font-family:var(--mono);font-size:11.5px;">{r['prod_deploy_date']}</td>
+              <td style="padding:6px 10px;font-weight:700;color:{cutover_color};font-family:var(--mono);font-size:11.5px;">{r['prod_deploy_date']}</td>
               <td style="padding:6px 10px;">
                 <div style="display:flex;align-items:center;gap:6px;min-width:90px;">
                   <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:1px;height:5px;overflow:hidden;">
@@ -437,7 +596,7 @@ def render_release_plan_workspace(db_path: str) -> None:
               <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;">
                 <th style="padding:6px 10px;">State</th>
                 <th style="padding:6px 10px;">Release ID</th>
-                <th style="padding:6px 10px;">Current Gate & Environment</th>
+                <th style="padding:6px 10px;">Current Gate &amp; Environment</th>
                 <th style="padding:6px 10px;">DEV Window</th>
                 <th style="padding:6px 10px;">SIT Window</th>
                 <th style="padding:6px 10px;">UAT Window</th>
