@@ -576,6 +576,125 @@ code, kbd, .mono, .num {{
   box-shadow: none !important;
 }}
 
+/* Sidebar Streamlit Button (Sign Out) in collapsed (48px) state: exactly 36x36px icon */
+[data-testid="stSidebar"][data-rail-state="collapsed"] [data-testid="stElementContainer"]:has(button[data-testid="stBaseButton-secondary"]),
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) [data-testid="stElementContainer"]:has(button[data-testid="stBaseButton-secondary"]),
+[data-testid="stSidebar"][data-rail-state="collapsed"] div.stTooltipHoverTarget,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) div.stTooltipHoverTarget,
+[data-testid="stSidebar"][data-rail-state="collapsed"] div.stButton,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) div.stButton {{
+  width: 100% !important;
+  margin: 6px 0 0 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] button[data-testid="stBaseButton-secondary"],
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) button[data-testid="stBaseButton-secondary"] {{
+  width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  max-width: 36px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 2px !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #fca5a5 !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  transition: all 0.1s ease !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] button[data-testid="stBaseButton-secondary"]:hover,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) button[data-testid="stBaseButton-secondary"]:hover {{
+  background: rgba(239, 68, 68, 0.22) !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] button[data-testid="stBaseButton-secondary"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) button[data-testid="stBaseButton-secondary"] [data-testid="stMarkdownContainer"] {{
+  width: 20px !important;
+  height: 20px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="collapsed"] button[data-testid="stBaseButton-secondary"] p,
+[data-testid="stSidebar"]:not([data-rail-state="expanded"]) button[data-testid="stBaseButton-secondary"] p {{
+  font-size: 15px !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 18px !important;
+  max-width: 18px !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: clip !important;
+  text-align: center !important;
+}}
+
+/* Sidebar Streamlit Button (Sign Out) in expanded (260px) state: full width */
+[data-testid="stSidebar"][data-rail-state="expanded"] [data-testid="stElementContainer"]:has(button[data-testid="stBaseButton-secondary"]),
+[data-testid="stSidebar"][data-rail-state="expanded"] div.stTooltipHoverTarget,
+[data-testid="stSidebar"][data-rail-state="expanded"] div.stButton {{
+  width: 100% !important;
+  margin: 6px 0 0 0 !important;
+  padding: 0 !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="expanded"] button[data-testid="stBaseButton-secondary"] {{
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 8px 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  border-radius: 2px !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  color: #fca5a5 !important;
+  box-shadow: none !important;
+  transition: all 0.1s ease !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="expanded"] button[data-testid="stBaseButton-secondary"]:hover {{
+  background: rgba(239, 68, 68, 0.22) !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="expanded"] button[data-testid="stBaseButton-secondary"] [data-testid="stMarkdownContainer"] {{
+  width: 100% !important;
+  max-width: 100% !important;
+  text-align: left !important;
+}}
+
+[data-testid="stSidebar"][data-rail-state="expanded"] button[data-testid="stBaseButton-secondary"] p {{
+  margin: 0 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: #fca5a5 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}}
+
 /* Dynamic sibling push for main dashboard canvas */
 [data-testid="stSidebar"][data-rail-state="collapsed"] + div,
 [data-testid="stSidebar"]:not([data-rail-state="expanded"]) + div,

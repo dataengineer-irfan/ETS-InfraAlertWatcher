@@ -3237,9 +3237,9 @@ function initParentSidebarEngine() {
     }
 
     function handleNavClick(e) {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
       const navBtn = e ? (e.target ? e.target.closest('.ets-nav-item') : (e.getAttribute ? e : null)) : null;
       if (!navBtn) return;
+      if (e) { e.preventDefault(); e.stopPropagation(); }
       const idx = parseInt(navBtn.getAttribute('data-nav-idx'), 10);
       if (isNaN(idx)) return;
       const topTabs = pDoc.querySelectorAll('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] [role="tab"]');

@@ -2864,7 +2864,8 @@ def render_rbac_workspace() -> None:
 # Left Toggle Bar (Collapsible Enterprise Navigation Rail)
 # ==========================================================================
 with st.sidebar:
-    st.markdown("""
+    active_u = st.session_state.get("active_user", "admin")
+    st.markdown(f"""
     <!-- Top Rail Header: Toggle button + Brand -->
     <div class="rail-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 10px;border-bottom:1px solid #1e293b;margin-bottom:10px;">
       <div class="rail-brand-group" style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;">
@@ -2904,7 +2905,27 @@ with st.sidebar:
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Access Control (RBAC)</span>
       </button>
     </div>
+    """, unsafe_allow_html=True)
 
+    if st.button("🚪 Sign Out", key="sidebar_logout_btn", help=f"Sign Out ({active_u})", use_container_width=True):
+        conn = get_connection(DB_PATH)
+        log_audit_event(
+            conn,
+            actor=st.session_state.get("active_user", "anonymous"),
+            role=st.session_state.get("user_role", "Viewer"),
+            action="USER_LOGOUT",
+            target_entity="Auth System",
+            details="User signed out of Watchtower session.",
+            ip_address="127.0.0.1",
+        )
+        conn.close()
+        st.session_state["authenticated"] = False
+        st.session_state["active_user"] = None
+        st.session_state["user_role"] = None
+        st.session_state["user_full_name"] = None
+        st.rerun()
+
+    st.markdown("""
     <!-- Live Fleet Telemetry (Visible when expanded) -->
     <div class="nav-telemetry" style="margin-top:16px;padding-top:12px;border-top:1px solid #1e293b;">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px;">Fleet Telemetry</div>
@@ -2922,79 +2943,12 @@ with st.sidebar:
           <b style="color:#38bdf8;font-family:var(--mono);">100% OK</b>
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(239,68,68,0.08);border-radius:4px;border:1px solid rgba(239,68,68,0.2);">
-          <span style="color:#f87171;">Overdue Debt</span>
-          <b style="color:#ef4444;font-family:var(--mono);">10 Active</b>
+          <span style="color:#f87171;">Critical Items</span>
+          <b style="color:#ef4444;font-family:var(--mono);">7</b>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
-
-    active_u = st.session_state.get("active_user", "admin")
-    active_r = st.session_state.get("user_role", "Admin")
-    st.markdown(f"""
-    <div class="nav-user-session" style="margin-top:14px;padding-top:10px;border-top:1px solid #1e293b;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:6px;">Active Session</div>
-      <div style="padding:6px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;margin-bottom:8px;">
-        <div style="font-size:11px;font-weight:700;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">👤 {active_u}</div>
-        <div style="font-size:9.5px;color:#38bdf8;font-family:var(--mono);font-weight:600;margin-top:1px;">Role: {active_r}</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button("🚪 Sign Out", key="sidebar_logout_btn", use_container_width=True, help="End active session"):
-        conn = get_connection(DB_PATH)
-        log_audit_event(
-            conn,
-            actor=st.session_state.get("active_user", "anonymous"),
-            role=st.session_state.get("user_role", "Viewer"),
-            action="USER_LOGOUT",
-            target_entity="Auth System",
-            details="User signed out of Watchtower.",
-            ip_address="127.0.0.1",
-        )
-        conn.close()
-        st.session_state["authenticated"] = False
-        st.session_state["active_user"] = None
-        st.session_state["user_role"] = None
-        st.session_state["user_full_name"] = None
-        st.rerun()
-
-
-# Persistent Top Identity & Logout Action Bar
-top_bar_c1, top_bar_c2 = st.columns([5.5, 1.2])
-with top_bar_c1:
-    cur_u = st.session_state.get("active_user", "admin")
-    cur_r = st.session_state.get("user_role", "Admin")
-    cur_fn = st.session_state.get("user_full_name", "System Administrator")
-    st.markdown(f"""
-    <div style="display:flex;align-items:center;gap:10px;padding:2px 0 6px 0;">
-      <span style="font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.04em;text-transform:uppercase;">Signed in as:</span>
-      <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);border-radius:20px;padding:2px 10px;font-size:11px;color:#f8fafc;">
-        <span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"></span>
-        <b>{cur_u}</b>
-        <span style="color:#38bdf8;font-size:9.5px;font-family:var(--mono);font-weight:700;">[{cur_r}]</span>
-      </span>
-      <span style="font-size:11px;color:#64748b;">({cur_fn})</span>
-    </div>
-    """, unsafe_allow_html=True)
-with top_bar_c2:
-    if st.button("🚪 Log Out", key="top_main_logout_btn", use_container_width=True, help="End active session"):
-        conn = get_connection(DB_PATH)
-        log_audit_event(
-            conn,
-            actor=st.session_state.get("active_user", "anonymous"),
-            role=st.session_state.get("user_role", "Viewer"),
-            action="USER_LOGOUT",
-            target_entity="Auth System",
-            details="User signed out of Watchtower.",
-            ip_address="127.0.0.1",
-        )
-        conn.close()
-        st.session_state["authenticated"] = False
-        st.session_state["active_user"] = None
-        st.session_state["user_role"] = None
-        st.session_state["user_full_name"] = None
-        st.rerun()
 
 
 tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
