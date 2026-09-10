@@ -1200,7 +1200,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
 
             # Hierarchical Matrix Tree (Scrollable node list)
-            st.markdown("<div style='max-height:calc(100vh - 380px);min-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;background:#141619;padding:3px 4px;margin-top:6px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:260px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;background:#141619;padding:3px 4px;margin-top:6px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
                 st_sub = filtered[filtered["state"] == st_val]
@@ -1508,7 +1508,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
-            st.markdown("<div style='max-height:calc(100vh - 380px);min-height:360px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:220px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
             _life_gauge = ui.life_gauge(int(rec['days_left']))
             _team_chip = ui.alert_chip(rec["band"])
