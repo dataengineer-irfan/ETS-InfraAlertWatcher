@@ -18,6 +18,13 @@ import json
 from datetime import datetime, date
 import pandas as pd
 import streamlit as st
+@st.cache_data(ttl=600, show_spinner=False)
+def get_cached_release_schedules(db_path: str, state: str | None = None) -> list[dict]:
+    conn = get_connection(db_path)
+    res = get_release_schedules(conn, state=state)
+    conn.close()
+    return res
+
 
 import ui
 from db import (
@@ -233,7 +240,7 @@ def render_release_plan_workspace(db_path: str) -> None:
             effective_state = user_assigned_state
 
     # Query all releases for effective scope
-    all_releases = get_release_schedules(conn, state=effective_state)
+    all_releases = get_cached_release_schedules(db_path, state=effective_state)
 
     if not all_releases:
         st.info("No release schedule records found.")
