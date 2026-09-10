@@ -157,6 +157,39 @@ class TestRBACAndAuditSubsystem(unittest.TestCase):
         final_users = db.get_users(self.conn)
         self.assertNotIn("analyst1", [u["username"] for u in final_users])
 
+    def test_authenticate_user(self):
+        """Verify user authentication, password check, and audit trail recording."""
+        # 1. Successful authentication with seeded admin
+        auth_admin = db.authenticate_user(self.conn, "admin", "Admin@ETS2026!", ip_address="192.168.1.10")
+        self.assertIsNotNone(auth_admin)
+        self.assertEqual(auth_admin["username"], "admin")
+        self.assertEqual(auth_admin["role"], "Admin")
+
+        # 2. Case-insensitive username support
+        auth_admin_upper = db.authenticate_user(self.conn, "ADMIN", "Admin@ETS2026!")
+        self.assertIsNotNone(auth_admin_upper)
+
+        # 3. Invalid password
+        bad_pwd = db.authenticate_user(self.conn, "admin", "WrongPassword123!")
+        self.assertIsNone(bad_pwd)
+
+        # 4. Non-existent username
+        bad_user = db.authenticate_user(self.conn, "non_existent_user", "AnyPassword123!")
+        self.assertIsNone(bad_user)
+
+        # 5. Deactivated user
+        db.create_user(self.conn, "inactive_user", "ValidPassword123!", role="Viewer")
+        self.conn.execute("UPDATE users SET is_active = 0 WHERE username = 'inactive_user'")
+        self.conn.commit()
+        deactivated = db.authenticate_user(self.conn, "inactive_user", "ValidPassword123!")
+        self.assertIsNone(deactivated)
+
+        # 6. Audit log validation
+        logs = db.get_audit_logs(self.conn, limit=20)
+        login_actions = [l["action"] for l in logs]
+        self.assertIn("USER_LOGIN", login_actions)
+        self.assertIn("LOGIN_FAILED", login_actions)
+
     def test_audit_event_logging_and_filtering(self):
         """Verify audit logging records events and respects action filters."""
         db.log_audit_event(

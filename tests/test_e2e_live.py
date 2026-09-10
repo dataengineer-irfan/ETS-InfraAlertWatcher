@@ -11,6 +11,15 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page(viewport={'width': 1440, 'height': 900})
     page.goto('http://localhost:8501', wait_until='networkidle')
+    page.wait_for_timeout(1000)
+
+    # If login gate is present, sign in with admin credentials
+    gate = page.query_selector('button:has-text("Sign In to Watchtower")')
+    if gate:
+        page.fill('input[placeholder="Enter username (e.g. admin)"]', "admin")
+        page.fill('input[placeholder="••••••••••••"]', "Admin@ETS2026!")
+        gate.click()
+        page.wait_for_timeout(3000)
 
     # Wait for page elements to render
     page.wait_for_selector('[data-testid="stSidebar"]', timeout=15000)

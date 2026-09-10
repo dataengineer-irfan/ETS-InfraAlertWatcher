@@ -45,6 +45,7 @@ from db import (  # noqa: E402
     update_user_role,
     log_audit_event,
     get_audit_logs,
+    authenticate_user,
 )
 from ingest_components import COMPONENTS, run as run_ingest  # noqa: E402
 from expiry_checker import get_due_reminders, mark_sent  # noqa: E402
@@ -166,7 +167,74 @@ def canvas(mode: str, state: str | None, height: int) -> None:
     )
 
 
+# ==============================================================================
+# Enterprise Access Control & Login Portal Gate
+# ==============================================================================
+def render_login_gate(db_path: str) -> None:
+    """Renders the centered enterprise login screen for unauthenticated sessions."""
+    col_l, col_center, col_r = st.columns([1, 1.4, 1])
+    with col_center:
+        st.markdown("""
+        <div style="text-align:center;margin-top:50px;margin-bottom:24px;">
+          <div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:14px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);margin-bottom:14px;">
+            <span style="font-size:28px;">🛡️</span>
+          </div>
+          <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:#f8fafc;">ETS WATCHTOWER</div>
+          <div style="font-size:10px;font-family:var(--mono);color:#38bdf8;font-weight:700;letter-spacing:0.12em;margin-top:3px;">ENTERPRISE ACCESS PORTAL</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:8px;">Zero-Trust PBKDF2-HMAC-SHA256 Encrypted Session</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("portal_login_form", clear_on_submit=False):
+            st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Username</div>', unsafe_allow_html=True)
+            u_input = st.text_input("Username", key="auth_login_username", placeholder="Enter username (e.g. admin)", label_visibility="collapsed")
+
+            st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:6px;">Password</div>', unsafe_allow_html=True)
+            p_input = st.text_input("Password", type="password", key="auth_login_password", placeholder="••••••••••••", label_visibility="collapsed")
+
+            st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
+            submit_login = st.form_submit_button("Sign In to Watchtower", use_container_width=True, type="primary")
+
+            if submit_login:
+                if not u_input.strip() or not p_input:
+                    st.error("Please enter both username and password.")
+                else:
+                    conn = get_connection(db_path)
+                    user = authenticate_user(conn, u_input, p_input)
+                    conn.close()
+                    if user:
+                        st.session_state["authenticated"] = True
+                        st.session_state["active_user"] = user["username"]
+                        st.session_state["user_role"] = user["role"]
+                        st.session_state["user_full_name"] = user.get("full_name") or user["username"]
+                        st.rerun()
+                    else:
+                        st.error("Authentication failed: Invalid username or password.")
+
+        st.markdown("""
+        <div style="background:rgba(255,255,255,0.02);border:1px solid #1e293b;border-radius:8px;padding:14px 18px;margin-top:20px;font-size:11.5px;color:#94a3b8;line-height:1.6;">
+          <div style="font-weight:700;color:#e2e8f0;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+            <span>🔐</span> Security Verification Credentials
+          </div>
+          <div>• Initial Administrative Access: <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">admin</code> / <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">Admin@ETS2026!</code></div>
+          <div>• Role entitlements (Admin, Operator, Auditor, Viewer) are authenticated in database WAL storage.</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
 ensure_ingested()
+
+# Session State Initialization & Authentication Gate
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+    st.session_state["active_user"] = None
+    st.session_state["user_role"] = None
+    st.session_state["user_full_name"] = None
+
+if not st.session_state.get("authenticated", False):
+    render_login_gate(DB_PATH)
+    st.stop()
+
 records = load_records(DB_PATH, st.session_state.get("_bust", 0))
 
 if records.empty:
@@ -2861,8 +2929,72 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+    active_u = st.session_state.get("active_user", "admin")
+    active_r = st.session_state.get("user_role", "Admin")
+    st.markdown(f"""
+    <div class="nav-user-session" style="margin-top:14px;padding-top:10px;border-top:1px solid #1e293b;">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:6px;">Active Session</div>
+      <div style="padding:6px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">👤 {active_u}</div>
+        <div style="font-size:9.5px;color:#38bdf8;font-family:var(--mono);font-weight:600;margin-top:1px;">Role: {active_r}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("🚪 Sign Out", key="sidebar_logout_btn", use_container_width=True, help="End active session"):
+        conn = get_connection(DB_PATH)
+        log_audit_event(
+            conn,
+            actor=st.session_state.get("active_user", "anonymous"),
+            role=st.session_state.get("user_role", "Viewer"),
+            action="USER_LOGOUT",
+            target_entity="Auth System",
+            details="User signed out of Watchtower.",
+            ip_address="127.0.0.1",
+        )
+        conn.close()
+        st.session_state["authenticated"] = False
+        st.session_state["active_user"] = None
+        st.session_state["user_role"] = None
+        st.session_state["user_full_name"] = None
+        st.rerun()
 
 
+# Persistent Top Identity & Logout Action Bar
+top_bar_c1, top_bar_c2 = st.columns([5.5, 1.2])
+with top_bar_c1:
+    cur_u = st.session_state.get("active_user", "admin")
+    cur_r = st.session_state.get("user_role", "Admin")
+    cur_fn = st.session_state.get("user_full_name", "System Administrator")
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:10px;padding:2px 0 6px 0;">
+      <span style="font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:0.04em;text-transform:uppercase;">Signed in as:</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);border-radius:20px;padding:2px 10px;font-size:11px;color:#f8fafc;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"></span>
+        <b>{cur_u}</b>
+        <span style="color:#38bdf8;font-size:9.5px;font-family:var(--mono);font-weight:700;">[{cur_r}]</span>
+      </span>
+      <span style="font-size:11px;color:#64748b;">({cur_fn})</span>
+    </div>
+    """, unsafe_allow_html=True)
+with top_bar_c2:
+    if st.button("🚪 Log Out", key="top_main_logout_btn", use_container_width=True, help="End active session"):
+        conn = get_connection(DB_PATH)
+        log_audit_event(
+            conn,
+            actor=st.session_state.get("active_user", "anonymous"),
+            role=st.session_state.get("user_role", "Viewer"),
+            action="USER_LOGOUT",
+            target_entity="Auth System",
+            details="User signed out of Watchtower.",
+            ip_address="127.0.0.1",
+        )
+        conn.close()
+        st.session_state["authenticated"] = False
+        st.session_state["active_user"] = None
+        st.session_state["user_role"] = None
+        st.session_state["user_full_name"] = None
+        st.rerun()
 
 
 tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([

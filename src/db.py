@@ -637,3 +637,88 @@ def get_audit_logs(
             (limit,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def authenticate_user(
+    conn: sqlite3.Connection,
+    username: str,
+    password: str,
+    ip_address: str = "127.0.0.1",
+) -> dict | None:
+    """
+    Authenticates an enterprise user against stored PBKDF2-HMAC-SHA256 credentials.
+    Returns the user dict if valid and active, otherwise None.
+    Records immutable USER_LOGIN or LOGIN_FAILED audit entries.
+    """
+    clean_uname = username.strip()
+    if not clean_uname or not password:
+        return None
+
+    row = conn.execute(
+        """
+        SELECT id, username, password_hash, salt, role, full_name, email, is_active
+        FROM users
+        WHERE LOWER(username) = LOWER(?)
+        """,
+        (clean_uname,),
+    ).fetchone()
+
+    if not row:
+        log_audit_event(
+            conn,
+            actor=clean_uname or "anonymous",
+            role="Unknown",
+            action="LOGIN_FAILED",
+            target_entity="Auth System",
+            details="Authentication rejected: Account username does not exist.",
+            ip_address=ip_address,
+        )
+        return None
+
+    user = dict(row)
+    if not user.get("is_active"):
+        log_audit_event(
+            conn,
+            actor=user["username"],
+            role=user.get("role", "Viewer"),
+            action="LOGIN_FAILED",
+            target_entity="Auth System",
+            details="Authentication rejected: Account is currently deactivated.",
+            ip_address=ip_address,
+        )
+        return None
+
+    if not verify_password(password, user["password_hash"], user["salt"]):
+        log_audit_event(
+            conn,
+            actor=user["username"],
+            role=user.get("role", "Viewer"),
+            action="LOGIN_FAILED",
+            target_entity="Auth System",
+            details="Authentication rejected: Invalid password credentials.",
+            ip_address=ip_address,
+        )
+        return None
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (now_iso, user["id"]))
+    conn.commit()
+
+    log_audit_event(
+        conn,
+        actor=user["username"],
+        role=user.get("role", "Viewer"),
+        action="USER_LOGIN",
+        target_entity="Auth System",
+        details="User successfully signed in to Watchtower session.",
+        ip_address=ip_address,
+    )
+
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "full_name": user["full_name"],
+        "email": user["email"],
+        "last_login_at": now_iso,
+    }
