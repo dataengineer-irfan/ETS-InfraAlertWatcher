@@ -1200,7 +1200,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
 
             # Hierarchical Matrix Tree (Scrollable node list)
-            st.markdown("<div style='max-height:260px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;background:#141619;padding:3px 4px;margin-top:6px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:calc(100vh - 380px);min-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;background:#141619;padding:3px 4px;margin-top:6px;'>", unsafe_allow_html=True)
 
             for st_val in filtered["state"].unique():
                 st_sub = filtered[filtered["state"] == st_val]
@@ -1508,7 +1508,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
-            st.markdown("<div style='max-height:220px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:calc(100vh - 380px);min-height:360px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
             _life_gauge = ui.life_gauge(int(rec['days_left']))
             _team_chip = ui.alert_chip(rec["band"])
@@ -2143,7 +2143,7 @@ def render_governance_center() -> None:
                             rerun()
 
                     st.markdown(f"""
-                    <div style="max-height:175px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
+                    <div style="max-height:calc(100vh - 430px);min-height:300px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
@@ -2156,7 +2156,7 @@ def render_governance_center() -> None:
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
+                    <div style="max-height:calc(100vh - 430px);min-height:320px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
@@ -2244,7 +2244,7 @@ def render_governance_center() -> None:
                     )
 
                 st.markdown(f"""
-                <div style="max-height:180px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
+                <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
                   <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
                     <tr style="background:#141619;border-bottom:1px solid #2c3235;position:sticky;top:0;z-index:2;">
                       <th>State</th><th>Release</th><th>Milestone Phase</th><th>Cutoff Date</th><th>Alert Status</th>
@@ -2363,7 +2363,7 @@ def render_governance_center() -> None:
                     <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">{email_subject}</span></div>
                   </div>
                   <div style="background:#111217;padding:7px;">
-                    <div style="max-height:220px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
+                    <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
                       {email_html}
                     </div>
                   </div>
@@ -2591,7 +2591,7 @@ def render_governance_center() -> None:
                 <div><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">[CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick} (5 Teams Scheduled)</span></div>
               </div>
               <div style="background:#111217;padding:7px;">
-                <div style="max-height:230px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
+                <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
                   {cad_email_html}
                 </div>
               </div>
@@ -3007,7 +3007,7 @@ def render_rbac_workspace() -> None:
                 )
 
             table_html = f"""
-            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;margin-bottom:10px;">
+            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;margin-bottom:10px;max-height:calc(100vh - 380px);min-height:300px;overflow-y:auto;">
               <table style="width:100%;border-collapse:collapse;text-align:left;">
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;">
@@ -3138,7 +3138,7 @@ def render_rbac_workspace() -> None:
 
         audit_body_content = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--mute);">No audit records match the current filter.</td></tr>'
         audit_table_html = f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:480px;overflow-y:auto;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 380px);min-height:380px;overflow-y:auto;">
           <table style="width:100%;border-collapse:collapse;text-align:left;">
             <thead>
               <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;position:sticky;top:0;z-index:2;">

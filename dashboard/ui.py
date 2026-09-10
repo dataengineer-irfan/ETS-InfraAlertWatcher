@@ -382,12 +382,12 @@ def css() -> str:
 }}
 
 /* Zero-scroll viewport layout & Ultrawide / 4K Centering */
-.block-container {{ max-width:2400px !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
+.block-container {{ max-width:2400px !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; min-height: calc(100vh - 16px) !important; display: flex !important; flex-direction: column !important; }}
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
-[data-testid="stVerticalBlock"] {{ gap:.5rem; }}
+[data-testid="stVerticalBlock"] {{ gap:.5rem; flex: 1 1 auto; }}
 [data-testid="stVerticalBlockBorderWrapper"] {{ background:transparent; }}
-iframe {{ display:block; border:0; }}
+iframe {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; min-height: 640px !important; }}
 
 /* WCAG 2.1 AA Color-Blind Redundancy & High-Contrast Progress Textures */
 .bar-hatch-danger {{
