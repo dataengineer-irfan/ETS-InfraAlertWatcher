@@ -112,63 +112,66 @@ def _build_alert_chips(releases: list[dict], now_iso: str) -> list[dict]:
         if p_d and p_d < now_iso:
             continue
 
-        # DEV freeze
+        dev_s = r.get("dev_start_date")
         dev_f = r.get("dev_end_date")
-        d = _days_between(dev_f, now_iso)
-        if d is not None:
-            if d < 0:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "DEV FREEZE",
-                                "date": dev_f, "days": d, "chip_cls": "firing", "label": f"DEV FREEZE OVERDUE {abs(d)}d"})
-            elif d <= 7:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "DEV FREEZE",
-                                "date": dev_f, "days": d, "chip_cls": "pending",
-                                "label": f"DEV FREEZE IN {d}d" if d > 0 else "DEV FREEZE TODAY"})
+        sit_s = r.get("sit_start_date")
+        sit_f = r.get("sit_end_date")
+        uat_s = r.get("uat_start_date")
+        uat_f = r.get("uat_end_date")
+        gn_d = r.get("go_nogo_date")
+
+        # DEV freeze
+        if dev_f and dev_f >= now_iso:
+            d = _days_between(dev_f, now_iso)
+            if d is not None:
+                if d < 0:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "DEV FREEZE",
+                                    "date": dev_f, "days": d, "chip_cls": "firing", "label": f"DEV FREEZE OVERDUE {abs(d)}d"})
+                elif d <= 7:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "DEV FREEZE",
+                                    "date": dev_f, "days": d, "chip_cls": "pending",
+                                    "label": f"DEV FREEZE IN {d}d" if d > 0 else "DEV FREEZE TODAY"})
+        elif dev_f and dev_f < now_iso and (not sit_s or sit_s > now_iso):
+            # Overdue only if next phase hasn't started yet
+            pass # Simplified: if it's past dev_f but they didn't update dates, it could be overdue, but let's avoid false positives
 
         # SIT gate
-        sit_f = r.get("sit_end_date")
-        d = _days_between(sit_f, now_iso)
-        if d is not None:
-            if d < 0:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "SIT GATE",
-                                "date": sit_f, "days": d, "chip_cls": "firing", "label": f"SIT GATE OVERDUE {abs(d)}d"})
-            elif d <= 7:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "SIT GATE",
-                                "date": sit_f, "days": d, "chip_cls": "pending",
-                                "label": f"SIT GATE IN {d}d" if d > 0 else "SIT GATE TODAY"})
+        if sit_f and sit_f >= now_iso:
+            d = _days_between(sit_f, now_iso)
+            if d is not None:
+                if d <= 7:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "SIT GATE",
+                                    "date": sit_f, "days": d, "chip_cls": "pending",
+                                    "label": f"SIT GATE IN {d}d" if d > 0 else "SIT GATE TODAY"})
 
         # UAT gate
-        uat_f = r.get("uat_end_date")
-        d = _days_between(uat_f, now_iso)
-        if d is not None:
-            if d < 0:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "UAT GATE",
-                                "date": uat_f, "days": d, "chip_cls": "firing", "label": f"UAT GATE OVERDUE {abs(d)}d"})
-            elif d <= 7:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "UAT GATE",
-                                "date": uat_f, "days": d, "chip_cls": "pending",
-                                "label": f"UAT GATE IN {d}d" if d > 0 else "UAT GATE TODAY"})
+        if uat_f and uat_f >= now_iso:
+            d = _days_between(uat_f, now_iso)
+            if d is not None:
+                if d <= 7:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "UAT GATE",
+                                    "date": uat_f, "days": d, "chip_cls": "pending",
+                                    "label": f"UAT GATE IN {d}d" if d > 0 else "UAT GATE TODAY"})
 
         # Go/NoGo
-        gn_d = r.get("go_nogo_date")
-        d = _days_between(gn_d, now_iso)
-        if d is not None:
-            if d < 0:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "GO/NOGO",
-                                "date": gn_d, "days": d, "chip_cls": "firing", "label": f"GO/NOGO OVERDUE {abs(d)}d"})
-            elif d <= 2:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "GO/NOGO",
-                                "date": gn_d, "days": d, "chip_cls": "firing",
-                                "label": f"GO/NOGO IN {d}d" if d > 0 else "GO/NOGO TODAY"})
+        if gn_d and gn_d >= now_iso:
+            d = _days_between(gn_d, now_iso)
+            if d is not None:
+                if d <= 2:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "GO/NOGO",
+                                    "date": gn_d, "days": d, "chip_cls": "firing",
+                                    "label": f"GO/NOGO IN {d}d" if d > 0 else "GO/NOGO TODAY"})
 
         # PROD cutover
-        d = _days_between(p_d, now_iso)
-        if d is not None:
-            if d == 0:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "CUTOVER",
-                                "date": p_d, "days": 0, "chip_cls": "firing", "label": "CUTOVER TODAY"})
-            elif d <= 3:
-                alerts.append({"release_id": rid, "state": st_code, "phase": "CUTOVER",
-                                "date": p_d, "days": d, "chip_cls": "firing", "label": f"CUTOVER IN {d}d"})
+        if p_d and p_d >= now_iso:
+            d = _days_between(p_d, now_iso)
+            if d is not None:
+                if d == 0:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "CUTOVER",
+                                    "date": p_d, "days": 0, "chip_cls": "firing", "label": "CUTOVER TODAY"})
+                elif d <= 3:
+                    alerts.append({"release_id": rid, "state": st_code, "phase": "CUTOVER",
+                                    "date": p_d, "days": d, "chip_cls": "firing", "label": f"CUTOVER IN {d}d"})
 
     return alerts
 
@@ -204,11 +207,11 @@ def render_release_plan_workspace(db_path: str) -> None:
         render_html("""
         <div style="display:flex;align-items:center;gap:10px;padding:3px 0 6px 0;border-left:3px solid var(--accent);padding-left:8px;">
           <div>
-            <div style="font-size:14px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">
-              Schedule Release Plan &amp; Environment Pipeline Command Center
+            <div style="font-size:16px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">
+              Release Schedule
             </div>
-            <div style="font-size:10px;color:var(--slate);font-family:var(--mono);margin-top:1px;">
-              MASTER FLIGHT DECK • GRANULAR MILESTONE LEDGER • MULTI-RELEASE ROADMAP
+            <div style="font-size:10.5px;color:var(--slate);margin-top:2px;">
+              Enterprise Milestones &amp; Pipeline Health
             </div>
           </div>
         </div>
@@ -374,29 +377,38 @@ def render_release_plan_workspace(db_path: str) -> None:
         deduped = list(seen.values())
         deduped.sort(key=lambda x: (0 if x["chip_cls"] == "firing" else 1, x["days"]))
 
-        chips_html = ""
+        alert_cards = ""
         for a in deduped:
-            state_badge = f'<span style="font-size:8px;font-weight:700;color:var(--slate);background:#141619;border:1px solid #2c3235;padding:0px 4px;border-radius:2px;margin-right:2px;">{a["state"]}</span>'
-            rel_badge = f'<span style="font-size:8px;font-weight:700;color:var(--mute);margin-right:4px;font-family:var(--mono);">{a["release_id"]}</span>'
-            chips_html += f'<span style="display:inline-flex;align-items:center;gap:2px;margin-right:6px;">{state_badge}{rel_badge}<span class="alert-chip {a["chip_cls"]}" style="font-size:9px;">{a["label"]}</span></span>'
+            border_c = "#f2495c" if a["chip_cls"] == "firing" else "#ff9830"
+            bg_c = "rgba(242, 73, 92, 0.05)" if a["chip_cls"] == "firing" else "rgba(255, 152, 48, 0.05)"
+            alert_cards += f'''
+            <div style="background:{bg_c};border:1px solid {border_c};border-radius:2px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;min-width:180px;flex:1;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:10px;font-weight:800;color:var(--ink);">{a["state"]}</span>
+                <span style="font-size:9.5px;font-family:var(--mono);color:var(--slate);">{a["release_id"]}</span>
+              </div>
+              <div style="font-size:11px;font-weight:700;color:{border_c};margin-top:2px;">
+                {a["label"]}
+              </div>
+            </div>
+            '''
 
         n_firing = sum(1 for a in deduped if a["chip_cls"] == "firing")
         n_pending = sum(1 for a in deduped if a["chip_cls"] == "pending")
-        severity_txt = f'<span style="color:#f2495c;font-weight:700;font-size:9px;">{n_firing} FIRING</span>' if n_firing else ''
-        pending_txt = f'<span style="color:#ff9830;font-weight:700;font-size:9px;">{n_pending} PENDING</span>' if n_pending else ''
+        severity_txt = f'<span style="color:#f2495c;font-weight:700;font-size:11px;margin-right:8px;">{n_firing} FIRING</span>' if n_firing else ''
+        pending_txt = f'<span style="color:#ff9830;font-weight:700;font-size:11px;">{n_pending} PENDING</span>' if n_pending else ''
         dot_color = "#f2495c" if n_firing else "#ff9830"
 
         render_html(f"""
-        <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid {dot_color};border-radius:2px;padding:6px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:6px;flex:none;">
-            <span style="width:7px;height:7px;border-radius:50%;background:{dot_color};box-shadow:0 0 6px {dot_color};display:inline-block;"></span>
-            <span style="font-size:10px;font-weight:700;color:var(--ink);letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;">Release Gate Alerts</span>
-            <span style="display:flex;gap:5px;">{severity_txt}{pending_txt}</span>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:{dot_color};box-shadow:0 0 6px {dot_color};display:inline-block;"></span>
+            <span style="font-size:12px;font-weight:700;color:var(--ink);letter-spacing:0.04em;text-transform:uppercase;">Release Gate Alerts</span>
+            <span style="display:flex;margin-left:8px;">{severity_txt}{pending_txt}</span>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;flex:1;">
-            {chips_html}
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            {alert_cards}
           </div>
-          <div style="flex:none;font-size:9px;color:var(--mute);white-space:nowrap;font-family:var(--mono);">{len(deduped)} gate event{'s' if len(deduped)!=1 else ''}</div>
         </div>
         """)
 
