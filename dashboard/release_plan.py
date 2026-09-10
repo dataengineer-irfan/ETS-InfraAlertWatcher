@@ -202,7 +202,7 @@ def render_release_plan_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 2. Header & State Selection (Grafana Style: 2px sharp, thin border, live telemetry)
     # --------------------------------------------------------------------------
-    h_col1, h_col2 = st.columns([3.2, 1.0])
+    h_col1, h_col2 = st.columns([4.2, 0.8])
     with h_col1:
         render_html("""
         <div style="display:flex;align-items:center;gap:10px;padding:3px 0 6px 0;border-left:3px solid var(--accent);padding-left:8px;">

@@ -1848,18 +1848,7 @@ def render_governance_center() -> None:
     gov_team_filter = st.session_state.setdefault("gov_team_filter", "All")
     gov_state_filter = st.session_state.setdefault("gov_state_filter", "All")
 
-    # 1. Top-Level Filters (State & Team)
-    f_c1, f_c2, f_c3 = st.columns([1, 1, 3])
-    with f_c1:
-        new_state = st.selectbox("State Filter", ["All"] + STATES, index=(["All"] + STATES).index(gov_state_filter), key="gov_st_sel")
-        if new_state != gov_state_filter:
-            st.session_state["gov_state_filter"] = new_state
-            rerun()
-    with f_c2:
-        new_team = st.selectbox("Team Filter", ["All"] + ui.TEAMS, index=(["All"] + ui.TEAMS).index(gov_team_filter), key="gov_tm_sel")
-        if new_team != gov_team_filter:
-            st.session_state["gov_team_filter"] = new_team
-            rerun()
+
 
     # Filter records based on active drill scope & team
     scoped_records = records.copy()
@@ -1886,7 +1875,7 @@ def render_governance_center() -> None:
     if gov_team_filter != "All":
         scope_name += f" - {gov_team_filter}"
 
-    s_c1, s_c2 = st.columns([4.2, 0.8])
+    s_c1, s_c2, s_c3, s_c4 = st.columns([3.0, 0.7, 0.7, 0.6])
     with s_c1:
         st.markdown(f"""
         <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
