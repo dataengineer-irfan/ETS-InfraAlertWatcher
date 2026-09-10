@@ -2007,23 +2007,23 @@ def render_governance_center() -> None:
             active_badge = " <span style='color:var(--accent);font-size:9px;font-weight:700;'>[ACTIVE]</span>" if is_active_tm else ""
             t_rows.append(
                 f"<tr style='{row_bg}'>"
-                f"<td class='m' style='font-weight:600;color:var(--text);padding:5px 6px;'>{p['team']}{active_badge}</td>"
-                f"<td style='color:var(--slate);padding:5px 6px;'>{p['lead']}<br/><code style='font-size:9.5px;color:var(--mute);'>{p['channel']}</code></td>"
-                f"<td class='m r' style='padding:5px 6px;'><b>{p['assets']}</b></td>"
-                f"<td style='padding:5px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:9px;border-radius:2px;'><span style='margin-right:4px;'>{p.get('symbol', '●')}</span>{p['status']}</span></td>"
-                f"<td style='color:var(--mute);font-size:9.5px;padding:5px 6px;'>{p['cadence']}</td>"
+                f"<td class='m' style='font-weight:600;color:var(--text);padding:3px 6px;'>{p['team']}{active_badge}</td>"
+                f"<td style='color:var(--slate);padding:3px 6px;'>{p['lead']}<br/><code style='font-size:9px;color:var(--mute);'>{p['channel']}</code></td>"
+                f"<td class='m r' style='padding:3px 6px;'><b>{p['assets']}</b></td>"
+                f"<td style='padding:3px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:8.5px;border-radius:2px;'><span style='margin-right:4px;'>{p.get('symbol', '●')}</span>{p['status']}</span></td>"
+                f"<td style='color:var(--mute);font-size:9px;padding:3px 6px;'>{p['cadence']}</td>"
                 f"</tr>"
             )
 
         st.markdown(f"""
-        <div class="panel" style="margin-bottom:8px;border:1px solid #2c3235;border-radius:2px;background:#181b1f;overflow:hidden;">
-          <table class="tblx" style="font-size:10.5px;width:100%;border-collapse:collapse;">
+        <div class="panel" style="margin-bottom:4px;border:1px solid #2c3235;border-radius:2px;background:#181b1f;overflow:hidden;">
+          <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
             <tr style="background:#141619;border-bottom:1px solid #2c3235;"><th>Functional Team</th><th>Owner & Channel</th><th class="r">Assets</th><th>Risk Posture</th><th>Cadence</th></tr>
             {''.join(t_rows)}
           </table>
-          <div style="background:#141619;border-top:1px solid #2c3235;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:9.5px;font-weight:700;color:var(--mute);letter-spacing:0.04em;">FOCUS TEAM SCOPE:</span>
-            <span style="font-size:9px;color:var(--slate);font-family:var(--mono);">Active: {gov_team_filter}</span>
+          <div style="background:#141619;border-top:1px solid #2c3235;padding:4px 8px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:9px;font-weight:700;color:var(--mute);letter-spacing:0.04em;">FOCUS TEAM SCOPE:</span>
+            <span style="font-size:8.5px;color:var(--slate);font-family:var(--mono);">Active: {gov_team_filter}</span>
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2143,7 +2143,7 @@ def render_governance_center() -> None:
                             rerun()
 
                     st.markdown(f"""
-                    <div style="max-height:calc(100vh - 430px);min-height:300px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
+                    <div style="max-height:calc(100vh - 290px);min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
@@ -2156,7 +2156,7 @@ def render_governance_center() -> None:
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div style="max-height:calc(100vh - 430px);min-height:320px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
+                    <div style="max-height:calc(100vh - 290px);min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
@@ -2244,7 +2244,7 @@ def render_governance_center() -> None:
                     )
 
                 st.markdown(f"""
-                <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
+                <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
                   <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
                     <tr style="background:#141619;border-bottom:1px solid #2c3235;position:sticky;top:0;z-index:2;">
                       <th>State</th><th>Release</th><th>Milestone Phase</th><th>Cutoff Date</th><th>Alert Status</th>
@@ -2363,7 +2363,7 @@ def render_governance_center() -> None:
                     <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">{email_subject}</span></div>
                   </div>
                   <div style="background:#111217;padding:7px;">
-                    <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
+                    <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
                       {email_html}
                     </div>
                   </div>
@@ -2591,7 +2591,7 @@ def render_governance_center() -> None:
                 <div><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">[CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick} (5 Teams Scheduled)</span></div>
               </div>
               <div style="background:#111217;padding:7px;">
-                <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
+                <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
                   {cad_email_html}
                 </div>
               </div>
@@ -2902,12 +2902,12 @@ def render_rbac_workspace() -> None:
 
     # 2. Security Posture Strip (Grafana Panel)
     st.markdown(f"""
-    <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid #5794f2;border-radius:2px;padding:8px 12px;margin-bottom:10px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
+    <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid #5794f2;border-radius:2px;padding:4px 10px;margin-bottom:6px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:13px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">Access Control &amp; Audit Trail (RBAC)</span>
-        <span style="font-size:9.5px;color:var(--slate);font-family:var(--mono);">Zero-Trust Enterprise Identity &amp; Compliance System</span>
+        <span style="font-size:12px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">Access Control &amp; Audit Trail (RBAC)</span>
+        <span style="font-size:9px;color:var(--slate);font-family:var(--mono);">Zero-Trust Enterprise Identity &amp; Compliance System</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:9.5px;font-family:var(--mono);">
+      <div style="display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--mono);">
         <span class="alert-chip ok">🛡️ PBKDF2-SHA256</span>
         <span class="alert-chip pending">⚡ WAL Mode</span>
         <span class="alert-chip ok">🔒 TLS 1.2+ Transport</span>
@@ -2927,25 +2927,28 @@ def render_rbac_workspace() -> None:
         with uc1:
             st.markdown(ui.panel_header("Provision Enterprise User", color="#5794f2", count="Admin Only"), unsafe_allow_html=True)
             st.markdown("""
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:10px 12px;margin-bottom:8px;">
-              <div style="font-size:10px;color:var(--slate);line-height:1.4;">Add authenticated credentials with explicit role entitlement. Passwords are salted and hashed via PBKDF2-HMAC-SHA256.</div>
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:4px 8px;margin-bottom:4px;">
+              <div style="font-size:9px;color:var(--slate);line-height:1.3;">Add authenticated credentials with explicit role entitlement. Passwords hashed via PBKDF2-HMAC-SHA256.</div>
             </div>
             """, unsafe_allow_html=True)
 
             with st.form("rbac_create_user_form", clear_on_submit=True):
-                new_username = st.text_input("Username *", key="rbac_user_uname", placeholder="e.g. jdoe_ops")
-                new_fullname = st.text_input("Full Name", key="rbac_user_fname", placeholder="e.g. Jane Doe")
-                new_email = st.text_input("Enterprise Email", key="rbac_user_email", placeholder="e.g. jdoe@ets.internal")
-                new_password = st.text_input("Password (min. 6 characters) *", type="password", key="rbac_user_pwd")
+                pf_c1, pf_c2 = st.columns(2)
+                with pf_c1:
+                    new_username = st.text_input("Username *", key="rbac_user_uname", placeholder="e.g. jdoe_ops")
+                    new_password = st.text_input("Password (min 6) *", type="password", key="rbac_user_pwd")
+                with pf_c2:
+                    new_fullname = st.text_input("Full Name", key="rbac_user_fname", placeholder="e.g. Jane Doe")
+                    new_email = st.text_input("Enterprise Email", key="rbac_user_email", placeholder="e.g. jdoe@ets.internal")
+
                 new_role = st.selectbox("Assign Enterprise Role *", ["Operator", "Viewer", "Auditor", "Admin"], index=0, key="rbac_user_role")
 
                 st.markdown("""
-                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;font-size:9.5px;color:var(--slate);margin-bottom:8px;line-height:1.4;">
-                  <b>Role Entitlements:</b><br/>
-                  &bull; <span class="alert-chip firing" style="font-size:8px;">Admin</span>: Full system access, user management, alert dispatch.<br/>
-                  &bull; <span class="alert-chip pending" style="font-size:8px;">Operator</span>: Expiry date renewals, maintenance cadence updates.<br/>
-                  &bull; <span class="alert-chip ok" style="font-size:8px;">Auditor</span>: Read-only access to all dashboards &amp; audit log.<br/>
-                  &bull; <span class="alert-chip ok" style="font-size:8px;">Viewer</span>: Executive Command Center &amp; Operations view only.
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:4px 6px;font-size:8.5px;color:var(--slate);margin-bottom:6px;line-height:1.3;">
+                  <b>Role Entitlements:</b>
+                  <span class="alert-chip firing" style="font-size:7.5px;">Admin</span> Full Access &bull;
+                  <span class="alert-chip pending" style="font-size:7.5px;">Operator</span> Renewals &bull;
+                  <span class="alert-chip ok" style="font-size:7.5px;">Auditor</span> Audit Only
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -3007,7 +3010,7 @@ def render_rbac_workspace() -> None:
                 )
 
             table_html = f"""
-            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;margin-bottom:10px;max-height:calc(100vh - 380px);min-height:300px;overflow-y:auto;">
+            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;margin-bottom:10px;max-height:calc(100vh - 280px);min-height:150px;overflow-y:auto;">
               <table style="width:100%;border-collapse:collapse;text-align:left;">
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;">
@@ -3138,7 +3141,7 @@ def render_rbac_workspace() -> None:
 
         audit_body_content = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--mute);">No audit records match the current filter.</td></tr>'
         audit_table_html = f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 380px);min-height:380px;overflow-y:auto;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 280px);min-height:150px;overflow-y:auto;">
           <table style="width:100%;border-collapse:collapse;text-align:left;">
             <thead>
               <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;position:sticky;top:0;z-index:2;">

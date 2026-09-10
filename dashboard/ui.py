@@ -386,8 +386,7 @@ def css() -> str:
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
 [data-testid="stVerticalBlock"] {{ gap:.5rem; }}
-[data-testid="stVerticalBlockBorderWrapper"] {{ background:transparent; }}
-iframe {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; min-height: 640px !important; }}
+iframe {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; }}
 
 /* WCAG 2.1 AA Color-Blind Redundancy & High-Contrast Progress Textures */
 .bar-hatch-danger {{
@@ -1022,12 +1021,12 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 .stat-row {{
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 6px;
 }}
 .stat-panel {{
-  padding: 12px 14px;
-  min-height: 104px;
+  padding: 6px 10px;
+  min-height: 64px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1048,17 +1047,17 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   background: var(--card) !important;
 }}
 .stat-label {{
-  font-size: 11px;
+  font-size: 10px;
   color: var(--slate);
   text-transform: uppercase;
   letter-spacing: .02em;
   font-weight: 500;
 }}
 .stat-val {{
-  font-size: 30px;
+  font-size: 22px;
   font-weight: 600;
-  line-height: 1;
-  margin-top: 6px;
+  line-height: 1.1;
+  margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }}
 .stat-val.red {{ color: var(--expired); }}
@@ -1066,9 +1065,9 @@ li[role="option"]:hover, li[aria-selected="true"] {{
 .stat-val.green {{ color: var(--healthy); }}
 .stat-val.white {{ color: var(--ink); }}
 .stat-sub {{
-  font-size: 10.5px;
+  font-size: 9.5px;
   color: var(--mute);
-  margin-top: 6px;
+  margin-top: 2px;
 }}
 .stat-action {{
   margin-top: 8px;

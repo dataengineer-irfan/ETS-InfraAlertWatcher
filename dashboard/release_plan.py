@@ -496,11 +496,11 @@ def render_release_plan_workspace(db_path: str) -> None:
 
             # Selected Release Flight Deck Card
             render_html(f"""
-            <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:2px;padding:12px 14px;margin-bottom:10px;">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:2px;padding:8px 12px;margin-bottom:6px;">
               <!-- Top Row: Release Meta Strip -->
-              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #2c3235;padding-bottom:8px;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;border-bottom:1px solid #2c3235;padding-bottom:6px;margin-bottom:6px;">
                 <div style="display:flex;align-items:center;gap:8px;">
-                  <span style="font-size:17px;font-weight:800;color:var(--ink);font-family:var(--mono);">{rel_data['release_id']}</span>
+                  <span style="font-size:15px;font-weight:800;color:var(--ink);font-family:var(--mono);">{rel_data['release_id']}</span>
                   <span style="font-size:9px;font-weight:700;background:#141619;color:var(--slate);border:1px solid #2c3235;padding:1px 6px;border-radius:2px;font-family:var(--mono);">
                     {rel_data['state']} MMIS ({rel_data['quarter']} {rel_data['year']})
                   </span>
@@ -515,67 +515,67 @@ def render_release_plan_workspace(db_path: str) -> None:
               <!-- 5-Stage Stepper Grid (Strict Grafana Tiles) -->
               <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:5px;">
                 <!-- 1. DEV -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_dev};border-radius:2px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:90px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_dev};border-radius:2px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;min-height:64px;">
                   <div>
-                    <div style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">1. DEV BUILD</div>
-                    <div style="font-size:11px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_dev}</div>
-                    <div style="font-size:9.5px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{dev_s or '—'} ➔ {dev_f or '—'}</div>
-                    <div style="margin-top:2px;">{dev_cd}</div>
+                    <div style="font-size:8px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">1. DEV BUILD</div>
+                    <div style="font-size:10.5px;font-weight:700;color:var(--ink);margin-top:1px;">{env_name_dev}</div>
+                    <div style="font-size:9px;color:var(--slate);font-family:var(--mono);margin-top:1px;">{dev_s or '—'} ➔ {dev_f or '—'}</div>
+                    <div style="margin-top:1px;">{dev_cd}</div>
                   </div>
-                  <div style="margin-top:4px;">
-                    <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;background:{stg_dev_bg};color:{stg_dev_fg};border:1px solid {stg_dev_bd};">{stg_dev_l}</span>
+                  <div style="margin-top:2px;">
+                    <span style="font-size:7.5px;font-weight:700;padding:1px 3px;border-radius:2px;background:{stg_dev_bg};color:{stg_dev_fg};border:1px solid {stg_dev_bd};">{stg_dev_l}</span>
                   </div>
                 </div>
 
                 <!-- 2. SIT -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_sit};border-radius:2px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:90px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_sit};border-radius:2px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;min-height:64px;">
                   <div>
-                    <div style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">2. SIT REGRESSION</div>
-                    <div style="font-size:11px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_sit}</div>
-                    <div style="font-size:9.5px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{sit_s or '—'} ➔ {sit_f or '—'}</div>
-                    <div style="margin-top:2px;">{sit_cd}</div>
+                    <div style="font-size:8px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">2. SIT REGRESSION</div>
+                    <div style="font-size:10.5px;font-weight:700;color:var(--ink);margin-top:1px;">{env_name_sit}</div>
+                    <div style="font-size:9px;color:var(--slate);font-family:var(--mono);margin-top:1px;">{sit_s or '—'} ➔ {sit_f or '—'}</div>
+                    <div style="margin-top:1px;">{sit_cd}</div>
                   </div>
-                  <div style="margin-top:4px;">
-                    <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;background:{stg_sit_bg};color:{stg_sit_fg};border:1px solid {stg_sit_bd};">{stg_sit_l}</span>
+                  <div style="margin-top:2px;">
+                    <span style="font-size:7.5px;font-weight:700;padding:1px 3px;border-radius:2px;background:{stg_sit_bg};color:{stg_sit_fg};border:1px solid {stg_sit_bd};">{stg_sit_l}</span>
                   </div>
                 </div>
 
                 <!-- 3. UAT -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_uat};border-radius:2px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:90px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_uat};border-radius:2px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;min-height:64px;">
                   <div>
-                    <div style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">3. STATE UAT</div>
-                    <div style="font-size:11px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_uat}</div>
-                    <div style="font-size:9.5px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{uat_s or '—'} ➔ {uat_f or '—'}</div>
-                    <div style="margin-top:2px;">{uat_cd}</div>
+                    <div style="font-size:8px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">3. STATE UAT</div>
+                    <div style="font-size:10.5px;font-weight:700;color:var(--ink);margin-top:1px;">{env_name_uat}</div>
+                    <div style="font-size:9px;color:var(--slate);font-family:var(--mono);margin-top:1px;">{uat_s or '—'} ➔ {uat_f or '—'}</div>
+                    <div style="margin-top:1px;">{uat_cd}</div>
                   </div>
-                  <div style="margin-top:4px;">
-                    <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;background:{stg_uat_bg};color:{stg_uat_fg};border:1px solid {stg_uat_bd};">{stg_uat_l}</span>
+                  <div style="margin-top:2px;">
+                    <span style="font-size:7.5px;font-weight:700;padding:1px 3px;border-radius:2px;background:{stg_uat_bg};color:{stg_uat_fg};border:1px solid {stg_uat_bd};">{stg_uat_l}</span>
                   </div>
                 </div>
 
                 <!-- 4. GO/NO-GO -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_gn};border-radius:2px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:90px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_gn};border-radius:2px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;min-height:64px;">
                   <div>
-                    <div style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">4. GO / NO-GO</div>
-                    <div style="font-size:11px;font-weight:700;color:var(--ink);margin-top:2px;">Decision Gate</div>
-                    <div style="font-size:9.5px;color:var(--slate);font-family:var(--mono);margin-top:2px;">{gn_d or 'Pre-Cutover'}</div>
-                    <div style="margin-top:2px;">{gn_cd}</div>
+                    <div style="font-size:8px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">4. GO / NO-GO</div>
+                    <div style="font-size:10.5px;font-weight:700;color:var(--ink);margin-top:1px;">Decision Gate</div>
+                    <div style="font-size:9px;color:var(--slate);font-family:var(--mono);margin-top:1px;">{gn_d or 'Pre-Cutover'}</div>
+                    <div style="margin-top:1px;">{gn_cd}</div>
                   </div>
-                  <div style="margin-top:4px;">
-                    <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;background:{stg_gn_bg};color:{stg_gn_fg};border:1px solid {stg_gn_bd};">{stg_gn_l}</span>
+                  <div style="margin-top:2px;">
+                    <span style="font-size:7.5px;font-weight:700;padding:1px 3px;border-radius:2px;background:{stg_gn_bg};color:{stg_gn_fg};border:1px solid {stg_gn_bd};">{stg_gn_l}</span>
                   </div>
                 </div>
 
                 <!-- 5. PROD CUTOVER -->
-                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_prod};border-radius:2px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:90px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-top:3px solid {top_border_prod};border-radius:2px;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-between;min-height:64px;">
                   <div>
-                    <div style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">5. PROD LIVE</div>
-                    <div style="font-size:11px;font-weight:700;color:var(--ink);margin-top:2px;">{env_name_prod}</div>
-                    <div style="font-size:9.5px;color:var(--ink);font-weight:700;font-family:var(--mono);margin-top:2px;">{p_d}</div>
-                    <div style="margin-top:2px;">{prod_cd}</div>
+                    <div style="font-size:8px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">5. PROD LIVE</div>
+                    <div style="font-size:10.5px;font-weight:700;color:var(--ink);margin-top:1px;">{env_name_prod}</div>
+                    <div style="font-size:9px;color:var(--ink);font-weight:700;font-family:var(--mono);margin-top:1px;">{p_d}</div>
+                    <div style="margin-top:1px;">{prod_cd}</div>
                   </div>
-                  <div style="margin-top:4px;">
-                    <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:2px;background:{stg_prod_bg};color:{stg_prod_fg};border:1px solid {stg_prod_bd};">{stg_prod_l}</span>
+                  <div style="margin-top:2px;">
+                    <span style="font-size:7.5px;font-weight:700;padding:1px 3px;border-radius:2px;background:{stg_prod_bg};color:{stg_prod_fg};border:1px solid {stg_prod_bd};">{stg_prod_l}</span>
                   </div>
                 </div>
               </div>
@@ -588,11 +588,11 @@ def render_release_plan_workspace(db_path: str) -> None:
             readiness = rel_data.get("readiness_pct", 100.0)
 
             render_html(f"""
-            <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:10px 12px;font-size:11px;">
-              <div style="font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">
+            <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 10px;font-size:10.5px;">
+              <div style="font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">
                 Pipeline Architecture &amp; Governance Contacts
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
                 <div>
                   <div style="color:var(--mute);font-size:10px;">Target Infrastructure:</div>
                   <div style="color:var(--text);font-weight:600;margin-top:1px;">{env_name_dev} ➔ {env_name_sit} ➔ {env_name_uat} ➔ {env_name_prod}</div>
@@ -721,7 +721,7 @@ def render_release_plan_workspace(db_path: str) -> None:
                     ms_rows.append("\n".join(l.strip() for l in row_html.splitlines() if l.strip()))
 
                 render_html(f"""
-                <div style="border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 380px);min-height:380px;overflow-y:auto;">
+                <div style="border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 270px);min-height:160px;overflow-y:auto;">
                   <table style="width:100%;border-collapse:collapse;text-align:left;">
                     <thead>
                       <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
