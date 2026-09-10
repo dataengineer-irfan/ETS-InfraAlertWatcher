@@ -26,6 +26,7 @@ def main():
     parser.add_argument("--owners-csv", default=DEFAULT_OWNERS_CSV)
     parser.add_argument("--threshold-days", type=int, default=DEFAULT_THRESHOLD_DAYS)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--force", action="store_true", help="Force execution regardless of schedule conditions")
     args = parser.parse_args()
 
     print("== Step 1: Loading owners ==")

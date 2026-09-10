@@ -75,4 +75,4 @@ jobs:
           EXCEL_URL: ${{ secrets.EXCEL_URL }}
         run: |
           echo "Running daily expiry evaluation pipeline..."
-          python src/run_daily.py --force
+          python src/run_daily.py

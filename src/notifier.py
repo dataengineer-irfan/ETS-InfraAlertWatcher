@@ -466,12 +466,18 @@ def run(db_path: str, threshold_days: int, dry_run: bool = False) -> int:
             tag = "FIRST" if record["is_first_reminder"] else "REPEAT"
             print(f"[DRY RUN][{tag}] would email {record['owner_email']!r} "
                   f"subject={subject!r} (account={record['username']})")
+            mark_sent(conn, record)
+            sent_count += 1
         else:
-            send_email(smtp_config, record["owner_email"], subject, body)
-            print(f"Sent to {record['owner_email']} for {record['username']}")
-
-        mark_sent(conn, record)
-        sent_count += 1
+            try:
+                send_email(smtp_config, record["owner_email"], subject, body)
+                print(f"Sent to {record['owner_email']} for {record['username']}")
+                mark_sent(conn, record)
+                sent_count += 1
+            except ValueError as ve:
+                print(f"  [SKIPPED] {ve}")
+            except Exception as e:
+                print(f"  [ERROR] Failed to deliver to {record['owner_email']}: {e}")
 
     conn.close()
     return sent_count
