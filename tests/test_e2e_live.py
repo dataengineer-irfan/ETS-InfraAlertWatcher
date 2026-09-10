@@ -83,8 +83,8 @@ with sync_playwright() as p:
     print(f"✓ 7. Close button returned rail to {sb_rect_recollapsed['width']:.1f}px and canvas to x={main_rect_recollapsed['x']:.1f}px")
 
     # 6. Test switching to Operations Hub via slim icon button
-    ops_btn = page.wait_for_selector('.ets-nav-item[data-nav-idx="1"]', timeout=5000)
-    page.click('.ets-nav-item[data-nav-idx="1"]')
+    ops_btn = page.wait_for_selector('.ets-nav-item[data-nav-idx="2"]', timeout=5000)
+    page.click('.ets-nav-item[data-nav-idx="2"]')
     page.wait_for_timeout(2500)
 
     content = page.inner_text('[data-testid="stMainBlockContainer"]')
@@ -107,8 +107,8 @@ with sync_playwright() as p:
     print("✓ 10. Saved screenshot: 02_Operations_Hub_Slim_Rail_Clean.png")
 
     # 8. Test switching to Governance & Alerts
-    gov_btn = page.wait_for_selector('.ets-nav-item[data-nav-idx="2"]', timeout=5000)
-    page.click('.ets-nav-item[data-nav-idx="2"]')
+    gov_btn = page.wait_for_selector('.ets-nav-item[data-nav-idx="3"]', timeout=5000)
+    page.click('.ets-nav-item[data-nav-idx="3"]')
     page.wait_for_timeout(2500)
 
     content_gov = page.inner_text('[data-testid="stMainBlockContainer"]')

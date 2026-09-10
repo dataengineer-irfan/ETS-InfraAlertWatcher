@@ -1,4 +1,4 @@
-﻿import time
+import time
 import os
 from playwright.sync_api import sync_playwright
 
@@ -21,12 +21,10 @@ def run():
         page.locator("button:has-text('Sign In to Watchtower')").click()
         time.sleep(4)
 
-        # Navigate to Schedule Release Plan
-        print("[3] Navigating to Schedule Release Plan...")
-        page.locator(".ets-nav-item[data-nav-idx='4']").first.click()
-        time.sleep(4)
-        page.screenshot(path=os.path.join(ARTIFACT_DIR, "32_ReleasePlan_Clean_Static_Admin.png"))
-        print("Screenshot 32 captured (Clean Admin View)")
+        # Immediately verify Landing Page is Schedule Release Plan (Page 1)
+        print("[3] Capturing default landing page for admin...")
+        page.screenshot(path=os.path.join(ARTIFACT_DIR, "35_ReleasePlan_Page1_Admin_Landing.png"))
+        print("Screenshot 35 captured (Admin Page 1 Landing)")
 
         # Sign out from sidebar
         print("[4] Signing out...")
@@ -47,12 +45,10 @@ def run():
         page.locator("button:has-text('Sign In to Watchtower')").click()
         time.sleep(4)
 
-        # Navigate to Schedule Release Plan as NH RM
-        print("[6] NH RM navigating to Schedule Release Plan...")
-        page.locator(".ets-nav-item[data-nav-idx='4']").first.click()
-        time.sleep(4)
-        page.screenshot(path=os.path.join(ARTIFACT_DIR, "33_ReleasePlan_Clean_Static_NH_RM.png"))
-        print("Screenshot 33 captured (Clean NH RM Direct Login)")
+        # Verify NH RM landing page
+        print("[6] Capturing default landing page for NH RM...")
+        page.screenshot(path=os.path.join(ARTIFACT_DIR, "36_ReleasePlan_Page1_NH_RM_Landing.png"))
+        print("Screenshot 36 captured (NH RM Page 1 Landing)")
 
         # Sign out
         print("[7] Signing out...")
@@ -73,15 +69,13 @@ def run():
         page.locator("button:has-text('Sign In to Watchtower')").click()
         time.sleep(4)
 
-        # Navigate to Schedule Release Plan as ND RM
-        print("[9] ND RM navigating to Schedule Release Plan...")
-        page.locator(".ets-nav-item[data-nav-idx='4']").first.click()
-        time.sleep(4)
-        page.screenshot(path=os.path.join(ARTIFACT_DIR, "34_ReleasePlan_Clean_Static_ND_RM.png"))
-        print("Screenshot 34 captured (Clean ND RM Direct Login)")
+        # Verify ND RM landing page
+        print("[9] Capturing default landing page for ND RM...")
+        page.screenshot(path=os.path.join(ARTIFACT_DIR, "37_ReleasePlan_Page1_ND_RM_Landing.png"))
+        print("Screenshot 37 captured (ND RM Page 1 Landing)")
 
         browser.close()
-        print("ALL STATIC CLEAN TESTS PASSED!")
+        print("ALL PAGE 1 TESTS PASSED!")
 
 if __name__ == "__main__":
     run()

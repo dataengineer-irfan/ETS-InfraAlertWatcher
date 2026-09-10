@@ -44,3 +44,4 @@ tests/fixture/
 .DS_Store
 Thumbs.db
 scratch/
+tests/render_live/

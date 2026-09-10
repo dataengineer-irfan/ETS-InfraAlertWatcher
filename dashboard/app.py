@@ -2904,25 +2904,25 @@ with st.sidebar:
     <!-- Navigation Workspace Icons / Links -->
     <div class="rail-section-label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:6px;white-space:nowrap;overflow:hidden;">Workspaces</div>
     <div class="ets-nav-items" style="display:flex;flex-direction:column;gap:6px;">
-      <button class="ets-nav-item active" data-nav-idx="0" title="Executive Command Center">
+      <button class="ets-nav-item active" data-nav-idx="0" title="Schedule Release Plan">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">📅</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Schedule Release Plan</span>
+      </button>
+      <button class="ets-nav-item" data-nav-idx="1" title="Executive Command Center">
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">⚡</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Command Center</span>
       </button>
-      <button class="ets-nav-item" data-nav-idx="1" title="Portfolio Matrix & Operations Hub">
+      <button class="ets-nav-item" data-nav-idx="2" title="Portfolio Matrix & Operations Hub">
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">📊</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Operations Hub</span>
       </button>
-      <button class="ets-nav-item" data-nav-idx="2" title="Governance & Alerts">
+      <button class="ets-nav-item" data-nav-idx="3" title="Governance & Alerts">
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🛡️</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Governance & Alerts</span>
       </button>
-      <button class="ets-nav-item" data-nav-idx="3" title="Access Control & Security Audit (RBAC)">
+      <button class="ets-nav-item" data-nav-idx="4" title="Access Control & Security Audit (RBAC)">
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🔐</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Access Control (RBAC)</span>
-      </button>
-      <button class="ets-nav-item" data-nav-idx="4" title="Schedule Release Plan">
-        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">📅</span>
-        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Schedule Release Plan</span>
       </button>
     </div>
     """, unsafe_allow_html=True)
@@ -2972,13 +2972,16 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-tab_overview, tab_operations, tab_governance, tab_rbac, tab_releases = st.tabs([
+tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
+    "Schedule Release Plan",
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
     "Governance & Alerts",
     "Access Control & Audit (RBAC)",
-    "Schedule Release Plan",
 ])
+
+with tab_releases:
+    render_release_plan_workspace(DB_PATH)
 
 with tab_overview:
     canvas("all", None, CANVAS_OVERVIEW)
@@ -2991,6 +2994,3 @@ with tab_governance:
 
 with tab_rbac:
     render_rbac_workspace()
-
-with tab_releases:
-    render_release_plan_workspace(DB_PATH)
