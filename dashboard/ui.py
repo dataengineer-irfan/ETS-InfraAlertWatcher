@@ -188,7 +188,7 @@ TOKENS = {
     "rule_soft": "#212429", # Button & input fill / secondary lines
     "ink": "#d8d9da",       # Primary text
     "slate": "#9fa7b3",     # Secondary labels
-    "mute": "#6e7681",      # Faint / disabled text
+    "mute": "#94a3b8",      # Elevated secondary/subtext for WCAG 2.1 AA legibility
     "accent": "#ff780a",    # Grafana Orange — marks interactive elements only
     "accent_tint": "rgba(255,120,10,0.14)",
     "accent_line": "rgba(255,120,10,0.45)",
@@ -381,13 +381,27 @@ def css() -> str:
   line-height: 1.35;
 }}
 
-/* Zero-scroll viewport layout */
-.block-container {{ max-width:none !important; padding:.3rem .6rem 0 !important; }}
+/* Zero-scroll viewport layout & Ultrawide / 4K Centering */
+.block-container {{ max-width:2400px !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
 [data-testid="stVerticalBlock"] {{ gap:.5rem; }}
 [data-testid="stVerticalBlockBorderWrapper"] {{ background:transparent; }}
 iframe {{ display:block; border:0; }}
+
+/* WCAG 2.1 AA Color-Blind Redundancy & High-Contrast Progress Textures */
+.bar-hatch-danger {{
+  background: repeating-linear-gradient(45deg, #ef4444, #ef4444 4px, #b91c1c 4px, #b91c1c 8px) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25) !important;
+}}
+.bar-hatch-warn {{
+  background: repeating-linear-gradient(45deg, #f59e0b, #f59e0b 4px, #d97706 4px, #d97706 8px) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2) !important;
+}}
+.bar-solid-healthy {{
+  background: #10b981 !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15) !important;
+}}
 
 h1, h2, h3, h4, h5, h6 {{
   font-family: var(--ui);

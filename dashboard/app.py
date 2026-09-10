@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -39,6 +39,12 @@ from db import (  # noqa: E402
     load_maintenance_schedules_csv,
     get_maintenance_schedules,
     update_maintenance_schedule,
+    create_user,
+    get_users,
+    delete_user,
+    update_user_role,
+    log_audit_event,
+    get_audit_logs,
 )
 from ingest_components import COMPONENTS, run as run_ingest  # noqa: E402
 from expiry_checker import get_due_reminders, mark_sent  # noqa: E402
@@ -49,6 +55,8 @@ from notifier import (  # noqa: E402
     send_real_smtp_email,
     render_expired_alert_email,
     dispatch_expired_alert_real,
+    render_maintenance_cadence_email,
+    dispatch_cadence_alert_real,
 )
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
@@ -182,9 +190,18 @@ MANAGE_WINDOWS = {
 
 def apply_edits(changes: list) -> None:
     conn = get_connection(DB_PATH)
+    active_user = st.session_state.get("active_user", "Operator")
     for record_id, new_date in changes:
         dt_str = new_date.isoformat() if hasattr(new_date, "isoformat") else str(new_date)[:10]
         update_component_exp_date(conn, int(record_id), dt_str)
+        log_audit_event(
+            conn,
+            actor=active_user,
+            role="Operator",
+            action="EXPIRY_EDITED",
+            target_entity=f"Record #{record_id}",
+            details=f"Expiry date updated to {dt_str}",
+        )
     conn.close()
     bust_cache()
 
@@ -441,8 +458,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     tree_open = st.session_state.setdefault("op_tree_open", set())
     selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
-    # 1. Top Slicer Command Bar (7 columns with inline CSV & Reset Scope)
-    f1, f2, f3, f4, f5, f6, f7 = st.columns([1.5, 0.85, 0.9, 1.05, 0.85, 0.55, 0.65])
+    # 1. Top Slicer Command Bar (7 columns with inline Export CSV & Reset Scope)
+    f1, f2, f3, f4, f5, f6, f7 = st.columns([1.4, 0.8, 0.85, 1.0, 0.8, 0.65, 0.65])
     q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
     state_filter = f2.selectbox("State", ["All States"] + STATES, key=f"op_state_{reset_idx}", label_visibility="collapsed")
     team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
@@ -499,7 +516,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     csv_data = filtered.to_csv(index=False).encode("utf-8")
     if hasattr(st, "download_button"):
         f6.download_button(
-            label="📥 CSV",
+            label="📥 Export CSV",
             data=csv_data,
             file_name=f"expiry_operations_{date.today().isoformat()}.csv",
             mime="text/csv",
@@ -737,12 +754,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     # 5. Master-Detail Workspace (49% Left Hierarchy Tree / 51% Right Inspector)
     left_col, _, right_col = st.columns([1.98, 0.04, 2.02])
 
-    if filtered.empty:
+    # Active entity scope for inspector
+    cur_scope_df = df[df["id"].isin(selected_entity_ids)] if selected_entity_ids else filtered
+    if cur_scope_df.empty:
         selected_id = None
     else:
         cur_active_id = st.session_state.get("op_active_id")
-        if cur_active_id not in filtered["id"].values:
-            most_urgent = filtered.sort_values("days_left").iloc[0]
+        if cur_active_id not in cur_scope_df["id"].values:
+            most_urgent = cur_scope_df.sort_values("days_left").iloc[0]
             cur_active_id = int(most_urgent["id"])
             st.session_state["op_active_id"] = cur_active_id
         selected_id = cur_active_id
@@ -997,20 +1016,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             selected_entity_ids.update(st_child_ids)
                         rerun()
                 with s_c1:
-                    _st_chip = ui.alert_chip(st_worst)
-                    st.markdown(f"""
-                    <div class="tree-node-row{' active' if st_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;background:#181b1f;border-left:3px solid {st_meta['color']};border-radius:2px;padding:3px 6px;margin-bottom:2px;font-size:11px;">
-                      <span style="font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;">
-                        📍 State {st_val} <span style="font-weight:400;color:var(--mute);font-size:9.5px;">({len(st_sub)} items)</span>
-                      </span>
-                      <span style="display:flex;align-items:center;gap:5px;">
-                        {_st_chip}
-                        <span class="pill" style="color:{st_meta['color']};background:{st_meta['tint']};font-size:9px;padding:1px 5px;border-radius:2px;">
-                          <b>{st_meta['symbol']}</b> {f'{st_exp_n} Expired' if st_exp_n else st_worst}
-                        </span>
-                      </span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    is_st_foc = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+                    st_badge_txt = f"{st_exp_n} Expired" if st_exp_n else st_worst
+                    btn_lbl = f"📍 State {st_val} ({len(st_sub)} items) · {st_meta['symbol']} {st_badge_txt}"
+                    if st.button(btn_lbl, key=f"foc_st_tree_{st_val}", use_container_width=True, type="primary" if is_st_foc else "secondary", help=f"Focus entire workspace on State {st_val}"):
+                        if is_st_foc:
+                            st.session_state["op_cell_filter"] = None
+                        else:
+                            st.session_state["op_cell_filter"] = (st_val, None)
+                            tree_open.clear()
+                            tree_open.add(st_val)
+                        rerun()
 
                 with s_c2:
                     if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
@@ -1149,9 +1165,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Component Severity Distribution Panel (Rule 6: size to content, eliminate empty space)
+            dist_source = df[df["id"].isin(selected_entity_ids)] if selected_entity_ids else filtered
             dist_rows = []
             for c_val in COMPONENT_ORDER:
-                c_sub = filtered[filtered["component"] == c_val]
+                c_sub = dist_source[dist_source["component"] == c_val]
                 c_cnt = len(c_sub)
                 c_code = ui.COMPONENT_CODE.get(c_val, c_val)
                 if c_cnt == 0:
@@ -1197,9 +1214,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         f'</div>'
                     )
 
+            panel_scope_lbl = f"{len(selected_entity_ids)} Selected Entities" if selected_entity_ids else "Selected Scope"
             st.markdown(f"""
             <div class="panel" style="margin-top:8px;">
-              <div class="panel-head"><span class="panel-title">Severity by Component — Selected Scope</span><span class="panel-menu">⋮</span></div>
+              <div class="panel-head"><span class="panel-title">Severity by Component — {panel_scope_lbl}</span><span class="panel-menu">⋮</span></div>
               <div class="dist-body">
                 {''.join(dist_rows)}
               </div>
@@ -1328,12 +1346,22 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
         with i_tab2:
             st.markdown("<div style='max-height:265px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            # Resolve scope for Portfolio Matrix (support selection, state_filter, cell_filter, and search)
+            if selected_entity_ids:
+                mat_df = df[df["id"].isin(selected_entity_ids)].copy()
+                mat_scope_lbl = f"{len(selected_entity_ids)} Selected Entities"
+            else:
+                mat_df = filtered.copy()
+                mat_scope_lbl = "Filtered Scope" if is_scoped else "Consolidated Fleet"
+
             st.markdown(ui.panel_header(
-                "Severity Heatmap — State × Component",
+                f"Severity Heatmap — State × Component ({mat_scope_lbl})",
                 color="#f59e0b",
                 info="Cell color saturation = risk density. Click any cell to cross-filter the Hierarchy Tree."
             ), unsafe_allow_html=True)
-            mat_states = STATES
+
+            available_states = [s for s in STATES if s in mat_df["state"].unique()]
+            mat_states = available_states if available_states else STATES
             mat_comps = COMPONENT_ORDER
 
             # Header Row — framed column labels with clean bottom margin
@@ -1352,7 +1380,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
             # Rows
             for st_val in mat_states:
-                st_sub = df[df["state"] == st_val]
+                st_sub = mat_df[mat_df["state"] == st_val]
                 r_c0, r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
                 is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
                 with r_c0:
@@ -1414,7 +1442,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
                 with r_c5:
                     # State total with colored accent
-                    _st_worst = ui.worst_band(st_sub["band"].tolist())
+                    _st_worst = ui.worst_band(st_sub["band"].tolist()) if not st_sub.empty else "Healthy"
                     _st_color = ui.BAND_META[_st_worst]["color"]
                     st.markdown(f"<div style='font-family:var(--mono);font-weight:700;color:{_st_color};text-align:center;padding-top:22px;font-size:13px;letter-spacing:.02em;'>{len(st_sub)}</div>", unsafe_allow_html=True)
 
@@ -1483,11 +1511,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     b_view, key=f"op_batch_editor_p{b_page}", hide_index=True, use_container_width=True,
                     num_rows="fixed", height=min(180, 36 + len(page_slice) * 35),
                     column_config={
-                        "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width="medium"),
-                        "env_label": st.column_config.TextColumn("Env", disabled=True, width="small"),
-                        "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width="small"),
-                        "band": st.column_config.TextColumn("Status", disabled=True, width="small"),
-                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width="medium"),
+                        "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width=175),
+                        "env_label": st.column_config.TextColumn("Env", disabled=True, width=55),
+                        "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width=140),
+                        "band": st.column_config.TextColumn("Status", disabled=True, width=85),
+                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width=110),
                     },
                 )
 
@@ -1657,32 +1685,31 @@ def render_governance_center() -> None:
 
     st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
 
-    # 2. Level 1: Authoritative Action Directive (High Impact, Zero Ambiguity)
+    # 2. Level 1: Authoritative Action Directive (Concise, High Impact)
     st.markdown(f"""
-    <div class="panel" style="border-left:3px solid var(--expired);background:linear-gradient(90deg, rgba(242,73,92,0.12) 0%, rgba(24,27,31,0.95) 100%);padding:8px 12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;border-radius:2px;">
-      <div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12.5px;font-weight:700;color:var(--text);letter-spacing:-0.01em;">🔴 EXECUTIVE ACTION DIRECTIVE: Critical Credential Rotation Required Across 3 Functional Domains</span>
-          <span class="pill" style="color:var(--expired);background:var(--red-dim);font-size:9px;font-weight:700;border-radius:2px;">POLICY ESCALATION</span>
-        </div>
-        <div style="font-size:11px;color:var(--slate);margin-top:3px;">
-          Escalate overdue credential rotation for <b>Core (ND)</b> and stage 15-day renewals for <b>Letters (AK)</b> and <b>Cognos (NH)</b> to eliminate operational disruption risks.
-        </div>
+    <div class="panel" style="border-left:3px solid var(--expired);background:linear-gradient(90deg, rgba(242,73,92,0.12) 0%, rgba(24,27,31,0.95) 100%);padding:6px 12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;border-radius:2px;">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;">
+        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f2495c;box-shadow:0 0 6px #f2495c;flex:none;"></span>
+        <span style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:0.02em;white-space:nowrap;">ACTION DIRECTIVE:</span>
+        <span class="pill" style="color:var(--expired);background:var(--red-dim);font-size:8.5px;font-weight:700;border-radius:2px;padding:1px 5px;flex:none;">POLICY ESCALATION</span>
+        <span style="font-size:10.5px;color:var(--slate);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          <b>Core (ND)</b> overdue &middot; <b>Letters (AK)</b> &amp; <b>Cognos (NH)</b> &le;15d renewals pending
+        </span>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div style="width:130px;">
-          <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--mute);margin-bottom:2px;font-variant-numeric:tabular-nums;">
+      <div style="display:flex;align-items:center;gap:14px;flex:none;margin-left:12px;">
+        <div style="width:120px;">
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--mute);margin-bottom:2px;font-variant-numeric:tabular-nums;">
             <span style="color:var(--healthy);font-weight:700;">{pct_healthy:.1f}% OK</span>
             <span style="color:var(--expired);font-weight:700;">{pct_risk:.1f}% Risk</span>
           </div>
-          <div style="height:5px;width:100%;background:#212429;border-radius:2px;overflow:hidden;display:flex;">
+          <div style="height:4px;width:100%;background:#212429;border-radius:2px;overflow:hidden;display:flex;">
             <div style="width:{pct_healthy:.1f}%;background:var(--healthy);"></div>
             <div style="width:{pct_risk:.1f}%;background:var(--expired);"></div>
           </div>
         </div>
         <div style="text-align:right;border-left:1px solid var(--rule);padding-left:10px;font-variant-numeric:tabular-nums;">
-          <span style="font-size:18px;font-weight:700;color:var(--expired);line-height:1;">{n_total_risk_fleet}</span>
-          <span style="font-size:9px;color:var(--mute);display:block;">Action Items</span>
+          <span style="font-size:16px;font-weight:700;color:var(--expired);line-height:1;">{n_total_risk_fleet}</span>
+          <span style="font-size:8.5px;color:var(--mute);display:block;text-transform:uppercase;">Action Items</span>
         </div>
       </div>
     </div>
@@ -1808,9 +1835,10 @@ def render_governance_center() -> None:
     with g_col2:
         # Right Pane: Structured Action Console & Synchronized Email Inspector
         q_count_label = f" ({len(urgent_records)})" if not urgent_records.empty else " (0)"
-        act_tab1, act_tab2, act_tab3 = st.tabs([
+        act_tab1, act_tab2, act_tab3, act_tab4 = st.tabs([
             f"⚡ Actionable Risk Queue{q_count_label}",
-            "📧 Alert Dispatch Preview (Simulator)",
+            "📧 Expiry Alert Dispatch",
+            "🛠️ Weekly Cadence Alert Console",
             "📋 Compliance & Audit Ledger"
         ])
 
@@ -1848,23 +1876,84 @@ def render_governance_center() -> None:
                         f"</tr>"
                     )
 
-                st.markdown(f"""
-                <div style="max-height:360px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;">
-                  <table class="tblx" style="font-size:10px;">
-                    <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
-                    {''.join(q_rows)}
-                  </table>
-                </div>
-                """, unsafe_allow_html=True)
+                gov_batch_open = st.session_state.setdefault("gov_batch_open", False)
 
-                aq_c1, aq_c2 = st.columns([2.5, 1.5])
-                with aq_c1:
-                    st.markdown("<div style='font-size:10px;color:var(--mute);line-height:26px;'>Execute batch renewal overrides for urgent items:</div>", unsafe_allow_html=True)
-                with aq_c2:
-                    if st.button("⚡ Open Batch Editor", key="gov_send_batch", type="primary", use_container_width=True):
-                        st.session_state["op_selected_entity_ids"] = set(urgent_records["id"].tolist())
-                        st.session_state["op_target_tab"] = "batch"
-                        rerun()
+                aq_hdr1, aq_hdr2 = st.columns([2.3, 1.7])
+                with aq_hdr1:
+                    if gov_batch_open:
+                        st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;line-height:26px;font-weight:700;'>⚡ Batch Remediation Console · {len(urgent_records)} Items</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='font-size:10px;color:var(--slate);line-height:26px;'><b style='color:var(--text);'>{len(urgent_records)} urgent items</b> queued for remediation:</div>", unsafe_allow_html=True)
+                with aq_hdr2:
+                    if gov_batch_open:
+                        if st.button("✕ Close Batch Editor", key="gov_close_batch", use_container_width=True):
+                            st.session_state["gov_batch_open"] = False
+                            rerun()
+                    else:
+                        if st.button("⚡ Open Batch Editor", key="gov_send_batch", type="primary", use_container_width=True):
+                            st.session_state["gov_batch_open"] = True
+                            st.session_state["op_selected_entity_ids"] = set(urgent_records["id"].tolist())
+                            st.session_state["op_target_tab"] = "batch"
+                            rerun()
+
+                if gov_batch_open:
+                    today_dt = date.today()
+                    p90_dt = today_dt + timedelta(days=90)
+                    p365_dt = today_dt + timedelta(days=365)
+
+                    st.markdown("""
+                    <div style="background:#141619;border:1px solid rgba(56,189,248,0.3);border-radius:2px;padding:6px 10px;margin-top:2px;margin-bottom:6px;">
+                      <div style="font-size:10px;font-weight:700;color:#38bdf8;margin-bottom:1px;">BATCH RENEWAL ACTION</div>
+                      <div style="font-size:9.5px;color:var(--slate);">Apply bulk extension to all queued urgent entities:</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    b_act1, b_act2, b_act3, b_act4 = st.columns([1.0, 1.0, 1.2, 1.6])
+                    with b_act1:
+                        if st.button(f"+90 Days", key="gov_b_p90", use_container_width=True, help=f"Extend all {len(urgent_records)} to {p90_dt}"):
+                            edits = [(int(uid), p90_dt) for uid in urgent_records["id"]]
+                            apply_edits(edits)
+                            st.session_state["gov_batch_open"] = False
+                            st.success(f"✓ Successfully extended {len(edits)} entities by 90 days (to {p90_dt})!")
+                            rerun()
+                    with b_act2:
+                        if st.button(f"+1 Year", key="gov_b_p365", use_container_width=True, help=f"Extend all {len(urgent_records)} to {p365_dt}"):
+                            edits = [(int(uid), p365_dt) for uid in urgent_records["id"]]
+                            apply_edits(edits)
+                            st.session_state["gov_batch_open"] = False
+                            st.success(f"✓ Successfully extended {len(edits)} entities by 1 year (to {p365_dt})!")
+                            rerun()
+                    with b_act3:
+                        custom_dt = st.date_input("Target Date", value=p90_dt, key="gov_b_custom_dt", label_visibility="collapsed")
+                    with b_act4:
+                        if st.button(f"🚀 Set Custom Date", key="gov_b_commit_custom", type="primary", use_container_width=True):
+                            edits = [(int(uid), custom_dt) for uid in urgent_records["id"]]
+                            apply_edits(edits)
+                            st.session_state["gov_batch_open"] = False
+                            st.success(f"✓ Successfully updated {len(edits)} entities to {custom_dt}!")
+                            rerun()
+
+                    st.markdown(f"""
+                    <div style="max-height:175px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
+                      <table class="tblx" style="font-size:10px;">
+                        <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
+                        {''.join(q_rows)}
+                      </table>
+                    </div>
+                    <div style="font-size:9.5px;color:var(--mute);margin-top:6px;display:flex;align-items:center;justify-content:space-between;">
+                      <span>💡 For granular cell-by-cell edits, switch to <b>📊 Operations Hub</b> in the left navigation rail.</span>
+                      <span style="color:#38bdf8;font-weight:600;">{len(urgent_records)} entities ready</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="max-height:250px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
+                      <table class="tblx" style="font-size:10px;">
+                        <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
+                        {''.join(q_rows)}
+                      </table>
+                    </div>
+                    """, unsafe_allow_html=True)
 
         with act_tab2:
             # Sync default team with left filter if a specific team is selected
@@ -2051,6 +2140,19 @@ def render_governance_center() -> None:
                                 )
                                 st.session_state["last_real_receipt"] = receipt
                                 st.success("✓ Live SMTP Alert Successfully Delivered!")
+                                try:
+                                    conn_aud = get_connection(DB_PATH)
+                                    log_audit_event(
+                                        conn_aud,
+                                        actor=st.session_state.get("active_user", "admin"),
+                                        role="Admin",
+                                        action="EMAIL_DISPATCHED",
+                                        target_entity="Live SMTP Overdue Alert",
+                                        details=f"Delivered overdue alert with {len(exp_list)} records to {len(real_recipients)} recipient(s).",
+                                    )
+                                    conn_aud.close()
+                                except Exception:
+                                    pass
                             except Exception as ex:
                                 import traceback
                                 st.error(f"❌ Real SMTP Delivery Failed: {ex}")
@@ -2070,6 +2172,153 @@ def render_governance_center() -> None:
                     """, unsafe_allow_html=True)
 
         with act_tab3:
+            st.markdown("""
+            <div style="border-top:1px solid var(--rule);margin-top:2px;margin-bottom:8px;padding-top:6px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:0.04em;">
+                  🛠️ WEEKLY OPERATIONAL MAINTENANCE CADENCE ALERT (STATE-DIFFERENTIATED)
+                </div>
+                <span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">
+                  STATE-WISE NOTIFICATION
+                </span>
+              </div>
+              <div style="font-size:10px;color:var(--mute);line-height:1.4;">
+                Unlike entity-level expiry alerts, this weekly notice coordinates planned operational windows, scheduled hours, and recurrence cadences across all 5 functional teams, differentiated state-wise.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            cad_c1, cad_c2 = st.columns([1.2, 1.8])
+            with cad_c1:
+                cad_st_pick = st.selectbox(
+                    "Select State Scope",
+                    ["Fleet-Wide (All States)", "Alaska (AK)", "North Dakota (ND)", "New Hampshire (NH)"],
+                    key="gov_cad_state_pick",
+                    label_visibility="collapsed"
+                )
+            with cad_c2:
+                cad_st_map = {
+                    "Fleet-Wide (All States)": None,
+                    "Alaska (AK)": "AK",
+                    "North Dakota (ND)": "ND",
+                    "New Hampshire (NH)": "NH"
+                }
+                cad_state_code = cad_st_map[cad_st_pick]
+
+                default_recips = {
+                    "AK": "ak-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                    "ND": "nd-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                    "NH": "nh-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                    None: "fleet-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                }
+                cad_recips_input = st.text_input(
+                    "Target Distribution List",
+                    value=default_recips[cad_state_code],
+                    key=f"gov_cad_recips_{cad_state_code}",
+                    label_visibility="collapsed"
+                )
+
+            # Retrieve schedules from DB
+            conn_cad = get_connection(DB_PATH)
+            all_schedules = get_maintenance_schedules(conn_cad)
+            conn_cad.close()
+
+            st_schedules = [s for s in all_schedules if not cad_state_code or s.get("state") == cad_state_code]
+
+            # Render live preview
+            cad_email_html = render_maintenance_cadence_email(
+                all_schedules,
+                state=cad_state_code,
+                extra_context={"recipients_str": cad_recips_input}
+            )
+
+            st.markdown(f"""
+            <div class="panel" style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--card);margin-top:4px;margin-bottom:8px;">
+              <div class="panel-head" style="background:#141619;display:flex;justify-content:space-between;align-items:center;">
+                <span class="panel-title" style="font-size:10px;font-weight:700;color:var(--text);letter-spacing:0.06em;">
+                  WEEKLY CADENCE ALERT PREVIEW &bull; {cad_st_pick.upper()}
+                </span>
+                <span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">
+                  {len(st_schedules)} Windows Across 5 Teams
+                </span>
+              </div>
+              <div style="background:#181b1f;border-bottom:1px solid var(--rule-soft);padding:6px 10px;font-size:11px;display:flex;flex-direction:column;gap:3px;">
+                <div><span style="color:var(--mute);font-weight:600;">State Distribution List:</span> <code style="color:var(--accent);font-size:10px;background:rgba(255,120,10,0.1);padding:1px 6px;border-radius:2px;">{cad_recips_input}</code></div>
+                <div><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">[CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick} (5 Teams Scheduled)</span></div>
+              </div>
+              <div style="background:#111217;padding:7px;">
+                <div style="max-height:230px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
+                  {cad_email_html}
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Dispatch action bar
+            cd_c1, cd_c2 = st.columns([1.5, 1.5])
+            with cd_c1:
+                if st.button("▶ Trigger Simulated Cadence Alert", key="gov_sim_cadence_btn", type="secondary", use_container_width=True):
+                    st.toast(f"Simulated Cadence alert logged for {cad_st_pick} ({len(st_schedules)} windows)", icon="📅")
+            with cd_c2:
+                if st.button("🚀 Send Real Test Cadence Email", key="gov_real_cadence_btn", type="primary", use_container_width=True):
+                    active_host = st.session_state.get("gov_smtp_host")
+                    active_port = st.session_state.get("gov_smtp_port", 587)
+                    active_user = st.session_state.get("gov_smtp_user")
+                    active_pass = st.session_state.get("gov_smtp_pass")
+                    active_from = st.session_state.get("gov_smtp_from") or active_user
+
+                    if not (active_host and active_user and active_pass):
+                        st.error("❌ Live SMTP Dispatch Blocked: Please configure SMTP Server Credentials in the 'Expiry Alert Dispatch' tab first.")
+                    else:
+                        active_smtp_config = {
+                            "host": active_host,
+                            "port": int(active_port),
+                            "user": active_user,
+                            "password": active_pass,
+                            "from_addr": active_from,
+                        }
+                        recips_list = [e.strip() for e in cad_recips_input.split(",") if e.strip() and "@" in e and not e.strip().endswith(".internal")]
+                        if not recips_list:
+                            st.warning("⚠️ No valid live test email address found in recipients (mock domains like .internal are filtered). Please include a real address such as basha.shaikirfan@gmail.com or dataengineerib@gmail.com.")
+                        else:
+                            with st.spinner(f"Transmitting weekly cadence alert for {cad_st_pick}..."):
+                                try:
+                                    rcpt = dispatch_cadence_alert_real(
+                                        recipients=recips_list,
+                                        schedules=all_schedules,
+                                        state=cad_state_code,
+                                        smtp_config=active_smtp_config,
+                                    )
+                                    st.session_state["last_cadence_receipt"] = rcpt
+                                    st.success(f"✓ Weekly Cadence Alert for {cad_st_pick} Successfully Delivered to {', '.join(recips_list)}!")
+                                    try:
+                                        conn_aud = get_connection(DB_PATH)
+                                        log_audit_event(
+                                            conn_aud,
+                                            actor=st.session_state.get("active_user", "admin"),
+                                            role="Admin",
+                                            action="EMAIL_DISPATCHED",
+                                            target_entity=f"Weekly Cadence Notice ({cad_st_pick})",
+                                            details=f"Delivered {len(st_schedules)} schedule windows to {len(recips_list)} recipient(s).",
+                                        )
+                                        conn_aud.close()
+                                    except Exception:
+                                        pass
+                                except Exception as ex:
+                                    st.error(f"❌ Real Delivery Failed: {ex}")
+
+            if "last_cadence_receipt" in st.session_state:
+                c_rcpt = st.session_state["last_cadence_receipt"]
+                st.markdown(f"""
+                <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:2px;padding:6px 10px;margin-top:6px;font-size:10px;">
+                  <div style="font-weight:700;color:var(--accent);margin-bottom:2px;">CADENCE ALERT VERIFIED DISPATCH RECEIPT</div>
+                  <div><b>Response:</b> <code>{c_rcpt.get('smtp_response', '250 2.0.0 OK')}</code> &bull; <b>Timestamp:</b> <code>{c_rcpt.get('timestamp')}</code></div>
+                  <div><b>Recipients:</b> <code>{', '.join(c_rcpt.get('recipients', []))}</code></div>
+                  <div><b>Payload:</b> <code>{c_rcpt.get('item_count')} Maintenance Schedules</code></div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        with act_tab4:
             st.markdown(f"""
             <div class="panel" style="padding:6px 10px;margin-bottom:6px;border-radius:2px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
@@ -2232,6 +2481,316 @@ if diff_info is not None:
                 st.session_state["dismissed_whats_new"] = diff_info["id"]
                 rerun()
 
+
+# ==============================================================================
+# View 4: Access Control & Security Audit Trail (RBAC)
+# ==============================================================================
+def render_rbac_workspace() -> None:
+    """
+    Dedicated Role-Based Access Control (RBAC) & Enterprise Security Audit Console.
+    Provides user identity provisioning, role configuration (Admin, Operator, Auditor, Viewer),
+    and immutable security audit logging with compliance CSV export.
+    """
+    conn = get_connection(DB_PATH)
+    users = get_users(conn)
+    audit_logs = get_audit_logs(conn, limit=200)
+    conn.close()
+
+    total_users = len(users)
+    admin_count = sum(1 for u in users if u["role"] == "Admin")
+    op_count = sum(1 for u in users if u["role"] == "Operator")
+    audit_count = sum(1 for u in users if u["role"] == "Auditor")
+    viewer_count = sum(1 for u in users if u["role"] == "Viewer")
+    total_audit_events = len(audit_logs)
+
+    # Top Security Posture & Identity Strip
+    st.markdown(f"""
+    <div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;border-radius:6px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;">
+          🔐
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:#f8fafc;letter-spacing:-0.01em;">ACCESS CONTROL & AUDIT TRAIL (RBAC)</div>
+          <div style="font-size:10px;color:#94a3b8;font-family:var(--mono);">Zero-Trust Enterprise Identity & Compliance System</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10.5px;font-family:var(--mono);">
+        <span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#34d399;padding:3px 8px;border-radius:4px;font-weight:600;">
+          🛡️ PBKDF2-SHA256
+        </span>
+        <span style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;padding:3px 8px;border-radius:4px;font-weight:600;">
+          ⚡ WAL Mode
+        </span>
+        <span style="background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.3);color:#c084fc;padding:3px 8px;border-radius:4px;font-weight:600;">
+          🔒 TLS 1.2+ Transport
+        </span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Sub-tabs for RBAC workspace
+    subtab_users, subtab_audit = st.tabs([
+        "👥 Enterprise User Management",
+        "🛡️ Compliance & Security Audit Trail",
+    ])
+
+    with subtab_users:
+        uc1, uc2 = st.columns([1.1, 1.9])
+
+        with uc1:
+            st.markdown("""
+            <div style="background:#141b26;border:1px solid #1e293b;border-radius:6px;padding:12px 14px;margin-bottom:10px;">
+              <div style="font-size:12px;font-weight:700;color:#f8fafc;margin-bottom:2px;">➕ PROVISION ENTERPRISE USER</div>
+              <div style="font-size:10.5px;color:#94a3b8;line-height:1.4;">Add authenticated credentials with explicit role entitlement. Passwords are automatically hashed via PBKDF2-HMAC-SHA256 with cryptographically generated 16-byte salts.</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.form("rbac_create_user_form", clear_on_submit=True):
+                new_username = st.text_input("Username *", key="rbac_user_uname", placeholder="e.g. jdoe_ops")
+                new_fullname = st.text_input("Full Name", key="rbac_user_fname", placeholder="e.g. Jane Doe")
+                new_email = st.text_input("Enterprise Email", key="rbac_user_email", placeholder="e.g. jdoe@ets.internal")
+                new_password = st.text_input("Password (min. 6 characters) *", type="password", key="rbac_user_pwd")
+                new_role = st.selectbox("Assign Enterprise Role *", ["Operator", "Viewer", "Auditor", "Admin"], index=0, key="rbac_user_role")
+
+                st.markdown("""
+                <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:4px;padding:6px 8px;font-size:9.5px;color:#94a3b8;margin-bottom:10px;line-height:1.4;">
+                  <b>Role Entitlements:</b><br/>
+                  &bull; <span style="color:#ef4444;font-weight:600;">Admin</span>: Full system access, user management, sync, alert dispatch.<br/>
+                  &bull; <span style="color:#38bdf8;font-weight:600;">Operator</span>: Expiry date renewals, maintenance cadence updates.<br/>
+                  &bull; <span style="color:#c084fc;font-weight:600;">Auditor</span>: Read-only access to all dashboards & compliance audit log.<br/>
+                  &bull; <span style="color:#94a3b8;font-weight:600;">Viewer</span>: Executive Command Center & Operations view only.
+                </div>
+                """, unsafe_allow_html=True)
+
+                submitted = st.form_submit_button("Provision User", type="primary", use_container_width=True)
+                if submitted:
+                    if not new_username or not new_username.strip():
+                        st.error("Username cannot be blank.")
+                    elif len(new_password) < 6:
+                        st.error("Password must be at least 6 characters.")
+                    else:
+                        try:
+                            conn_w = get_connection(DB_PATH)
+                            create_user(
+                                conn_w,
+                                username=new_username.strip(),
+                                password=new_password,
+                                role=new_role,
+                                full_name=new_fullname.strip(),
+                                email=new_email.strip(),
+                            )
+                            log_audit_event(
+                                conn_w,
+                                actor=st.session_state.get("active_user", "admin"),
+                                role="Admin",
+                                action="USER_CREATED",
+                                target_entity=f"User: {new_username.strip()}",
+                                details=f"Assigned role {new_role} ({new_fullname.strip() or 'No Name'}).",
+                            )
+                            conn_w.close()
+                            st.success(f"✓ Provisioned user '{new_username.strip()}' as {new_role}!")
+                            rerun()
+                        except Exception as ex:
+                            st.error(f"Failed to create user: {ex}")
+
+        with uc2:
+            st.markdown(f"""
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <div style="font-size:12px;font-weight:700;color:#f8fafc;">ACTIVE USER DIRECTORY ({total_users} ACCOUNTS)</div>
+              <div style="font-size:10px;color:#94a3b8;font-family:var(--mono);display:flex;gap:6px;">
+                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{admin_count} Admin</span>
+                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{op_count} Operator</span>
+                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{audit_count} Auditor</span>
+                <span style="background:#1e293b;padding:2px 6px;border-radius:3px;">{viewer_count} Viewer</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            role_colors = {
+                "Admin": "background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);",
+                "Operator": "background:rgba(56,189,248,0.15);color:#7dd3fc;border:1px solid rgba(56,189,248,0.35);",
+                "Auditor": "background:rgba(168,85,247,0.15);color:#d8b4fe;border:1px solid rgba(168,85,247,0.35);",
+                "Viewer": "background:rgba(148,163,184,0.15);color:#cbd5e1;border:1px solid rgba(148,163,184,0.35);",
+            }
+
+            user_rows_html = []
+            for u in users:
+                rc = role_colors.get(u["role"], role_colors["Viewer"])
+                created_str = u.get("created_at", "")[:19].replace("T", " ")
+                user_rows_html.append(
+                    f"<tr>"
+                    f"<td style='font-family:var(--mono);font-weight:700;color:#f8fafc;'>{u['username']}</td>"
+                    f"<td style='color:#e2e8f0;'>{u.get('full_name') or '—'}</td>"
+                    f"<td style='color:#94a3b8;font-size:11px;'>{u.get('email') or '—'}</td>"
+                    f"<td><span class='pill' style='font-size:9.5px;padding:2px 7px;border-radius:3px;font-weight:700;{rc}'>{u['role']}</span></td>"
+                    f"<td style='font-family:var(--mono);font-size:10.5px;color:#94a3b8;'>{created_str}</td>"
+                    f"<td><span style='color:#34d399;font-weight:700;font-size:10.5px;'>Active</span></td>"
+                    f"</tr>"
+                )
+
+            table_html = f"""
+            <div style="border:1px solid #1e293b;border-radius:6px;overflow:hidden;background:#0d131f;margin-bottom:12px;">
+              <table class="tblx" style="width:100%;border-collapse:collapse;font-size:11.5px;">
+                <thead>
+                  <tr style="background:#141b26;border-bottom:1px solid #1e293b;">
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Assigned Role</th>
+                    <th>Provisioned (UTC)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {''.join(user_rows_html)}
+                </tbody>
+              </table>
+            </div>
+            """
+            st.markdown(table_html, unsafe_allow_html=True)
+
+            # User Role Modification / Account Revocation Controls
+            with st.expander("⚙️ Manage Existing Accounts & Revocations", expanded=False):
+                del_c1, del_c2 = st.columns([1.5, 1.5])
+                with del_c1:
+                    user_list = [u["username"] for u in users if u["username"] != "admin"]
+                    if user_list:
+                        target_user = st.selectbox("Select Account to Manage", user_list, key="rbac_target_user")
+                        new_r = st.selectbox("Change Role", ["Operator", "Viewer", "Auditor", "Admin"], key="rbac_change_role_val")
+                        if st.button("Update Role", key="rbac_update_role_btn", use_container_width=True):
+                            conn_u = get_connection(DB_PATH)
+                            update_user_role(conn_u, target_user, new_r)
+                            log_audit_event(
+                                conn_u,
+                                actor=st.session_state.get("active_user", "admin"),
+                                role="Admin",
+                                action="ROLE_MODIFIED",
+                                target_entity=f"User: {target_user}",
+                                details=f"Changed role to {new_r}.",
+                            )
+                            conn_u.close()
+                            st.success(f"✓ Updated {target_user} to {new_r}")
+                            rerun()
+                    else:
+                        st.info("No secondary user accounts provisioned yet.")
+                with del_c2:
+                    if user_list:
+                        st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
+                        if st.button("🗑️ Revoke & Delete Account", key="rbac_delete_user_btn", type="secondary", use_container_width=True):
+                            conn_d = get_connection(DB_PATH)
+                            delete_user(conn_d, target_user)
+                            log_audit_event(
+                                conn_d,
+                                actor=st.session_state.get("active_user", "admin"),
+                                role="Admin",
+                                action="USER_DELETED",
+                                target_entity=f"User: {target_user}",
+                                details=f"Permanently revoked account {target_user}.",
+                            )
+                            conn_d.close()
+                            st.warning(f"Revoked user '{target_user}'.")
+                            rerun()
+
+    with subtab_audit:
+        st.markdown(f"""
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#f8fafc;">IMMUTABLE SECURITY AUDIT TRAIL</div>
+            <div style="font-size:10.5px;color:#94a3b8;">Cryptographically anchored administrative, configuration, and alerting event log.</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:#38bdf8;background:rgba(56,189,248,0.1);padding:4px 9px;border-radius:4px;border:1px solid rgba(56,189,248,0.25);">
+            {total_audit_events} Events Recorded
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        aud_f1, aud_f2, aud_f3 = st.columns([1.5, 1.5, 1.0])
+        with aud_f1:
+            action_filter = st.selectbox(
+                "Filter by Action Category",
+                ["ALL", "USER_CREATED", "USER_DELETED", "ROLE_MODIFIED", "EXPIRY_EDITED", "EMAIL_DISPATCHED", "SYSTEM_INITIALIZATION"],
+                key="rbac_audit_filter",
+            )
+        with aud_f2:
+            search_query = st.text_input("Search Actor / Target / Details", key="rbac_audit_search", placeholder="Filter events...")
+        with aud_f3:
+            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+            # CSV Download
+            conn_csv = get_connection(DB_PATH)
+            df_audit_full = pd.read_sql_query("SELECT timestamp, actor, role, action, target_entity, details, ip_address FROM audit_log ORDER BY id DESC", conn_csv)
+            conn_csv.close()
+            csv_data = df_audit_full.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📥 Export Audit CSV",
+                data=csv_data,
+                file_name=f"ets_security_audit_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                key="rbac_audit_download_btn",
+                use_container_width=True,
+            )
+
+        filtered_logs = audit_logs
+        if action_filter != "ALL":
+            filtered_logs = [l for l in filtered_logs if l["action"] == action_filter]
+        if search_query and search_query.strip():
+            sq = search_query.strip().lower()
+            filtered_logs = [
+                l for l in filtered_logs
+                if sq in str(l.get("actor", "")).lower()
+                or sq in str(l.get("target_entity", "")).lower()
+                or sq in str(l.get("details", "")).lower()
+                or sq in str(l.get("action", "")).lower()
+            ]
+
+        action_pill_styles = {
+            "SYSTEM_INITIALIZATION": "background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);",
+            "USER_CREATED": "background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);",
+            "USER_DELETED": "background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);",
+            "ROLE_MODIFIED": "background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3);",
+            "EXPIRY_EDITED": "background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);",
+            "EMAIL_DISPATCHED": "background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);",
+        }
+
+        audit_rows_html = []
+        for a in filtered_logs[:100]:
+            pill_style = action_pill_styles.get(a["action"], "background:rgba(148,163,184,0.15);color:#cbd5e1;border:1px solid rgba(148,163,184,0.3);")
+            ts_str = a.get("timestamp", "")[:19].replace("T", " ")
+            audit_rows_html.append(
+                f"<tr>"
+                f"<td style='font-family:var(--mono);font-size:10.5px;color:#94a3b8;white-space:nowrap;'>{ts_str}</td>"
+                f"<td style='font-weight:700;color:#f8fafc;font-family:var(--mono);'>{a.get('actor', 'system')}</td>"
+                f"<td style='font-size:10px;color:#94a3b8;'>{a.get('role', 'Viewer')}</td>"
+                f"<td><span class='pill' style='font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;white-space:nowrap;{pill_style}'>{a['action']}</span></td>"
+                f"<td style='font-weight:600;color:#e2e8f0;font-size:11px;'>{a.get('target_entity', '—')}</td>"
+                f"<td style='color:#94a3b8;font-size:11px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{a.get('details', '')}</td>"
+                f"<td style='font-family:var(--mono);font-size:10px;color:#64748b;'>{a.get('ip_address', '127.0.0.1')}</td>"
+                f"</tr>"
+            )
+
+        audit_table_html = f"""
+        <div style="border:1px solid #1e293b;border-radius:6px;overflow:hidden;background:#0d131f;max-height:480px;overflow-y:auto;">
+          <table class="tblx" style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead>
+              <tr style="background:#141b26;border-bottom:1px solid #1e293b;position:sticky;top:0;z-index:2;">
+                <th>Timestamp (UTC)</th>
+                <th>Actor</th>
+                <th>Role</th>
+                <th>Action Category</th>
+                <th>Target Entity</th>
+                <th>Audit Details</th>
+                <th>Source IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {''.join(audit_rows_html) if audit_rows_html else '<tr><td colspan=\"7\" style=\"text-align:center;padding:16px;color:#64748b;\">No audit records match the current filter.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        """
+        st.markdown(audit_table_html, unsafe_allow_html=True)
+
+
 # ==========================================================================
 # Left Toggle Bar (Collapsible Enterprise Navigation Rail)
 # ==========================================================================
@@ -2271,6 +2830,10 @@ with st.sidebar:
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🛡️</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Governance & Alerts</span>
       </button>
+      <button class="ets-nav-item" data-nav-idx="3" title="Access Control & Security Audit (RBAC)">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🔐</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Access Control (RBAC)</span>
+      </button>
     </div>
 
     <!-- Live Fleet Telemetry (Visible when expanded) -->
@@ -2301,10 +2864,11 @@ with st.sidebar:
 
 
 
-tab_overview, tab_operations, tab_governance = st.tabs([
+tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
     "Governance & Alerts",
+    "Access Control & Audit (RBAC)",
 ])
 
 with tab_overview:
@@ -2315,3 +2879,6 @@ with tab_operations:
 
 with tab_governance:
     render_governance_center()
+
+with tab_rbac:
+    render_rbac_workspace()

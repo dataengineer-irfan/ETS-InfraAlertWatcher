@@ -1,0 +1,91 @@
+# ==============================================================================
+# Render Infrastructure Blueprint: ETS Expiry Alert System
+# ==============================================================================
+# Defines the Web Service, Daily Expiry Check Cron, and 24/7 Keep-Alive Cron.
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Primary Streamlit Web Application
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: ets-expiry-alert-system
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run dashboard/app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DB_PATH
+        value: data/expiry.db
+      - key: WORKBOOK_DIR
+        value: data
+      - key: EXCEL_PATH
+        value: data/expiry_source.xlsx
+      # Set EXCEL_URL if fetching source workbook dynamically from S3/SharePoint
+      # - key: EXCEL_URL
+      #   value: ""
+      # Production SMTP configuration (override in Render dashboard secret settings):
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 2. Daily Expiry Check & Automated Remediation Cron Job (09:00 UTC Daily)
+  # ----------------------------------------------------------------------------
+  - type: cron
+    name: ets-daily-expiry-checker
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    schedule: "0 9 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python src/run_daily.py --force
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DB_PATH
+        value: data/expiry.db
+      - key: WORKBOOK_DIR
+        value: data
+      - fromService:
+          type: web
+          name: ets-expiry-alert-system
+          envVarKey: SMTP_HOST
+      - fromService:
+          type: web
+          name: ets-expiry-alert-system
+          envVarKey: SMTP_USER
+      - fromService:
+          type: web
+          name: ets-expiry-alert-system
+          envVarKey: SMTP_PASSWORD
+
+  # ----------------------------------------------------------------------------
+  # 3. Keep-Alive Cron Worker (Every 10 minutes: Prevents Free Tier Hibernation)
+  # ----------------------------------------------------------------------------
+  - type: cron
+    name: ets-keepalive-ping
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    schedule: "*/10 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/keepalive.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: APP_URL
+        value: https://ets-expiry-alert-system.onrender.com

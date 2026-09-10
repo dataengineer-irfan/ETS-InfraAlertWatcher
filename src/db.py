@@ -38,9 +38,11 @@ Four tables:
                    dropped - the workbook stays the system of record.
 """
 
+import hashlib
+from pathlib import Path
+import secrets
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS expiry_records (
@@ -124,15 +126,44 @@ CREATE TABLE IF NOT EXISTS maintenance_schedules (
     updated_at TEXT,
     UNIQUE(state, env_no, team)
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'Viewer',
+    full_name TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    last_login_at TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'Viewer',
+    action TEXT NOT NULL,
+    target_entity TEXT NOT NULL DEFAULT '',
+    details TEXT NOT NULL DEFAULT '',
+    ip_address TEXT NOT NULL DEFAULT '127.0.0.1'
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp
+    ON audit_log (timestamp DESC);
 """
 
 
 def get_connection(db_path: str) -> sqlite3.Connection:
-    """Open a connection with sane defaults and make sure the schema exists."""
+    """Open a connection with WAL mode, sane timeouts, and guaranteed schema."""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
     conn.executescript(SCHEMA)
 
     # Migrate table if team column missing from an older schema version
@@ -147,6 +178,27 @@ def get_connection(db_path: str) -> sqlite3.Connection:
         conn.execute("DROP TABLE IF EXISTS maintenance_schedules;")
         conn.executescript(SCHEMA)
         conn.commit()
+
+    # Seed default administrative identity if users table is empty
+    user_count = conn.execute("SELECT count(*) FROM users").fetchone()[0]
+    if user_count == 0:
+        create_user(
+            conn,
+            username="admin",
+            password="Admin@ETS2026!",
+            role="Admin",
+            full_name="ETS System Administrator",
+            email="admin@ets.internal",
+        )
+        log_audit_event(
+            conn,
+            actor="SYSTEM_INIT",
+            role="Admin",
+            action="SYSTEM_INITIALIZATION",
+            target_entity="Security Subsystem",
+            details="Default administrative identity provisioned with PBKDF2-HMAC-SHA256.",
+            ip_address="127.0.0.1",
+        )
 
     conn.commit()
     return conn
@@ -445,3 +497,143 @@ def update_maintenance_schedule(conn: sqlite3.Connection, state: str, env_no: st
     )
     conn.commit()
     return cursor.rowcount > 0
+
+
+# ==============================================================================
+# Role-Based Access Control (RBAC) & Security Audit Trail Subsystem
+# ==============================================================================
+
+VALID_ROLES = ("Admin", "Operator", "Auditor", "Viewer")
+
+
+def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
+    """
+    Hashes a password using PBKDF2-HMAC-SHA256 with 100,000 iterations and a 16-byte salt.
+    Never stores plaintext credentials.
+    """
+    if not salt:
+        salt = secrets.token_hex(16)
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000)
+    return derived.hex(), salt
+
+
+def verify_password(password: str, stored_hash: str, salt: str) -> bool:
+    """Verifies a password against the stored PBKDF2 hash using constant-time comparison."""
+    computed_hash, _ = hash_password(password, salt)
+    return secrets.compare_digest(computed_hash, stored_hash)
+
+
+def create_user(
+    conn: sqlite3.Connection,
+    username: str,
+    password: str,
+    role: str = "Viewer",
+    full_name: str = "",
+    email: str = "",
+) -> dict:
+    """
+    Creates a new user record with salted PBKDF2 hash.
+    Enforces minimum 6-character length and valid enterprise roles.
+    """
+    clean_username = username.strip()
+    if not clean_username:
+        raise ValueError("Username cannot be blank.")
+    if len(password) < 6:
+        raise ValueError("Password must be at least 6 characters.")
+    if role not in VALID_ROLES:
+        raise ValueError(f"Invalid role '{role}'. Permitted: {', '.join(VALID_ROLES)}")
+
+    pwd_hash, salt = hash_password(password)
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT INTO users (username, password_hash, salt, role, full_name, email, created_at, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        """,
+        (clean_username, pwd_hash, salt, role, full_name.strip(), email.strip(), now),
+    )
+    conn.commit()
+    return {
+        "username": clean_username,
+        "role": role,
+        "full_name": full_name.strip(),
+        "email": email.strip(),
+        "created_at": now,
+        "is_active": 1,
+    }
+
+
+def get_users(conn: sqlite3.Connection, include_inactive: bool = False) -> list[dict]:
+    """Returns list of configured user accounts."""
+    query = "SELECT id, username, role, full_name, email, created_at, last_login_at, is_active FROM users"
+    if not include_inactive:
+        query += " WHERE is_active = 1"
+    query += " ORDER BY id ASC"
+    rows = conn.execute(query).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_user(conn: sqlite3.Connection, username: str) -> bool:
+    """Deletes a user account by username."""
+    cur = conn.execute("DELETE FROM users WHERE username = ?", (username.strip(),))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def update_user_role(conn: sqlite3.Connection, username: str, new_role: str) -> bool:
+    """Updates the enterprise role for an existing user account."""
+    if new_role not in VALID_ROLES:
+        raise ValueError(f"Invalid role '{new_role}'. Permitted: {', '.join(VALID_ROLES)}")
+    cur = conn.execute("UPDATE users SET role = ? WHERE username = ?", (new_role, username.strip()))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def log_audit_event(
+    conn: sqlite3.Connection,
+    actor: str,
+    role: str,
+    action: str,
+    target_entity: str,
+    details: str = "",
+    ip_address: str = "127.0.0.1",
+) -> int:
+    """Logs an immutable enterprise security/administrative audit event."""
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        """
+        INSERT INTO audit_log (timestamp, actor, role, action, target_entity, details, ip_address)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (now, actor, role, action, target_entity, details, ip_address),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_audit_logs(
+    conn: sqlite3.Connection,
+    limit: int = 150,
+    action_filter: str | None = None,
+) -> list[dict]:
+    """Retrieves recent audit log events ordered by descending timestamp."""
+    if action_filter and action_filter != "ALL":
+        rows = conn.execute(
+            """
+            SELECT id, timestamp, actor, role, action, target_entity, details, ip_address
+            FROM audit_log
+            WHERE action = ?
+            ORDER BY id DESC LIMIT ?
+            """,
+            (action_filter, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT id, timestamp, actor, role, action, target_entity, details, ip_address
+            FROM audit_log
+            ORDER BY id DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]

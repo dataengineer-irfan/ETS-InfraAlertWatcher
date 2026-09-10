@@ -52,7 +52,10 @@ def get_due_reminders(conn, threshold_days: int = DEFAULT_THRESHOLD_DAYS, today:
 
     due = []
     for r in rows:
-        exp_date = datetime.strptime(r["exp_date"], "%Y-%m-%d").date()
+        try:
+            exp_date = datetime.strptime(r["exp_date"], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            continue  # ignore malformed date string
         days_left = (exp_date - today).days
 
         if days_left > threshold_days:

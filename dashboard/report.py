@@ -164,8 +164,9 @@ body{
 
 /* ---- shell: header, slicers, then three content rows ------------------ */
 .shell{
+  max-width:2400px; margin:0 auto;
   height:100%; padding:var(--gap); display:grid; gap:var(--gap);
-  grid-template-rows:auto minmax(52px,.62fr) minmax(136px,1.7fr) minmax(154px,1.8fr);
+  grid-template-rows:auto minmax(64px,80px) minmax(140px,1.25fr) minmax(160px,1.4fr);
 }
 .rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,0.72fr) minmax(0,1.28fr);
        min-height:0; }
@@ -335,29 +336,29 @@ body{
               color:var(--mute); margin-right:1px; }
 
 /* Maintenance Cadence Visualizer */
-.cadence-wrap{ height:100%; overflow-y:auto; }
-.cadence-tbl{ width:100%; border-collapse:collapse; table-layout:auto !important; font-size:10px; }
-.cadence-tbl th{ padding:4px 6px; font-size:8.5px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); white-space:nowrap; text-align:left; }
+.cadence-wrap{ height:100%; overflow-y:auto; overflow-x:hidden; }
+.cadence-tbl{ width:100%; border-collapse:collapse; table-layout:auto !important; font-size:9.5px; }
+.cadence-tbl th{ padding:3px 4px; font-size:8px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--rule); white-space:nowrap; text-align:left; }
 .cadence-tbl th.c-st, .cadence-tbl th.c-tier, .cadence-tbl th.c-day{ text-align:center !important; }
-.cadence-tbl td{ padding:4px 6px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; white-space:nowrap; }
+.cadence-tbl td{ padding:3px 4px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; white-space:nowrap; }
 .cadence-tbl tr:hover{ background:rgba(255,255,255,0.025); }
 .cadence-tbl tr.hot-maint{ background:rgba(56,189,248,0.07); }
 .cadence-tbl tr.hot-maint:hover{ background:rgba(56,189,248,0.11); }
 
-.cadence-tbl .c-st{ width:42px; min-width:38px; text-align:center; }
-.cadence-tbl .c-env{ width:54px; min-width:48px; }
-.cadence-tbl .c-tier{ width:50px; min-width:44px; text-align:center; }
-.cadence-tbl .c-team{ min-width:100px; font-weight:700; }
-.cadence-tbl .c-cadence{ min-width:130px; }
-.cadence-tbl .c-win{ width:92px; min-width:85px; }
+.cadence-tbl .c-st{ width:32px; min-width:28px; text-align:center; padding:3px 2px; }
+.cadence-tbl .c-env{ width:44px; min-width:38px; padding:3px 2px; }
+.cadence-tbl .c-tier{ width:40px; min-width:34px; text-align:center; padding:3px 2px; }
+.cadence-tbl .c-team{ min-width:76px; font-weight:700; }
+.cadence-tbl .c-cadence{ min-width:88px; }
+.cadence-tbl .c-win{ width:78px; min-width:72px; padding:3px 2px; }
 
-.cadence-tbl .c-day{ width:36px !important; min-width:34px !important; max-width:44px !important; padding:4px 2px !important; text-align:center !important; }
-.cadence-tbl th.c-day{ font-size:8px; font-weight:700; letter-spacing:.05em; color:var(--mute); }
+.cadence-tbl .c-day{ width:21px !important; min-width:19px !important; max-width:24px !important; padding:3px 1px !important; text-align:center !important; }
+.cadence-tbl th.c-day{ font-size:8px; font-weight:700; letter-spacing:0; color:var(--mute); }
 .cadence-tbl th.cur-th{ color:#38BDF8 !important; font-weight:800 !important; background:rgba(56,189,248,0.14) !important; border-bottom:2px solid #38BDF8 !important; }
 .cadence-tbl .c-day-start{ border-left:1px solid rgba(255,255,255,0.07) !important; }
 .cadence-tbl .c-day-end{ border-right:1px solid rgba(255,255,255,0.07) !important; }
 
-.cadence-tbl .c-status{ min-width:150px; padding-left:8px !important; }
+.cadence-tbl .c-status{ min-width:112px; padding-left:5px !important; }
 
 .cadence-cell{ text-align:center; vertical-align:middle; }
 .cadence-cell.cur-day{ background:rgba(56,189,248,0.035); }
@@ -375,14 +376,74 @@ body{
 .st-tag{ background:var(--accent-tint); color:var(--accent); border:1px solid var(--accent-line); border-radius:3px; padding:1px 4px; font-size:9px; }
 .badge-maint-active{
   background:rgba(16,185,129,0.18); color:#10B981; border:1px solid rgba(16,185,129,0.45);
-  border-radius:4px; padding:2px 8px; font-size:8.5px; font-weight:700; text-transform:uppercase;
-  display:inline-flex; align-items:center; gap:6px; min-width:115px;
+  border-radius:4px; padding:2px 6px; font-size:8.5px; font-weight:700; text-transform:uppercase;
+  display:inline-flex; align-items:center; gap:4px;
 }
 .badge-maint-sched{
   background:var(--sunk); color:var(--slate); border:1px solid var(--rule);
-  border-radius:4px; padding:2px 8px; font-size:8.5px; font-weight:500;
-  display:inline-flex; align-items:center; gap:6px; min-width:136px;
+  border-radius:4px; padding:2px 6px; font-size:8.5px; font-weight:500;
+  display:inline-flex; align-items:center; gap:4px;
 }
+
+/* Cadence Alert Strip & Modal */
+.cadence-alert-strip{
+  display:flex; align-items:center; justify-content:space-between; gap:6px;
+  background:linear-gradient(90deg, rgba(56,189,248,0.1) 0%, rgba(15,23,42,0.5) 100%);
+  border:1px solid rgba(56,189,248,0.25); border-radius:3px;
+  padding:2px 6px; margin-bottom:4px; flex:none;
+}
+.cadence-alert-info{ display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; }
+.cadence-alert-tag{
+  font-family:var(--mono); font-size:8px; font-weight:800; letter-spacing:.04em;
+  color:#38bdf8; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.35);
+  border-radius:3px; padding:1px 4px; flex:none;
+}
+.cadence-alert-meta{
+  font-size:9px; color:#cbd5e1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.cadence-alert-btn{
+  font:inherit; font-size:8.5px; font-weight:700; color:#0f172a; background:#38bdf8;
+  border:none; border-radius:3px; padding:2px 6px; cursor:pointer; white-space:nowrap;
+  flex:none; transition:all .12s ease; line-height:1.2;
+}
+.cadence-alert-btn:hover{ background:#7dd3fc; box-shadow:0 0 6px rgba(56,189,248,0.4); }
+
+.cadence-modal-overlay{
+  position:fixed; inset:0; z-index:9995; display:none;
+  align-items:center; justify-content:center; pointer-events:auto;
+}
+.cadence-modal-overlay.on{ display:flex; }
+.cadence-modal-backdrop{
+  position:absolute; inset:0; background:rgba(0,0,0,0.65); backdrop-filter:blur(2px);
+}
+.cadence-modal-card{
+  position:relative; z-index:10; background:#0F172A; border:1px solid #0284c7;
+  border-radius:7px; box-shadow:0 16px 40px rgba(0,0,0,0.85), 0 0 0 1px rgba(56,189,248,0.25);
+  width:92%; max-width:620px; padding:12px 14px; display:flex; flex-direction:column; gap:6px;
+  animation:slideUp .18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cadence-modal-head{ display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--rule-soft); padding-bottom:5px; }
+.cadence-modal-title{ font-size:11px; font-weight:700; color:#f8fafc; }
+.cadence-modal-close{ background:none; border:none; color:var(--slate); font-size:16px; cursor:pointer; padding:1px 5px; }
+.cadence-modal-close:hover{ color:#fff; }
+.cad-tabs-wrap{ display:flex; align-items:center; gap:4px; margin:2px 0; }
+.cad-tab{
+  font:inherit; font-size:9.5px; font-weight:600; color:var(--slate); background:var(--sunk);
+  border:1px solid var(--rule); border-radius:4px; padding:2px 8px; cursor:pointer;
+  transition:all .12s ease;
+}
+.cad-tab:hover{ color:#fff; border-color:var(--accent-line); }
+.cad-tab.active{ background:var(--accent-tint); color:var(--accent); border-color:var(--accent); font-weight:700; }
+.cad-meta-box{
+  background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06);
+  border-radius:4px; padding:6px 8px; font-size:10px; display:flex; flex-direction:column; gap:2px;
+}
+.cadence-modal-foot{ display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--rule-soft); padding-top:6px; margin-top:2px; }
+.cadence-modal-dismiss{
+  font:inherit; font-size:10px; font-weight:600; color:var(--slate); background:var(--sunk);
+  border:1px solid var(--rule); border-radius:4px; padding:3px 10px; cursor:pointer;
+}
+.cadence-modal-dismiss:hover{ color:#fff; border-color:var(--accent); }
 
 /* ---- chips ----------------------------------------------------------- */
 .chip{
@@ -484,7 +545,7 @@ body{
         min-height:0; min-width:0; }
 .cc{
   background:var(--card); border:1px solid var(--rule); border-radius:2px;
-  box-shadow:none; padding:7px 9px; cursor:pointer; font:inherit; text-align:left;
+  box-shadow:none; padding:8px 10px; cursor:pointer; font:inherit; text-align:left;
   display:flex; flex-direction:column; justify-content:space-between; min-height:0; min-width:0; overflow:hidden;
   transition:background .1s ease, border-color .1s ease;
 }
@@ -499,7 +560,7 @@ body{
 .cc .nm{ font-size:11px; font-weight:700; color:var(--ink);
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
 .cc .foot{ margin-top:auto; display:flex; align-items:flex-end; justify-content:space-between;
-           gap:6px; padding-top:2px; min-width:0; }
+           gap:6px; padding-top:3px; min-width:0; border-top:1px solid rgba(255,255,255,0.03); }
 .cc .cnt{ font-family:var(--ui); font-variant-numeric:tabular-nums; font-weight:700;
           font-size:clamp(15px,2.5vh,20px); line-height:1; min-width:0; }
 .cc .cnt em{ font-style:normal; font-size:9px; font-weight:500; color:var(--mute);
@@ -507,9 +568,9 @@ body{
 .cc .nx{ font-family:var(--ui); font-variant-numeric:tabular-nums; font-size:9px; color:var(--slate); text-align:right;
          white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .cc .nx b{ color:var(--val,var(--ink)); font-weight:700; }
-.meter{ display:flex; height:8px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
-        margin:3px 0 3px; flex:none; gap:2px; }
-.meter-label{ font-size:9px; color:var(--slate); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--ui); font-variant-numeric:tabular-nums; }
+.meter{ display:flex; height:9px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
+        margin:4px 0 3px; flex:none; gap:2px; }
+.meter-label{ font-size:9.5px; color:var(--slate); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--ui); font-variant-numeric:tabular-nums; }
 .meter i{ display:block; height:100%; min-width:6px; border-radius:1px; }
 
 /* ---- segmented control ----------------------------------------------- */
@@ -733,19 +794,19 @@ body{
   height:100%; min-height:0; overflow:hidden;
 }
 .triage-col{
-  display:flex; flex-direction:column; gap:5px; height:100%; min-height:0; overflow:hidden;
+  display:flex; flex-direction:column; gap:6px; height:100%; min-height:0; overflow:hidden;
 }
 .triage-col-header{
   display:flex; align-items:center; justify-content:space-between;
-  font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
-  color:var(--slate); padding:1px 4px 3px; border-bottom:1px solid var(--rule);
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--slate); padding:2px 4px 4px; border-bottom:1px solid var(--rule);
   flex:none;
 }
 .team-row{
-  display:flex; align-items:center; justify-content:space-between; gap:6px;
-  padding:3px 6px; border-radius:4px; background:rgba(255,255,255,0.02);
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:4px 8px; border-radius:3px; background:rgba(255,255,255,0.02);
   border:1px solid rgba(255,255,255,0.04); cursor:pointer; transition:all .15s ease;
-  min-height:30px; flex:1;
+  min-height:36px; flex:1;
 }
 .team-row:hover{
   background:rgba(56,189,248,0.08); border-color:rgba(56,189,248,0.3);
@@ -755,14 +816,14 @@ body{
   box-shadow:0 0 6px rgba(56,189,248,0.25);
 }
 .team-bar-wrap{
-  display:flex; height:6px; width:65px; border-radius:2px; overflow:hidden;
+  display:flex; height:8px; width:80px; border-radius:2px; overflow:hidden;
   background:rgba(255,255,255,0.06); flex:none;
 }
 .cluster-card{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding:5px 7px; border-radius:5px; background:rgba(255,255,255,0.02);
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:8px 10px; border-radius:3px; background:rgba(255,255,255,0.02);
   border:1px solid var(--rule); border-left:3px solid var(--accent);
-  transition:all .15s ease; cursor:pointer; min-height:52px; flex:1;
+  transition:all .15s ease; cursor:pointer; min-height:62px; flex:1;
 }
 .cluster-card:hover{
   background:rgba(255,255,255,0.04); border-color:rgba(56,189,248,0.4);
@@ -797,7 +858,6 @@ _BODY = r"""
       <div class="dominant-compliance-inner" id="mDominantCompliance"></div>
       <div class="crumbs" id="mCrumbs"></div>
       <div class="head-actions">
-        <button class="story-btn" type="button" data-act="startStory" data-tip="Guided executive narrative walkthrough">▶ Walk me through it</button>
         <div class="asof" id="mAsOf"></div>
       </div>
     </div>
@@ -835,6 +895,7 @@ _BODY = r"""
 </div>
 <div class="filter-popover-overlay" id="mSlicers"></div>
 <div class="story-overlay" id="mStoryModal"></div>
+<div class="cadence-modal-overlay" id="mCadenceModal"></div>
 <div id="tip"></div>
 """
 
@@ -894,17 +955,32 @@ function fmtDays(d){
   if (d < 0){
     const n = -d;
     if (n < 60) return n + "d overdue";
+    if (n >= 365){
+      const y = Math.floor(n / 365);
+      const rm = Math.floor((n % 365) / 30);
+      return rm ? y + "y " + rm + "m overdue" : y + "y overdue";
+    }
     const m = Math.floor(n / 30), rd = n % 30;
-    return rd ? m + "m " + rd + "d overdue" : m + "m 0d overdue";
+    return rd ? m + "m " + rd + "d overdue" : m + "m overdue";
   }
   if (d < 60) return d + "d left";
+  if (d >= 365){
+    const y = Math.floor(d / 365);
+    const rm = Math.floor((d % 365) / 30);
+    return rm ? y + "y " + rm + "m left" : y + "y left";
+  }
   const m = Math.floor(d / 30), rd = d % 30;
-  return rd ? m + "m " + rd + "d left" : m + "m 0d left";
+  return rd ? m + "m " + rd + "d left" : m + "m left";
 }
 function span(d){
   if (d < 60) return d + "d";
+  if (d >= 365){
+    const y = Math.floor(d / 365);
+    const rm = Math.floor((d % 365) / 30);
+    return rm ? y + "y " + rm + "m" : y + "y";
+  }
   const m = Math.floor(d / 30), rd = d % 30;
-  return rd ? m + "m " + rd + "d" : m + "m 0d";
+  return rd ? m + "m " + rd + "d" : m + "m";
 }
 
 function fmtDaysLong(d){
@@ -1467,6 +1543,22 @@ const TEAM_COLOR = {
   "Core": "#38BDF8"
 };
 
+function convertCadenceWindow(winStr, isLocal){
+  if (!isLocal || !winStr || !winStr.includes("-")) return winStr;
+  try {
+    const parts = winStr.split("-");
+    const sParts = parts[0].trim().split(":").map(Number);
+    const eParts = parts[1].trim().split(":").map(Number);
+    const now = new Date();
+    const dStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), sParts[0], sParts[1]));
+    const dEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), eParts[0], eParts[1]));
+    const fmt = d => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    return fmt(dStart) + "-" + fmt(dEnd);
+  } catch(e) {
+    return winStr;
+  }
+}
+
 function renderCadence(S){
   const scheds = (DATA.schedules || []).filter(sch => {
     if (S.state && sch.state !== S.state) return false;
@@ -1486,9 +1578,23 @@ function renderCadence(S){
   const fullDayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
   const todayIdx = new Date().getDay();
 
+  const isLocal = S.tz === "local";
+  let localTz = "Local";
+  try {
+    if (typeof Intl !== "undefined" && Intl.DateTimeFormat) {
+      const parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(new Date());
+      const p = parts.find(x => x.type === "timeZoneName");
+      if (p && p.value) localTz = p.value;
+    }
+  } catch(e){}
+
+  const winTzLabel = isLocal ? localTz : "UTC";
+
   const rowsHtml = scheds.map(sch => {
     const daysStr = String(sch.days_of_week || "").toLowerCase();
     const isToday = isMaintToday(sch);
+    const displayWin = convertCadenceWindow(sch.time_window, isLocal);
+
     const dayCells = fullDayNames.map((d, i) => {
       const active = daysStr.includes(d);
       const isCur = i === todayIdx;
@@ -1497,7 +1603,7 @@ function renderCadence(S){
       if (i === 6) cls += " c-day-end";
       if (active) cls += isCur ? " today-active" : " active";
       else if (isCur) cls += " cur-day";
-      const dayTip = dayNames[i] + ': ' + (active ? (isCur ? 'Active Today' : 'Scheduled Maintenance') : 'No Maintenance');
+      const dayTip = dayNames[i].toUpperCase() + ': ' + (active ? ((isCur ? 'ACTIVE TODAY' : 'Scheduled Maintenance') + ' • ' + displayWin + ' ' + winTzLabel) : 'No Maintenance Window');
       const dot = active
         ? (isCur ? '<span class="c-dot is-today"></span>' : '<span class="c-dot is-active"></span>')
         : '<span class="c-dot is-idle"></span>';
@@ -1506,7 +1612,7 @@ function renderCadence(S){
 
     const tClr = TEAM_COLOR[sch.team] || "var(--ink)";
     const statusLabel = isToday ? 'ACTIVE TODAY' : ('Upcoming (' + (sch.next_run_date || 'Sun') + ')');
-    const statusTip = isToday ? ('Active maintenance window today: ' + (sch.time_window || '') + ' UTC') : ('Next scheduled run: ' + (sch.next_run_date || 'Sun') + ' at ' + (sch.time_window || '') + ' UTC');
+    const statusTip = isToday ? ('Active maintenance window today: ' + displayWin + ' ' + winTzLabel) : ('Next scheduled run: ' + (sch.next_run_date || 'Sun') + ' at ' + displayWin + ' ' + winTzLabel);
 
     return '<tr class="' + (isToday ? "hot-maint" : "") + '" data-tip="' + esc(sch.notes || (sch.state + ' ENV' + sch.env_no + ' (' + sch.environment + ') ' + sch.team)) + '">'
       + '<td class="c-st mono font-bold" title="' + esc(sch.state) + '"><span class="st-tag">' + esc(sch.state) + '</span></td>'
@@ -1514,14 +1620,31 @@ function renderCadence(S){
       + '<td class="c-tier" title="Tier: ' + esc(sch.environment) + '"><span class="env-pill" style="font-size:8.5px;padding:1px 4px;">' + esc(sch.environment) + '</span></td>'
       + '<td class="c-team" style="font-weight:700;color:' + tClr + ';font-size:9.5px;" title="' + esc(sch.team) + '">' + esc(sch.team) + '</td>'
       + '<td class="c-cadence" style="color:var(--slate);font-size:9px;" title="' + esc(sch.frequency_blurb) + '">' + esc(sch.frequency_blurb) + '</td>'
-      + '<td class="c-win mono" style="color:var(--mute);font-size:9px;" title="Window: ' + esc(sch.time_window) + ' UTC">' + esc(sch.time_window) + '</td>'
+      + '<td class="c-win mono" style="color:var(--ink);font-size:9px;font-weight:600;" title="Window: ' + esc(displayWin) + ' ' + esc(winTzLabel) + '">' + esc(displayWin) + '</td>'
       + dayCells
       + '<td class="c-status" title="' + esc(statusTip) + '">' + (isToday ? '<span class="badge-maint-active"><span class="pip-dot live"></span>ACTIVE TODAY</span>' : '<span class="badge-maint-sched"><span class="pip-dot sched"></span>' + esc(statusLabel) + '</span>') + '</td>'
       + '</tr>';
   }).join("");
 
-  return '<div class="cadence-wrap"><table class="tbl cadence-tbl"><thead><tr>'
-    + '<th class="c-st">State</th><th class="c-env">Env</th><th class="c-tier">Tier</th><th class="c-team">Team</th><th class="c-cadence">Cadence</th><th class="c-win">Window (UTC)</th>'
+  const curScope = S.state ? ("State " + S.state) : "Fleet-Wide (All States)";
+  const tzToggle = '<div style="display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid var(--rule);border-radius:3px;padding:1px;margin-left:auto;margin-right:8px;">'
+    + '<button type="button" data-act="setTz" data-val="utc" title="Display maintenance windows in UTC" style="padding:2px 7px;font-size:8.5px;font-weight:700;font-family:var(--mono);border:none;border-radius:2px;cursor:pointer;background:' + (!isLocal ? "var(--accent)" : "transparent") + ';color:' + (!isLocal ? "#fff" : "var(--slate)") + ';">UTC</button>'
+    + '<button type="button" data-act="setTz" data-val="local" title="Display maintenance windows in local time (' + esc(localTz) + ')" style="padding:2px 7px;font-size:8.5px;font-weight:700;font-family:var(--mono);border:none;border-radius:2px;cursor:pointer;background:' + (isLocal ? "var(--accent)" : "transparent") + ';color:' + (isLocal ? "#fff" : "var(--slate)") + ';">' + esc(localTz) + '</button>'
+    + '</div>';
+
+  const alertStrip = '<div class="cadence-alert-strip">'
+    + '<div class="cadence-alert-info">'
+    + '<span class="cadence-alert-tag">&#128276; CADENCE ALERT</span>'
+    + '<span class="cadence-alert-meta">' + esc(curScope) + ' &#8226; 5 Teams Scheduled Weekly</span>'
+    + '</div>'
+    + tzToggle
+    + '<button class="cadence-alert-btn" type="button" data-act="openCadenceAlert" title="Preview state-differentiated weekly maintenance alert">Preview State Alert Digest ↗</button>'
+    + '</div>';
+
+  return '<div style="height:100%;display:flex;flex-direction:column;min-height:0;">'
+    + alertStrip
+    + '<div class="cadence-wrap"><table class="tbl cadence-tbl"><thead><tr>'
+    + '<th class="c-st">State</th><th class="c-env">Env</th><th class="c-tier">Tier</th><th class="c-team">Team</th><th class="c-cadence">Cadence</th><th class="c-win">Window (' + esc(winTzLabel) + ')</th>'
     + dayNames.map((d, i) => {
         let thCls = "c-day";
         if (i === 0) thCls += " c-day-start";
@@ -1529,7 +1652,7 @@ function renderCadence(S){
         if (i === todayIdx) thCls += " cur-th";
         return '<th class="' + thCls + '" title="' + fullDayNames[i].toUpperCase() + '">' + d + '</th>';
       }).join("")
-    + '<th class="c-status">Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+    + '<th class="c-status">Status</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></div>';
 }
 
 function renderFocus(S){
@@ -2139,35 +2262,35 @@ function renderTriageDeck(S, rs){
     const isAct = S.team === tm;
     const pct = tot ? Math.round((good / tot) * 100) : 100;
 
-    const barW = 60;
+    const barW = 80;
     const expW = tot ? Math.round((exp / tot) * barW) : 0;
     const critW = tot ? Math.round((crit / tot) * barW) : 0;
     const warnW = tot ? Math.round((warn / tot) * barW) : 0;
     const goodW = Math.max(0, barW - (expW + critW + warnW));
 
     const statusPill = exp > 0
-      ? '<span style="font-family:var(--mono);font-size:8px;font-weight:700;color:var(--critical);background:rgba(239,68,68,0.18);border:1px solid rgba(239,68,68,0.4);padding:1px 5px;border-radius:3px;">' + exp + ' EXP</span>'
+      ? '<span style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:#fca5a5;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.55);padding:1.5px 5px;border-radius:3px;">⚑ ' + exp + ' EXP</span>'
       : (crit > 0
-        ? '<span style="font-family:var(--mono);font-size:8px;font-weight:700;color:var(--critical);background:rgba(249,115,22,0.18);border:1px solid rgba(249,115,22,0.4);padding:1px 5px;border-radius:3px;">' + crit + ' CRIT</span>'
+        ? '<span style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:#fdba74;background:rgba(249,115,22,0.22);border:1px solid rgba(249,115,22,0.5);padding:1.5px 5px;border-radius:3px;">▲ ' + crit + ' CRIT</span>'
         : (warn > 0
-          ? '<span style="font-family:var(--mono);font-size:8px;font-weight:700;color:var(--warning);background:rgba(245,158,11,0.18);border:1px solid rgba(245,158,11,0.4);padding:1px 5px;border-radius:3px;">' + warn + ' WARN</span>'
-          : '<span style="font-family:var(--mono);font-size:8px;font-weight:700;color:var(--healthy);background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);padding:1px 5px;border-radius:3px;">100% OK</span>'));
+          ? '<span style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:#fde047;background:rgba(245,158,11,0.22);border:1px solid rgba(245,158,11,0.5);padding:1.5px 5px;border-radius:3px;">◆ ' + warn + ' WARN</span>'
+          : '<span style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:#6ee7b7;background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.45);padding:1.5px 5px;border-radius:3px;">✓ 100% OK</span>'));
 
     return '<div class="team-row' + (isAct ? " active" : "") + '" data-act="team" data-val="' + esc(tm) + '" title="Click to filter by ' + esc(tm) + '">'
-      + '<div style="display:flex;align-items:center;gap:5px;min-width:0;">'
-      + '<span style="font-size:10px;line-height:1;">' + (TEAM_ICONS[tm] || "📦") + '</span>'
-      + '<span style="font-size:9.5px;font-weight:700;color:' + (isAct ? "var(--accent)" : "var(--ink)") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(tm) + '</span>'
-      + '<span style="font-size:8px;color:var(--slate);font-family:var(--mono);">(' + tot + ')</span>'
+      + '<div style="display:flex;align-items:center;gap:6px;min-width:0;">'
+      + '<span style="font-size:11px;line-height:1;">' + (TEAM_ICONS[tm] || "📦") + '</span>'
+      + '<span style="font-size:10px;font-weight:700;color:' + (isAct ? "var(--accent)" : "var(--ink)") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(tm) + '</span>'
+      + '<span style="font-size:8.5px;color:var(--slate);font-family:var(--mono);">(' + tot + ')</span>'
       + '</div>'
-      + '<div style="display:flex;align-items:center;gap:5px;flex:none;">'
+      + '<div style="display:flex;align-items:center;gap:6px;flex:none;">'
       + statusPill
       + '<div class="team-bar-wrap" title="' + good + ' compliant · ' + warn + ' warn · ' + crit + ' crit · ' + exp + ' exp">'
-      + (goodW > 0 ? '<div style="width:' + goodW + 'px;height:100%;background:var(--healthy);"></div>' : '')
-      + (warnW > 0 ? '<div style="width:' + warnW + 'px;height:100%;background:var(--warning);"></div>' : '')
-      + (critW > 0 ? '<div style="width:' + critW + 'px;height:100%;background:var(--critical);"></div>' : '')
-      + (expW > 0 ? '<div style="width:' + expW + 'px;height:100%;background:#ef4444;"></div>' : '')
+      + (goodW > 0 ? '<div style="width:' + goodW + 'px;height:100%;background:#10b981;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.15);"></div>' : '')
+      + (warnW > 0 ? '<div style="width:' + warnW + 'px;height:100%;background:repeating-linear-gradient(45deg,#f59e0b,#f59e0b 3px,#b45309 3px,#b45309 6px);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.2);"></div>' : '')
+      + (critW > 0 ? '<div style="width:' + critW + 'px;height:100%;background:repeating-linear-gradient(45deg,#f97316,#f97316 3px,#c2410c 3px,#c2410c 6px);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25);"></div>' : '')
+      + (expW > 0 ? '<div style="width:' + expW + 'px;height:100%;background:repeating-linear-gradient(45deg,#ef4444,#ef4444 3px,#991b1b 3px,#991b1b 6px);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.3);"></div>' : '')
       + '</div>'
-      + '<span style="font-family:var(--mono);font-size:8.5px;font-weight:700;color:' + (pct < 95 ? "var(--warning)" : "var(--healthy)") + ';width:30px;text-align:right;">' + pct + '%</span>'
+      + '<span style="font-family:var(--mono);font-size:9px;font-weight:700;color:' + (pct < 95 ? "var(--warning)" : "var(--healthy)") + ';width:32px;text-align:right;">' + pct + '%</span>'
       + '</div>'
       + '</div>';
   }).join("");
@@ -2281,16 +2404,16 @@ function renderTriageDeck(S, rs){
 
   const clusterHtml = clusters.slice(0, 3).map(c => {
     return '<div class="cluster-card ' + c.type + '" data-act="cluster" data-val="' + esc((c.state || "") + "|" + (c.comp || "")) + '" title="Click to filter to this cluster">'
-      + '<div style="display:flex;flex-direction:column;gap:4px;min-width:0;justify-content:center;">'
-      + '<div style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;">'
-      + '<span style="font-family:var(--mono);font-size:7.5px;font-weight:700;color:' + c.badgeColor + ';background:' + c.badgeBg + ';padding:1px 3.5px;border-radius:2px;flex:none;">' + c.badge + '</span>'
-      + '<span style="font-size:9px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(c.title) + '</span>'
+      + '<div style="display:flex;flex-direction:column;gap:3px;min-width:0;justify-content:center;">'
+      + '<div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap;">'
+      + '<span style="font-family:var(--mono);font-size:8px;font-weight:700;color:' + c.badgeColor + ';background:' + c.badgeBg + ';padding:1.5px 4.5px;border-radius:2px;flex:none;">' + c.badge + '</span>'
+      + '<span style="font-size:9.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(c.title) + '</span>'
       + '</div>'
-      + '<div style="font-size:8.5px;color:var(--slate);white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + esc(c.detail) + '</div>'
-      + '<div style="font-size:7.5px;color:var(--mute);white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">' + esc(c.action) + '</div>'
+      + '<div style="font-size:9px;color:var(--slate);white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + esc(c.detail) + '</div>'
+      + '<div style="font-size:8px;color:var(--mute);white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">' + esc(c.action) + '</div>'
       + '</div>'
       + '<div style="flex:none;">'
-      + '<button class="chip" style="font-size:8px;padding:1px 5px;height:17px;" type="button">Inspect ↗</button>'
+      + '<button class="chip" style="font-size:8.5px;padding:2px 7px;height:20px;" type="button">Inspect ↗</button>'
       + '</div>'
       + '</div>';
   }).join("");
@@ -2570,14 +2693,17 @@ const S = {
   showFilters: false,
   storyStep: null,
   storyTimer: null,
-  storyPaused: false
+  storyPaused: false,
+  showCadenceModal: false,
+  cadenceModalState: "AK",
+  tz: "utc"
 };
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
 ["mWhere", "mDominantCompliance", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenTitle", "mWhenHint",
- "mWhenSeg", "mWhen", "mStoryModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
+ "mWhenSeg", "mWhen", "mStoryModal", "mCadenceModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
 const last = {};
 function put(key, html){
@@ -2642,9 +2768,79 @@ function apply(){
     { id: "share", label: "Share", tip: "Percentage of total" }
   ], S.qty) : ""));
   put("mWhen", renderWhen(S));
+  const cadModalMount = $("mCadenceModal");
+  if (cadModalMount){
+    const modalHtml = renderCadenceModal(S);
+    put("mCadenceModal", modalHtml);
+    if (modalHtml) cadModalMount.classList.add("on");
+    else cadModalMount.classList.remove("on");
+  }
 
   if (S.storyStep !== null) renderStoryModal();
   animateNumbers();
+}
+
+function renderCadenceModal(S){
+  if (!S.showCadenceModal) return "";
+  const targetState = S.cadenceModalState || S.state || "AK";
+  const stLabel = targetState === "all" ? "Fleet-Wide (All States)" : ("State " + targetState);
+
+  const scheds = (DATA.schedules || []).filter(sch => targetState === "all" || sch.state === targetState);
+  const stateRecips = {
+    "AK": "ak-operations@ets.internal, ak-lead@ets.internal",
+    "ND": "nd-operations@ets.internal, nd-lead@ets.internal",
+    "NH": "nh-operations@ets.internal, nh-lead@ets.internal",
+    "all": "fleet-operations@ets.internal, all-state-leads@ets.internal"
+  };
+  const recips = stateRecips[targetState] || stateRecips["all"];
+
+  const rows = scheds.slice(0, 10).map(sch => {
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
+      + '<td class="mono font-bold" style="padding:4px 6px;">' + esc(sch.state) + ' ENV' + esc(sch.env_no) + '</td>'
+      + '<td style="padding:4px 6px;color:var(--ink);font-weight:700;">' + esc(sch.team) + '</td>'
+      + '<td style="padding:4px 6px;color:var(--slate);">' + esc(sch.frequency_blurb) + '</td>'
+      + '<td class="mono" style="padding:4px 6px;color:#38bdf8;">' + esc(sch.time_window) + '</td>'
+      + '<td style="padding:4px 6px;color:var(--mute);">' + esc(sch.days_of_week) + '</td>'
+      + '</tr>';
+  }).join("");
+
+  const stateTabs = [
+    { id: "all", lbl: "All States" },
+    { id: "AK", lbl: "Alaska (AK)" },
+    { id: "ND", lbl: "North Dakota (ND)" },
+    { id: "NH", lbl: "New Hampshire (NH)" }
+  ].map(t => {
+    const isAct = targetState === t.id;
+    return '<button type="button" class="cad-tab' + (isAct ? " active" : "") + '" data-act="setCadenceModalState" data-val="' + t.id + '">' + esc(t.lbl) + '</button>';
+  }).join("");
+
+  return '<div class="cadence-modal-backdrop" data-act="closeCadenceModal"></div>'
+    + '<div class="cadence-modal-card">'
+    + '<div class="cadence-modal-head">'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<span class="cadence-modal-title">&#128276; Weekly Operational Maintenance Cadence Alert</span>'
+    + '<span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">State-Differentiated</span>'
+    + '</div>'
+    + '<button type="button" class="cadence-modal-close" data-act="closeCadenceModal" title="Close modal">&times;</button>'
+    + '</div>'
+    + '<div style="font-size:10.5px;color:var(--slate);line-height:1.4;">'
+    + 'Unlike asset-level expiration warnings, this weekly notice coordinates planned operational windows, scheduled hours, and recurrence cadences across all 5 functional teams, differentiated state-wise.'
+    + '</div>'
+    + '<div class="cad-tabs-wrap">' + stateTabs + '</div>'
+    + '<div class="cad-meta-box">'
+    + '<div><b style="color:var(--ink);">Target Scope:</b> <span style="color:#38bdf8;font-weight:700;">' + esc(stLabel) + '</span> &#8226; <span style="color:var(--mute);">' + scheds.length + ' Maintenance Windows Scheduled</span></div>'
+    + '<div style="margin-top:2px;"><b style="color:var(--ink);">Designated State Distribution:</b> <code style="color:var(--accent);font-size:9.5px;">' + esc(recips) + '</code></div>'
+    + '</div>'
+    + '<div style="max-height:160px;overflow-y:auto;border:1px solid var(--rule);border-radius:3px;margin-top:2px;">'
+    + '<table class="tblx" style="font-size:9.5px;width:100%;border-collapse:collapse;">'
+    + '<thead><tr style="background:#141619;color:var(--slate);text-align:left;"><th style="padding:4px 6px;">Scope</th><th style="padding:4px 6px;">Team</th><th style="padding:4px 6px;">Recurrence</th><th style="padding:4px 6px;">Window (UTC)</th><th style="padding:4px 6px;">Days</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table>'
+    + '</div>'
+    + '<div class="cadence-modal-foot">'
+    + '<span style="font-size:9.5px;color:var(--mute);">&#10003; Automated weekly dispatch configured in Governance &amp; Alerts workspace</span>'
+    + '<button type="button" class="cadence-modal-dismiss" data-act="closeCadenceModal">Close</button>'
+    + '</div>'
+    + '</div>';
 }
 
 function toggle(key, value){
@@ -2741,6 +2937,19 @@ function act(name, value){
     case "nextStory": nextStory(); return;
     case "prevStory": prevStory(); return;
     case "pauseStory": toggleStoryPause(); return;
+    case "openCadenceAlert":
+      S.showCadenceModal = true;
+      S.cadenceModalState = S.state || "AK";
+      break;
+    case "closeCadenceModal":
+      S.showCadenceModal = false;
+      break;
+    case "setCadenceModalState":
+      S.cadenceModalState = value;
+      break;
+    case "setTz":
+      S.tz = value;
+      break;
     case "whenMode": S.whenMode = value; break;
     case "cluster": {
       const parts = value.split("|");

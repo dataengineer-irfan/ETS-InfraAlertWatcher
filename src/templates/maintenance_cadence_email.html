@@ -1,0 +1,118 @@
+<div style="max-width: 100%; margin: 0 auto; background-color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; border-radius: 4px; overflow: hidden; border: 1px solid #cbd5e1;">
+
+<!-- Top Header Banner -->
+<div style="background-color: #0369a1; color: #ffffff; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;">
+<div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">
+ETS Infrastructure Watchtower &#8226; Operational Cadence Notice
+</div>
+<div style="font-size: 10.5px; font-weight: 700; background: rgba(0,0,0,0.25); padding: 3px 8px; border-radius: 4px; letter-spacing: 0.04em;">
+{{ state_label | upper }}
+</div>
+</div>
+
+<!-- Body Container -->
+<div style="padding: 18px 18px 14px 18px;">
+<div style="font-size: 16px; color: #0f172a; font-weight: 700; margin-bottom: 4px;">
+Weekly Operational Maintenance Windows: {{ state_label }}
+</div>
+<div style="font-size: 12px; color: #475569; line-height: 1.5; margin-bottom: 14px;">
+State-differentiated operational schedule for the upcoming week across all 5 functional teams in <strong>{{ state_label }}</strong>. Coordinate scheduled credential rotations, container restarts, and batch execution during designated off-peak hours.
+</div>
+
+<!-- KPI Summary Cards -->
+<table cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; border-spacing: 6px 0; margin-bottom: 14px;">
+<tr>
+<td style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 12px; width: 33%;">
+<div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">Scheduled Windows</div>
+<div style="font-size: 18px; font-weight: 800; color: #0369a1; margin-top: 2px;">{{ total_schedules }}</div>
+<div style="font-size: 9.5px; color: #94a3b8; margin-top: 1px;">Across 5 functional teams</div>
+</td>
+<td style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 12px; width: 33%;">
+<div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">Active Today</div>
+<div style="font-size: 18px; font-weight: 800; color: {% if active_today_count > 0 %}#10b981{% else %}#64748b{% endif %}; margin-top: 2px;">{{ active_today_count }}</div>
+<div style="font-size: 9.5px; color: #94a3b8; margin-top: 1px;">Live execution active</div>
+</td>
+<td style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 12px; width: 33%;">
+<div style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">Coordination</div>
+<div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 2px;">100% Synced</div>
+<div style="font-size: 9.5px; color: #94a3b8; margin-top: 1px;">All SLA tiers aligned</div>
+</td>
+</tr>
+</table>
+
+<!-- Schedule Table -->
+<table cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 4px; overflow: hidden; margin-bottom: 14px;">
+<thead>
+<tr style="background-color: #0f172a; color: #f8fafc; text-align: left;">
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">State &bull; Env</th>
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">Tier</th>
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">Team</th>
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">Cadence</th>
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">Window (UTC)</th>
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">Days</th>
+<th style="padding: 6px 8px; font-weight: 600; border-bottom: 1px solid #334155;">Status</th>
+</tr>
+</thead>
+<tbody>
+{% for sch in schedules %}
+<tr style="border-bottom: 1px solid #e2e8f0; {% if sch.is_today %}background-color: #f0fdf4;{% elif loop.index is even %}background-color: #f8fafc;{% endif %}">
+<td style="padding: 6px 8px; font-weight: 700; color: #0f172a; font-family: monospace;">
+{{ sch.state }} ENV{{ sch.env_no }}
+</td>
+<td style="padding: 6px 8px;">
+<span style="display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; background: #e2e8f0; color: #334155;">
+{{ sch.environment }}
+</span>
+</td>
+<td style="padding: 6px 8px; font-weight: 700; color: {{ sch.team_color | default('#0f172a') }};">
+{{ sch.team }}
+</td>
+<td style="padding: 6px 8px; color: #475569;">
+{{ sch.frequency_blurb }}
+</td>
+<td style="padding: 6px 8px; font-family: monospace; font-size: 10.5px; color: #0284c7;">
+{{ sch.time_window }}
+</td>
+<td style="padding: 6px 8px; color: #334155; font-size: 10.5px;">
+{{ sch.days_of_week }}
+</td>
+<td style="padding: 6px 8px;">
+{% if sch.is_today %}
+<span style="background: rgba(16,185,129,0.18); color: #059669; border: 1px solid rgba(16,185,129,0.4); border-radius: 3px; padding: 1px 5px; font-size: 9px; font-weight: 700;">
+ACTIVE TODAY
+</span>
+{% else %}
+<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 5px; font-size: 9px; font-weight: 600;">
+Upcoming ({{ sch.next_run_date or 'Sun' }})
+</span>
+{% endif %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<!-- Operational Coordination Directives -->
+<div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 14px; margin-bottom: 12px;">
+<div style="font-size: 11px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">
+Weekly Team Playbook &amp; Coordination Directives:
+</div>
+<ul style="margin: 0; padding-left: 16px; font-size: 10.5px; color: #334155; line-height: 1.5;">
+<li><strong>Core (DBA)</strong>: Execute scheduled password rotations and table index rebalances strictly inside authorized UTC hours.</li>
+<li><strong>App Server</strong>: Pre-stage container image rollouts and JVM garbage collection cycles 15 minutes before window onset.</li>
+<li><strong>Cognos &amp; Informatica</strong>: Quiesce active ETL extraction pipelines and flush reporting session caches during maintenance windows.</li>
+<li><strong>Letters</strong>: Suspend print-batch dispatching during maintenance and resume upon health check clearance.</li>
+</ul>
+</div>
+
+<div style="font-size: 10.5px; color: #64748b;">
+This alert is dispatched state-wise from the <strong>ETS Infrastructure Watchtower</strong> operational cadence registry.
+</div>
+</div>
+
+<!-- Footer -->
+<div style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 8px 18px; font-size: 10px; color: #94a3b8;">
+Generated on {{ generated_at }} UTC &#8226; State Scope: <code>{{ state_label }}</code> &#8226; Designated Recipients: <code>{{ recipients_str }}</code>
+</div>
+
+</div>

@@ -19,8 +19,9 @@ from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+import ssl
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from db import get_connection
 from expiry_checker import get_due_reminders, mark_sent
@@ -29,14 +30,20 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
 def render_email(record: dict) -> str:
-    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_DIR)),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
     template = env.get_template("reminder_email.html")
     return template.render(**record)
 
 
 def render_expired_alert_email(records: list[dict], extra_context: dict | None = None) -> str:
     """Renders executive HTML alert for all overdue/expired components."""
-    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_DIR)),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
     template = env.get_template("expired_summary_email.html")
     prepared = []
     for r in records:
@@ -49,6 +56,66 @@ def render_expired_alert_email(records: list[dict], extra_context: dict | None =
         "records": prepared,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         "total_count": len(prepared),
+    }
+    if extra_context:
+        ctx.update(extra_context)
+    return template.render(**ctx)
+
+
+def render_maintenance_cadence_email(
+    schedules: list[dict],
+    state: str | None = None,
+    extra_context: dict | None = None,
+) -> str:
+    """Renders executive HTML alert for weekly operational maintenance cadence per state/team."""
+    from datetime import date
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_DIR)),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    template = env.get_template("maintenance_cadence_email.html")
+
+    state_names = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
+    state_label = state_names.get(state, f"State {state}") if state else "Fleet-Wide (All States)"
+
+    today_name = datetime.now().strftime("%A").lower()
+    today_dt = date.today().isoformat()
+
+    team_colors = {
+        "Core": "#0284c7",
+        "Cognos": "#4f46e5",
+        "Letters": "#059669",
+        "App Server": "#d97706",
+        "Informatica": "#ea580c",
+    }
+
+    prepared = []
+    active_today_count = 0
+    team_counts = {}
+
+    for s in schedules:
+        if state and s.get("state") != state:
+            continue
+        sc = dict(s)
+        team = sc.get("team", "Core")
+        team_counts[team] = team_counts.get(team, 0) + 1
+        days_str = str(sc.get("days_of_week", "")).lower()
+        is_today = today_name in days_str or (sc.get("next_run_date") == today_dt)
+        if is_today:
+            active_today_count += 1
+        sc["is_today"] = is_today
+        sc["team_color"] = team_colors.get(team, "#0f172a")
+        prepared.append(sc)
+
+    ctx = {
+        "schedules": prepared,
+        "state": state,
+        "state_label": state_label,
+        "total_schedules": len(prepared),
+        "active_today_count": active_today_count,
+        "team_counts": team_counts,
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "recipients_str": "Designated State & Infrastructure Leads",
     }
     if extra_context:
         ctx.update(extra_context)
@@ -96,6 +163,11 @@ def send_real_smtp_email(
             "SMTP credentials missing. Please configure username and password/app password."
         )
 
+    # Sanitize headers against CRLF injection
+    clean_subject = subject.replace("\r", "").replace("\n", "")
+    clean_from = from_addr.replace("\r", "").replace("\n", "")
+    clean_recipients = [r.replace("\r", "").replace("\n", "") for r in recipients]
+
     msg = MIMEMultipart("alternative")
     domain = host if "." in host else "ets.watchtower"
     msg_id = email.utils.make_msgid(domain=domain)
@@ -103,25 +175,29 @@ def send_real_smtp_email(
 
     msg["Message-ID"] = msg_id
     msg["Date"] = email.utils.formatdate(now_utc.timestamp(), localtime=False)
-    msg["Subject"] = subject
-    msg["From"] = from_addr
-    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = clean_subject
+    msg["From"] = clean_from
+    msg["To"] = ", ".join(clean_recipients)
     msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    # Explicit TLS 1.2+ context for hardened transport security
+    ssl_context = ssl.create_default_context()
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
 
     # Select SSL or standard SMTP with STARTTLS
     if port == 465:
-        server = smtplib.SMTP_SSL(host, port, timeout=30)
+        server = smtplib.SMTP_SSL(host, port, timeout=30, context=ssl_context)
     else:
         server = smtplib.SMTP(host, port, timeout=30)
 
     try:
         server.ehlo()
         if port != 465:
-            server.starttls()
+            server.starttls(context=ssl_context)
             server.ehlo()
 
         server.login(user, password)
-        refused = server.sendmail(from_addr, recipients, msg.as_string())
+        refused = server.sendmail(clean_from, clean_recipients, msg.as_string())
 
         status_code = "250 2.0.0 OK: Delivered"
         try:
@@ -189,6 +265,38 @@ def dispatch_expired_alert_real(
         subject=subject,
         html_body=html_body,
         item_count=len(prepared),
+    )
+
+
+def dispatch_cadence_alert_real(
+    recipients: list[str] | str,
+    schedules: list[dict],
+    state: str | None = None,
+    smtp_config: dict | None = None,
+    is_simulation: bool = False,
+) -> dict:
+    """
+    Compiles and transmits a live weekly maintenance cadence alert email
+    differentiated state-wise across all 5 functional teams.
+    """
+    if smtp_config is None:
+        smtp_config = smtp_config_from_env()
+
+    state_names = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
+    state_label = state_names.get(state, f"State {state}") if state else "Fleet-Wide (All States)"
+
+    subject = f"[CADENCE NOTICE] ETS Weekly Maintenance Windows: {state_label} (5 Teams Scheduled)"
+    recips_str = ", ".join(recipients) if isinstance(recipients, list) else recipients
+    html_body = render_maintenance_cadence_email(schedules, state=state, extra_context={"recipients_str": recips_str})
+
+    target_schedules = [s for s in schedules if not state or s.get("state") == state]
+
+    return send_real_smtp_email(
+        smtp_config=smtp_config,
+        to_emails=recipients,
+        subject=subject,
+        html_body=html_body,
+        item_count=len(target_schedules),
     )
 
 
