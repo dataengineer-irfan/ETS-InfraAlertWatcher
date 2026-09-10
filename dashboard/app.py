@@ -1846,27 +1846,45 @@ def render_governance_center() -> None:
 
     gov_drill = st.session_state.setdefault("gov_drill_scope", "all")
     gov_team_filter = st.session_state.setdefault("gov_team_filter", "All")
+    gov_state_filter = st.session_state.setdefault("gov_state_filter", "All")
+
+    # 1. Top-Level Filters (State & Team)
+    f_c1, f_c2, f_c3 = st.columns([1, 1, 3])
+    with f_c1:
+        new_state = st.selectbox("State Filter", ["All"] + STATES, index=(["All"] + STATES).index(gov_state_filter), key="gov_st_sel")
+        if new_state != gov_state_filter:
+            st.session_state["gov_state_filter"] = new_state
+            rerun()
+    with f_c2:
+        new_team = st.selectbox("Team Filter", ["All"] + ui.TEAMS, index=(["All"] + ui.TEAMS).index(gov_team_filter), key="gov_tm_sel")
+        if new_team != gov_team_filter:
+            st.session_state["gov_team_filter"] = new_team
+            rerun()
 
     # Filter records based on active drill scope & team
     scoped_records = records.copy()
+    if gov_state_filter != "All":
+        scoped_records = scoped_records[scoped_records["state"] == gov_state_filter]
     if gov_team_filter != "All":
         scoped_records = scoped_records[scoped_records["team"] == gov_team_filter]
 
     urgent_records = scoped_records[scoped_records["band"].isin(["Expired", "Critical", "Warning"])].copy()
     urgent_records.sort_values(by="days_left", ascending=True, inplace=True)
 
-    n_expired_fleet = (records["band"] == "Expired").sum()
-    n_critical_fleet = (records["band"] == "Critical").sum()
-    n_warning_fleet = (records["band"] == "Warning").sum()
+    n_expired_fleet = (scoped_records["band"] == "Expired").sum()
+    n_critical_fleet = (scoped_records["band"] == "Critical").sum()
+    n_warning_fleet = (scoped_records["band"] == "Warning").sum()
     n_total_risk_fleet = n_expired_fleet + n_critical_fleet + n_warning_fleet
-    n_healthy_fleet = (records["band"] == "Healthy").sum()
-    pct_healthy = (n_healthy_fleet / len(records)) * 100.0
-    pct_risk = (n_total_risk_fleet / len(records)) * 100.0
+    n_healthy_fleet = (scoped_records["band"] == "Healthy").sum()
+    total_len = len(scoped_records) if len(scoped_records) > 0 else 1
+    pct_healthy = (n_healthy_fleet / total_len) * 100.0
+    pct_risk = (n_total_risk_fleet / total_len) * 100.0
 
-    # 1. Lightweight Utility Scope Slicer
-    scope_name = "All Teams & Portfolios" if gov_team_filter == "All" else f"Team {gov_team_filter}"
-    if gov_drill != "all":
-        scope_name += f" · Filter: {gov_drill.title()}"
+    scope_name = "All"
+    if gov_state_filter != "All":
+        scope_name = gov_state_filter
+    if gov_team_filter != "All":
+        scope_name += f" - {gov_team_filter}"
 
     s_c1, s_c2 = st.columns([4.2, 0.8])
     with s_c1:
@@ -1875,7 +1893,7 @@ def render_governance_center() -> None:
           <div style="display:flex;align-items:center;gap:8px;flex:1;">
             <span class="scope-label">GOVERNANCE SCOPE</span>
             <span class="scope-val">{scope_name}</span>
-            <span class="scope-muted">({len(scoped_records)} of 500 total managed assets)</span>
+            <span class="scope-muted">({len(scoped_records)} of {len(records)} total managed assets)</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <div class="live-dot"></div>
@@ -1887,6 +1905,7 @@ def render_governance_center() -> None:
         if st.button("↺ Reset Scope", key="gov_reset_scope", use_container_width=True):
             st.session_state["gov_drill_scope"] = "all"
             st.session_state["gov_team_filter"] = "All"
+            st.session_state["gov_state_filter"] = "All"
             rerun()
 
     st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
@@ -2277,27 +2296,27 @@ def render_governance_center() -> None:
                         except Exception as ex:
                             st.error(f"Dispatch failed: {ex}")
 
-                # Email Preview expander
-                with st.expander("📧 Preview Release Cutoff Alert Email Template", expanded=False):
-                    st.markdown(f"""
-                    <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:10px;font-family:var(--mono);font-size:11px;">
-                      <div style="color:var(--slate);margin-bottom:4px;"><b style="color:var(--text);">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
-                      <div style="color:var(--slate);margin-bottom:6px;"><b style="color:var(--text);">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
-                      <div style="border-top:1px solid #2c3235;padding-top:8px;color:var(--text);line-height:1.5;">
-                        <p>Attention State Release Management,</p>
-                        <p>This is an automated ETS Watchtower notification regarding the upcoming pipeline gate cutoff for <b>{chosen_m['release_id']}</b>.</p>
-                        <table style="border:1px solid #2c3235;background:#181b1f;padding:6px;width:100%;margin:6px 0;font-size:10.5px;">
-                          <tr><td style="color:var(--slate);">State Scope:</td><td><b>{chosen_m['state']} MMIS</b></td></tr>
-                          <tr><td style="color:var(--slate);">Release ID:</td><td><b>{chosen_m['release_id']}</b></td></tr>
-                          <tr><td style="color:var(--slate);">Phase / Gate:</td><td><b style="color:#5794f2;">{chosen_m['phase']}</b></td></tr>
-                          <tr><td style="color:var(--slate);">Environment:</td><td><b>{chosen_m['env']}</b></td></tr>
-                          <tr><td style="color:var(--slate);">Cutoff Deadline:</td><td><b style="color:#f2495c;">{chosen_m['cutoff_date']}</b></td></tr>
-                          <tr><td style="color:var(--slate);">Remaining Window:</td><td><b style="color:#ff9830;">{chosen_m['status_label']}</b></td></tr>
-                        </table>
-                        <p style="font-size:9.5px;color:var(--mute);">All code freezes, test run artifacts, and compliance exit criteria must be completed prior to 17:00 local state time on the cutoff date.</p>
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Email Preview
+                st.markdown(f"""
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:11px;margin-top:6px;max-height:220px;overflow-y:auto;overflow-x:hidden;">
+                  <div style="color:var(--slate);font-weight:700;margin-bottom:6px;">📧 Preview Release Cutoff Alert Email Template</div>
+                  <div style="color:var(--slate);margin-bottom:4px;"><b style="color:var(--text);">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
+                  <div style="color:var(--slate);margin-bottom:6px;"><b style="color:var(--text);">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
+                  <div style="border-top:1px solid #2c3235;padding-top:8px;color:var(--text);line-height:1.5;">
+                    <p>Attention State Release Management,</p>
+                    <p>This is an automated ETS Watchtower notification regarding the upcoming pipeline gate cutoff for <b>{chosen_m['release_id']}</b>.</p>
+                    <table style="border:1px solid #2c3235;background:#181b1f;padding:6px;width:100%;margin:6px 0;font-size:10.5px;">
+                      <tr><td style="color:var(--slate);">State Scope:</td><td><b>{chosen_m['state']} MMIS</b></td></tr>
+                      <tr><td style="color:var(--slate);">Release ID:</td><td><b>{chosen_m['release_id']}</b></td></tr>
+                      <tr><td style="color:var(--slate);">Phase / Gate:</td><td><b style="color:#5794f2;">{chosen_m['phase']}</b></td></tr>
+                      <tr><td style="color:var(--slate);">Environment:</td><td><b>{chosen_m['env']}</b></td></tr>
+                      <tr><td style="color:var(--slate);">Cutoff Deadline:</td><td><b style="color:#f2495c;">{chosen_m['cutoff_date']}</b></td></tr>
+                      <tr><td style="color:var(--slate);">Remaining Window:</td><td><b style="color:#ff9830;">{chosen_m['status_label']}</b></td></tr>
+                    </table>
+                    <p style="font-size:9.5px;color:var(--mute);">All code freezes, test run artifacts, and compliance exit criteria must be completed prior to 17:00 local state time on the cutoff date.</p>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
 
         with act_tab2:
             # Sync default team with left filter if a specific team is selected
@@ -2363,7 +2382,7 @@ def render_governance_center() -> None:
                     <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">{email_subject}</span></div>
                   </div>
                   <div style="background:#111217;padding:7px;">
-                    <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
+                    <div style="max-height:220px;min-height:150px;overflow-y:auto;overflow-x:hidden;word-wrap:break-word;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
                       {email_html}
                     </div>
                   </div>
@@ -2898,22 +2917,6 @@ def render_rbac_workspace() -> None:
             state="pending",
         ), unsafe_allow_html=True)
 
-    st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
-
-    # 2. Security Posture Strip (Grafana Panel)
-    st.markdown(f"""
-    <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid #5794f2;border-radius:2px;padding:4px 10px;margin-bottom:6px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:12px;font-weight:700;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">Access Control &amp; Audit Trail (RBAC)</span>
-        <span style="font-size:9px;color:var(--slate);font-family:var(--mono);">Zero-Trust Enterprise Identity &amp; Compliance System</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--mono);">
-        <span class="alert-chip ok">🛡️ PBKDF2-SHA256</span>
-        <span class="alert-chip pending">⚡ WAL Mode</span>
-        <span class="alert-chip ok">🔒 TLS 1.2+ Transport</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     # 3. Sub-tabs for RBAC workspace
     subtab_users, subtab_audit = st.tabs([
@@ -2926,12 +2929,6 @@ def render_rbac_workspace() -> None:
 
         with uc1:
             st.markdown(ui.panel_header("Provision Enterprise User", color="#5794f2", count="Admin Only"), unsafe_allow_html=True)
-            st.markdown("""
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:4px 8px;margin-bottom:4px;">
-              <div style="font-size:9px;color:var(--slate);line-height:1.3;">Add authenticated credentials with explicit role entitlement. Passwords hashed via PBKDF2-HMAC-SHA256.</div>
-            </div>
-            """, unsafe_allow_html=True)
-
             with st.form("rbac_create_user_form", clear_on_submit=True):
                 pf_c1, pf_c2 = st.columns(2)
                 with pf_c1:
@@ -2942,15 +2939,6 @@ def render_rbac_workspace() -> None:
                     new_email = st.text_input("Enterprise Email", key="rbac_user_email", placeholder="e.g. jdoe@ets.internal")
 
                 new_role = st.selectbox("Assign Enterprise Role *", ["Operator", "Viewer", "Auditor", "Admin"], index=0, key="rbac_user_role")
-
-                st.markdown("""
-                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:4px 6px;font-size:8.5px;color:var(--slate);margin-bottom:6px;line-height:1.3;">
-                  <b>Role Entitlements:</b>
-                  <span class="alert-chip firing" style="font-size:7.5px;">Admin</span> Full Access &bull;
-                  <span class="alert-chip pending" style="font-size:7.5px;">Operator</span> Renewals &bull;
-                  <span class="alert-chip ok" style="font-size:7.5px;">Auditor</span> Audit Only
-                </div>
-                """, unsafe_allow_html=True)
 
                 submitted = st.form_submit_button("Provision User", type="primary", use_container_width=True)
                 if submitted:
