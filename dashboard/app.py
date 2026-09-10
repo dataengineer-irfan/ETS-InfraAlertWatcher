@@ -2768,6 +2768,7 @@ def render_rbac_workspace() -> None:
                 f"</tr>"
             )
 
+        audit_body_content = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No audit records match the current filter.</td></tr>'
         audit_table_html = f"""
         <div style="border:1px solid #1e293b;border-radius:6px;overflow:hidden;background:#0d131f;max-height:480px;overflow-y:auto;">
           <table class="tblx" style="width:100%;border-collapse:collapse;font-size:11px;">
@@ -2783,7 +2784,7 @@ def render_rbac_workspace() -> None:
               </tr>
             </thead>
             <tbody>
-              {''.join(audit_rows_html) if audit_rows_html else '<tr><td colspan=\"7\" style=\"text-align:center;padding:16px;color:#64748b;\">No audit records match the current filter.</td></tr>'}
+              {audit_body_content}
             </tbody>
           </table>
         </div>
