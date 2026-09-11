@@ -62,7 +62,9 @@ from notifier import (  # noqa: E402
     dispatch_cadence_alert_real,
 )
 from ingest_releases import run_release_ingest  # noqa: E402
-from release_plan import render_release_plan_workspace  # noqa: E402
+from release_plan import render_release_plan_workspace
+from release_split_view import render_release_split_view
+  # noqa: E402
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
 WORKBOOK_DIR = os.environ.get("EXPIRY_WORKBOOK_DIR", str(ROOT))
