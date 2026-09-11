@@ -3134,7 +3134,7 @@ document.addEventListener("mousemove", e => {
 document.addEventListener("mouseleave", () => { tip.classList.remove("on"); tipFor = null; });
 document.addEventListener("mousemove", (e) => {
   if (e.clientX <= 45 && e.clientY <= 60) {
-    try { window.parent.postMessage({ type: "ETS_HOVER_EXPAND" }, "*"); } catch(_e) {}
+    // message removed
   }
 }, { passive: true });
 
