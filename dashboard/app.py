@@ -3236,8 +3236,9 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
+tab_releases, tab_split, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
     "Schedule Release Plan",
+    "Split-Pane Radar (New)",
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
     "Governance & Alerts",
@@ -3246,6 +3247,9 @@ tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
 
 with tab_releases:
     render_release_plan_workspace(DB_PATH)
+
+with tab_split:
+    render_release_split_view(DB_PATH)
 
 with tab_overview:
     canvas("all", None, CANVAS_OVERVIEW)
