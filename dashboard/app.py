@@ -1508,7 +1508,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
 
         with i_tab1:
-            st.markdown("<div style='max-height:220px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:180px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
             _life_gauge = ui.life_gauge(int(rec['days_left']))
             _team_chip = ui.alert_chip(rec["band"])
@@ -1551,7 +1551,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with i_tab2:
-            st.markdown("<div style='max-height:265px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height:220px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
             # Resolve scope for Portfolio Matrix (support selection, state_filter, cell_filter, and search)
             if selected_entity_ids:
                 mat_df = df[df["id"].isin(selected_entity_ids)].copy()
@@ -2151,7 +2151,7 @@ def render_governance_center() -> None:
                             rerun()
 
                     st.markdown(f"""
-                    <div style="max-height:calc(100vh - 290px);min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
+                    <div style="max-height:220px;min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
@@ -2164,7 +2164,7 @@ def render_governance_center() -> None:
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div style="max-height:calc(100vh - 290px);min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
+                    <div style="max-height:220px;min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
                       <table class="tblx" style="font-size:10px;">
                         <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
                         {''.join(q_rows)}
@@ -2252,7 +2252,7 @@ def render_governance_center() -> None:
                     )
 
                 st.markdown(f"""
-                <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
+                <div style="max-height:220px;min-height:150px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
                   <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
                     <tr style="background:#141619;border-bottom:1px solid #2c3235;position:sticky;top:0;z-index:2;">
                       <th>State</th><th>Release</th><th>Milestone Phase</th><th>Cutoff Date</th><th>Alert Status</th>
@@ -2287,7 +2287,7 @@ def render_governance_center() -> None:
 
                 # Email Preview
                 st.markdown(f"""
-                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:11px;margin-top:6px;max-height:220px;overflow-y:auto;overflow-x:hidden;">
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:11px;margin-top:6px;max-height:160px;overflow-y:auto;overflow-x:hidden;">
                   <div style="color:var(--slate);font-weight:700;margin-bottom:6px;">📧 Preview Release Cutoff Alert Email Template</div>
                   <div style="color:var(--slate);margin-bottom:4px;"><b style="color:var(--text);">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
                   <div style="color:var(--slate);margin-bottom:6px;"><b style="color:var(--text);">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
@@ -2599,7 +2599,7 @@ def render_governance_center() -> None:
                 <div><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">[CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick} (5 Teams Scheduled)</span></div>
               </div>
               <div style="background:#111217;padding:7px;">
-                <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
+                <div style="max-height:220px;min-height:150px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
                   {cad_email_html}
                 </div>
               </div>

@@ -509,3 +509,80 @@ def render_release_plan_workspace(db_path: str) -> None:
         render_html(_render_story_card("Upcoming Release", next_r, "#f59e0b", "🚀"))
 
     conn.close()
+
+    # --------------------------------------------------------------------------
+    # 7. GRANULAR MASTER-DETAIL INSPECTOR
+    # --------------------------------------------------------------------------
+    st.markdown("<div style='margin-top:24px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;'>Granular Milestone Ledger & Roadmap</div>", unsafe_allow_html=True)
+    
+    tab_deck, tab_matrix = st.tabs([
+        "🎯 Release Flight Deck", 
+        "📋 Multi-Release Roadmap Matrix"
+    ])
+    
+    release_dict = {r["release_id"]: r for r in all_releases}
+    all_rel_ids = list(release_dict.keys())
+    
+    with tab_deck:
+        d_c1, d_c2 = st.columns([1.0, 2.0], gap="medium")
+        with d_c1:
+            chosen_rel = st.selectbox(
+                "Select Release to Inspect",
+                all_rel_ids,
+                key="rp_target_rel_picker",
+                label_visibility="collapsed"
+            )
+            rel_data = release_dict.get(chosen_rel)
+            if rel_data:
+                st.markdown(f'''
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:12px;">
+                    <div style="font-size:10px;color:var(--mute);text-transform:uppercase;">Selected Target</div>
+                    <div style="font-size:16px;font-weight:700;color:var(--text);">{rel_data['state']}.{rel_data['release_id']}</div>
+                    <div style="margin-top:8px;font-size:12px;color:var(--slate);">
+                        <b>DEV Freeze:</b> {rel_data.get('dev_end_date', 'TBD')}<br/>
+                        <b>SIT Exit:</b> {rel_data.get('sit_end_date', 'TBD')}<br/>
+                        <b>UAT Sign-off:</b> {rel_data.get('uat_end_date', 'TBD')}<br/>
+                        <b>PROD Cutover:</b> {rel_data.get('prod_deploy_date', 'TBD')}
+                    </div>
+                </div>
+                ''', unsafe_allow_html=True)
+        with d_c2:
+            if rel_data:
+                st.markdown('''
+                <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:12px;">
+                    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">Milestone Execution Ledger</div>
+                    <table class="tblx" style="width:100%;font-size:11px;">
+                        <tr><th style="text-align:left;">Phase</th><th style="text-align:left;">Environment</th><th style="text-align:left;">Target Date</th><th style="text-align:right;">Status</th></tr>
+                        <tr><td>DEV Freeze</td><td>Build-76 / ENV52</td><td>{dev}</td><td style="text-align:right;">{d_stat}</td></tr>
+                        <tr><td>SIT Gate</td><td>SIT QA / ENV57</td><td>{sit}</td><td style="text-align:right;">{s_stat}</td></tr>
+                        <tr><td>UAT Gate</td><td>Acceptance / ENV04</td><td>{uat}</td><td style="text-align:right;">{u_stat}</td></tr>
+                        <tr><td>PROD Cutover</td><td>PROD / ENV05</td><td>{prod}</td><td style="text-align:right;">{p_stat}</td></tr>
+                    </table>
+                </div>
+                '''.format(
+                    dev=rel_data.get('dev_end_date', 'TBD'), d_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if rel_data.get('dev_end_date', '') < now_iso else '<span style="color:#5794f2;font-weight:700;">PENDING</span>',
+                    sit=rel_data.get('sit_end_date', 'TBD'), s_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if rel_data.get('sit_end_date', '') < now_iso else '<span style="color:#5794f2;font-weight:700;">PENDING</span>',
+                    uat=rel_data.get('uat_end_date', 'TBD'), u_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if rel_data.get('uat_end_date', '') < now_iso else '<span style="color:#5794f2;font-weight:700;">PENDING</span>',
+                    prod=rel_data.get('prod_deploy_date', 'TBD'), p_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if rel_data.get('prod_deploy_date', '') < now_iso else '<span style="color:#5794f2;font-weight:700;">PENDING</span>'
+                ), unsafe_allow_html=True)
+                
+    with tab_matrix:
+        if not all_releases:
+            st.info("No releases available for roadmap.")
+        else:
+            roadmap_rows = []
+            for r in all_releases:
+                d_end = r.get('prod_deploy_date', 'TBD')
+                status = '<span style="color:#73bf69;font-weight:700;">DEPLOYED</span>' if d_end < now_iso else '<span style="color:#ff9830;font-weight:700;">SCHEDULED</span>'
+                roadmap_rows.append(f"<tr><td>{r.get('state')}</td><td><b>{r.get('release_id')}</b></td><td>{r.get('dev_end_date', 'TBD')}</td><td>{r.get('sit_end_date', 'TBD')}</td><td>{r.get('uat_end_date', 'TBD')}</td><td>{d_end}</td><td style='text-align:right;'>{status}</td></tr>")
+            
+            st.markdown(f'''
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:300px;overflow-y:auto;">
+                <table class="tblx" style="width:100%;font-size:11px;">
+                    <tr style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;">
+                        <th style="text-align:left;">State</th><th style="text-align:left;">Release</th><th style="text-align:left;">DEV</th><th style="text-align:left;">SIT</th><th style="text-align:left;">UAT</th><th style="text-align:left;">PROD</th><th style="text-align:right;">Status</th>
+                    </tr>
+                    {''.join(roadmap_rows)}
+                </table>
+            </div>
+            ''', unsafe_allow_html=True)

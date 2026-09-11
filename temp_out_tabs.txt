@@ -1,0 +1,80 @@
+400:         """)
+401: 
+402:     # --------------------------------------------------------------------------
+403:     # 6. ENTERPRISE SUB-TABS: MASTER-DETAIL FLIGHT DECK vs ROADMAP vs ARCHIVE
+404:     # --------------------------------------------------------------------------
+405:     subtab_deck, subtab_roadmap, subtab_archive = st.tabs([
+406:         "≡ƒÄ» Release Flight Deck & Milestone Execution",
+407:         "≡ƒôï Multi-Release Roadmap Matrix",
+408:         "≡ƒôü Completed Releases Archive",
+409:     ])
+410: 
+411:     # Determine all available release IDs for the switcher
+412:     release_dict = {r["release_id"]: r for r in all_releases}
+413:     all_rel_ids = list(release_dict.keys())
+414: 
+415:     # Selected release resolution
+416:     curr_selected = st.session_state.get("rel_selected_id")
+417:     if not curr_selected or curr_selected not in release_dict:
+418:         curr_selected = cur_rel["release_id"] if cur_rel else all_rel_ids[0]
+419:         st.session_state["rel_selected_id"] = curr_selected
+420: 
+421:     # --------------------------------------------------------------------------
+422:     # SUBTAB 1: MASTER-DETAIL INTERACTIVE FLIGHT DECK & MILESTONE LEDGER
+423:     # --------------------------------------------------------------------------
+424:     with subtab_deck:
+425:         col_deck, col_ledger = st.columns([1.0, 1.15], gap="medium")
+426: 
+427:         with col_deck:
+428:             # Interactive Release Switcher
+429:             sel_c1, sel_c2 = st.columns([2.0, 1.0])
+430:             with sel_c1:
+431:                 cur_idx = all_rel_ids.index(curr_selected) if curr_selected in all_rel_ids else 0
+432:                 chosen_rel = st.selectbox(
+433:                     "Switch Target Release",
+434:                     all_rel_ids,
+435:                     index=cur_idx,
+436:                     key="rp_target_rel_picker",
+437:                     label_visibility="collapsed",
+438:                     help="Select any release to inspect its 5-stage pipeline and granular milestone execution ledger",
+439:                 )
+440:                 if chosen_rel != curr_selected:
+441:                     st.session_state["rel_selected_id"] = chosen_rel
+442:                     st.rerun()
+443: 
+444:             rel_data = release_dict[curr_selected]
+445:             stg_name, env_tag, badge_lbl = _get_stage_info(rel_data, now_iso)
+446:             chip_cls = "firing" if "TODAY" in badge_lbl else ("pending" if "PROGRESS" in badge_lbl else "ok")
+447: 
+448:             dev_s, dev_f = rel_data.get("dev_start_date"), rel_data.get("dev_end_date")
+449:             sit_s, sit_f = rel_data.get("sit_start_date"), rel_data.get("sit_end_date")
+450:             uat_s, uat_f = rel_data.get("uat_start_date"), rel_data.get("uat_end_date")
+451:             gn_d = rel_data.get("go_nogo_date")
+452:             p_d = rel_data.get("prod_deploy_date")
+453: 
+454:             stg_dev_l, stg_dev_bg, stg_dev_fg, stg_dev_bd = _calc_stage_pill(dev_s, dev_f, now_iso)
+455:             stg_sit_l, stg_sit_bg, stg_sit_fg, stg_sit_bd = _calc_stage_pill(sit_s, sit_f, now_iso)
+456:             stg_uat_l, stg_uat_bg, stg_uat_fg, stg_uat_bd = _calc_stage_pill(uat_s, uat_f, now_iso)
+457:             stg_gn_l, stg_gn_bg, stg_gn_fg, stg_gn_bd = _calc_stage_pill(gn_d, gn_d, now_iso)
+458:             stg_prod_l, stg_prod_bg, stg_prod_fg, stg_prod_bd = _calc_stage_pill(p_d, p_d, now_iso)
+459: 
+460:             env_name_dev = "ENV52 Dev" if rel_data["state"] == "NH" else "Build-76 Dev"
+461:             env_name_sit = "ENV57 / ENV53" if rel_data["state"] == "NH" else "SIT QA"
+462:             env_name_uat = "ENV04 UAT" if rel_data["state"] == "NH" else "State Acceptance"
+463:             env_name_prod = "ENV05 Live" if rel_data["state"] == "NH" else "PROD Cutover"
+464: 
+465:             top_border_dev = "#73bf69" if "COMPLETED" in stg_dev_l else ("#5794f2" if "ACTIVE" in stg_dev_l else "var(--rule)")
+466:             top_border_sit = "#73bf69" if "COMPLETED" in stg_sit_l else ("#5794f2" if "ACTIVE" in stg_sit_l else "var(--rule)")
+467:             top_border_uat = "#73bf69" if "COMPLETED" in stg_uat_l else ("#5794f2" if "ACTIVE" in stg_uat_l else "var(--rule)")
+468:             top_border_gn = "#73bf69" if "COMPLETED" in stg_gn_l else ("#ff9830" if "ACTIVE" in stg_gn_l else "var(--rule)")
+469:             top_border_prod = "#73bf69" if "COMPLETED" in stg_prod_l else ("#f2495c" if "TODAY" in stg_prod_l else "var(--rule)")
+470: 
+471:             def _stage_countdown(end_date: str | None, now: str) -> str:
+472:                 d = _days_between(end_date, now)
+473:                 if end_date is None or d is None:
+474:                     return ""
+475:                 if d < 0:
+476:                     return f'<span style="font-size:8px;color:#f2495c;font-weight:700;font-family:var(--mono);">{abs(d)}d OVERDUE</span>'
+477:                 elif d == 0:
+478:                     return '<span style="font-size:8px;color:#f2495c;font-weight:700;font-family:var(--mono);">CUTOFF TODAY</span>'
+479:                 elif d <= 7:

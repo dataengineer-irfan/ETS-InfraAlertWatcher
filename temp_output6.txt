@@ -1,0 +1,150 @@
+2150: rerun()
+2151: 
+2152: st.markdown(f"""
+2153: <div style="max-height:calc(100vh - 290px);min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
+2154: <table class="tblx" style="font-size:10px;">
+2155: <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
+2156: {''.join(q_rows)}
+2157: </table>
+2158: </div>
+2159: <div style="font-size:9.5px;color:var(--mute);margin-top:6px;display:flex;align-items:center;justify-content:space-between;">
+2160: <span>💡 For granular cell-by-cell edits, switch to <b>📊 Operations Hub</b> in the left navigation rail.</span>
+2161: <span style="color:#38bdf8;font-weight:600;">{len(urgent_records)} entities ready</span>
+2162: </div>
+2163: """, unsafe_allow_html=True)
+2164: else:
+2165: st.markdown(f"""
+2166: <div style="max-height:calc(100vh - 290px);min-height:150px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
+2167: <table class="tblx" style="font-size:10px;">
+2168: <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
+2169: {''.join(q_rows)}
+2170: </table>
+2171: </div>
+2172: """, unsafe_allow_html=True)
+2173: 
+2174: with act_tab_release:
+2175: conn_rel = get_connection(DB_PATH)
+2176: rel_all = get_release_schedules(conn_rel, state=None)
+2177: conn_rel.close()
+2178: 
+2179: today_date = date.today()
+2180: milestone_rows = []
+2181: for r in rel_all:
+2182: st_code = r.get("state", "")
+2183: rid = r.get("release_id", "")
+2184: rm_name = r.get("state_rm_name", f"{st_code} Release Manager")
+2185: rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
+2186: 
+2187: gates = [
+2188: ("DEV Freeze", r.get("dev_end_date"), "ENV52 Dev" if st_code == "NH" else "Build-76"),
+2189: ("SIT QA Gate", r.get("sit_end_date"), "ENV57 / ENV53" if st_code == "NH" else "SIT QA"),
+2190: ("State UAT Gate", r.get("uat_end_date"), "ENV04 UAT" if st_code == "NH" else "State Acceptance"),
+2191: ("Go / No-Go Board", r.get("go_nogo_date"), "Decision Board"),
+2192: ("Production Cutover", r.get("prod_deploy_date"), "ENV05 Live" if st_code == "NH" else "PROD Cutover"),
+2193: ]
+2194: for g_name, g_date, g_env in gates:
+2195: if g_date:
+2196: try:
+2197: diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
+2198: if -14 <= diff <= 45:
+2199: if diff < 0:
+2200: s_lbl = f"{abs(diff)}d OVERDUE"
+2201: s_chip = "firing"
+2202: elif diff == 0:
+2203: s_lbl = "CUTOFF TODAY"
+2204: s_chip = "firing"
+2205: elif diff <= 3:
+2206: s_lbl = f"{diff}d REMAINING"
+2207: s_chip = "firing"
+2208: elif diff <= 7:
+2209: s_lbl = f"{diff}d REMAINING"
+2210: s_chip = "pending"
+2211: else:
+2212: s_lbl = f"{diff}d REMAINING"
+2213: s_chip = "ok"
+2214: 
+2215: milestone_rows.append({
+2216: "state": st_code,
+2217: "release_id": rid,
+2218: "phase": g_name,
+2219: "env": g_env,
+2220: "cutoff_date": g_date,
+2221: "days_left": diff,
+2222: "status_label": s_lbl,
+2223: "chip": s_chip,
+2224: "rm_name": rm_name,
+2225: "rm_email": rm_email,
+2226: })
+2227: except Exception:
+2228: pass
+2229: 
+2230: milestone_rows.sort(key=lambda m: (0 if m["chip"] == "firing" else (1 if m["chip"] == "pending" else 2), m["days_left"]))
+2231: 
+2232: st.markdown("""
+2233: <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:2px;padding:6px 10px;margin-bottom:6px;font-size:10px;color:var(--slate);">
+2234: <b>Release Cutoff Trigger Engine:</b> Monitor upcoming DEV / SIT / UAT freeze milestones and dispatch cutoff alerts to state release managers.
+2235: </div>
+2236: """, unsafe_allow_html=True)
+2237: 
+2238: if not milestone_rows:
+2239: st.info("No release cutoffs within the next 45 days.")
+2240: else:
+2241: m_table_rows = []
+2242: for m in milestone_rows[:10]:
+2243: m_table_rows.append(
+2244: f"<tr>"
+2245: f"<td style='padding:5px 8px;'><span style='font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;background:#141619;border:1px solid #2c3235;color:var(--ink);font-family:var(--mono);'>{m['state']}</span></td>"
+2246: f"<td style='padding:5px 8px;font-weight:700;color:var(--ink);font-family:var(--mono);'>{m['release_id']}</td>"
+2247: f"<td style='padding:5px 8px;color:#5794f2;font-weight:600;'>{m['phase']} <span style='color:var(--mute);font-size:9.5px;'>({m['env']})</span></td>"
+2248: f"<td style='padding:5px 8px;font-family:var(--mono);color:var(--slate);'>{m['cutoff_date']}</td>"
+2249: f"<td style='padding:5px 8px;'><span class='alert-chip {m['chip']}'>{m['status_label']}</span></td>"
+2250: f"</tr>"
+2251: )
+2252: 
+2253: st.markdown(f"""
+2254: <div style="max-height:calc(100vh - 300px);min-height:150px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
+2255: <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
+2256: <tr style="background:#141619;border-bottom:1px solid #2c3235;position:sticky;top:0;z-index:2;">
+2257: <th>State</th><th>Release</th><th>Milestone Phase</th><th>Cutoff Date</th><th>Alert Status</th>
+2258: </tr>
+2259: {''.join(m_table_rows)}
+2260: </table>
+2261: </div>
+2262: """, unsafe_allow_html=True)
+2263: 
+2264: # Dispatch control row
+2265: rc_c1, rc_c2 = st.columns([2.2, 1.8])
+2266: with rc_c1:
+2267: m_opts = {f"{m['state']} · {m['release_id']} ({m['phase']}) — {m['cutoff_date']}": m for m in milestone_rows}
+2268: chosen_m_lbl = st.selectbox("Target Cutoff Milestone", list(m_opts.keys()), key="gov_rel_cutoff_pick", label_visibility="collapsed")
+2269: chosen_m = m_opts[chosen_m_lbl]
+2270: with rc_c2:
+2271: if st.button("🚀 Dispatch Cutoff Alert (Simulate)", key="gov_dispatch_cutoff_btn", type="primary", use_container_width=True):
+2272: try:
+2273: conn_aud = get_connection(DB_PATH)
+2274: log_audit_event(
+2275: conn_aud,
+2276: actor=st.session_state.get("active_user", "admin"),
+2277: role="Admin",
+2278: action="EMAIL_DISPATCHED",
+2279: target_entity=f"{chosen_m['state']} {chosen_m['release_id']} {chosen_m['phase']}",
+2280: details=f"Release cutoff alert dispatched to {chosen_m['rm_name']} <{chosen_m['rm_email']}> for cutoff {chosen_m['cutoff_date']} ({chosen_m['status_label']}).",
+2281: )
+2282: conn_aud.close()
+2283: st.success(f"✓ Cutoff Alert dispatched for {chosen_m['release_id']} ({chosen_m['phase']}) to {chosen_m['rm_name']}!")
+2284: except Exception as ex:
+2285: st.error(f"Dispatch failed: {ex}")
+2286: 
+2287: # Email Preview
+2288: st.markdown(f"""
+2289: <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:11px;margin-top:6px;max-height:220px;overflow-y:auto;overflow-x:hidden;">
+2290: <div style="color:var(--slate);font-weight:700;margin-bottom:6px;">📧 Preview Release Cutoff Alert Email Template</div>
+2291: <div style="color:var(--slate);margin-bottom:4px;"><b style="color:var(--text);">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
+2292: <div style="color:var(--slate);margin-bottom:6px;"><b style="color:var(--text);">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
+2293: <div style="border-top:1px solid #2c3235;padding-top:8px;color:var(--text);line-height:1.5;">
+2294: <p>Attention State Release Management,</p>
+2295: <p>This is an automated ETS Watchtower notification regarding the upcoming pipeline gate cutoff for <b>{chosen_m['release_id']}</b>.</p>
+2296: <table style="border:1px solid #2c3235;background:#181b1f;padding:6px;width:100%;margin:6px 0;font-size:10.5px;">
+2297: <tr><td style="color:var(--slate);">State Scope:</td><td><b>{chosen_m['state']} MMIS</b></td></tr>
+2298: <tr><td style="color:var(--slate);">Release ID:</td><td><b>{chosen_m['release_id']}</b></td></tr>
+2299: <tr><td style="color:var(--slate);">Phase / Gate:</td><td><b style="color:#5794f2;">{chosen_m['phase']}</b></td></tr>

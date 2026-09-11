@@ -1,0 +1,70 @@
+1550: st.markdown("</div>", unsafe_allow_html=True)
+1551: 
+1552: with i_tab2:
+1553: st.markdown("<div style='max-height:265px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+1554: # Resolve scope for Portfolio Matrix (support selection, state_filter, cell_filter, and search)
+1555: if selected_entity_ids:
+1556: mat_df = df[df["id"].isin(selected_entity_ids)].copy()
+1557: mat_scope_lbl = f"{len(selected_entity_ids)} Selected Entities"
+1558: else:
+1559: mat_df = filtered.copy()
+1560: mat_scope_lbl = "Filtered Scope" if is_scoped else "Consolidated Fleet"
+1561: 
+1562: st.markdown(ui.panel_header(
+1563: f"Severity Heatmap — State × Component ({mat_scope_lbl})",
+1564: color="#f59e0b",
+1565: info="Cell color saturation = risk density. Click any cell to cross-filter the Hierarchy Tree."
+1566: ), unsafe_allow_html=True)
+1567: 
+1568: available_states = [s for s in STATES if s in mat_df["state"].unique()]
+1569: mat_states = available_states if available_states else STATES
+1570: mat_comps = COMPONENT_ORDER
+1571: 
+1572: # Header Row — framed column labels with clean bottom margin
+1573: h_c0, h_c1, h_c2, h_c3, h_c4, h_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
+1574: with h_c0:
+1575: st.markdown("<div class='hm-col-hdr' style='color:#94a3b8;'>STATE</div>", unsafe_allow_html=True)
+1576: for idx, c_val in enumerate(mat_comps):
+1577: c_icon = ui.COMPONENT_ICONS.get(c_val, '')
+1578: c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+1579: [h_c1, h_c2, h_c3, h_c4][idx].markdown(
+1580: f"<div class='hm-col-hdr'>{c_icon} {c_code}</div>",
+1581: unsafe_allow_html=True
+1582: )
+1583: with h_c5:
+1584: st.markdown("<div class='hm-col-hdr' style='color:#94a3b8;'>TOTAL</div>", unsafe_allow_html=True)
+1585: 
+1586: # Rows
+1587: for st_val in mat_states:
+1588: st_sub = mat_df[mat_df["state"] == st_val]
+1589: r_c0, r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
+1590: is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+1591: with r_c0:
+1592: st.markdown("<div class='hm-state-btn'>", unsafe_allow_html=True)
+1593: if st.button(f"📍 {st_val}", key=f"hm_st_{st_val}", type="primary" if is_st_active else "secondary", use_container_width=True, help=f"Filter to State {st_val}"):
+1594: if is_st_active:
+1595: st.session_state["op_cell_filter"] = None
+1596: else:
+1597: st.session_state["op_cell_filter"] = (st_val, None)
+1598: tree_open.clear()
+1599: tree_open.add(st_val)
+1600: rerun()
+1601: st.markdown("</div>", unsafe_allow_html=True)
+1602: 
+1603: comp_cols = [r_c1, r_c2, r_c3, r_c4]
+1604: for idx, c_val in enumerate(mat_comps):
+1605: cell_sub = st_sub[st_sub["component"] == c_val]
+1606: with comp_cols[idx]:
+1607: if cell_sub.empty:
+1608: st.markdown("<div style='background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.08);border-radius:6px;height:56px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.15);font-size:14px;'>—</div>", unsafe_allow_html=True)
+1609: else:
+1610: c_cnt = len(cell_sub)
+1611: c_exp = int((cell_sub["days_left"] < 0).sum())
+1612: c_crit = int((cell_sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+1613: c_warn = int((cell_sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+1614: c_hlth = int((cell_sub["days_left"] > ui.WARNING_DAYS).sum())
+1615: min_days = int(cell_sub["days_left"].min())
+1616: c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+1617: c_worst = ui.worst_band(cell_sub["band"].tolist())
+1618: c_color = ui.BAND_META[c_worst]["color"]
+1619: is_cell_active = (cell_filter == (st_val, c_val)) or (state_filter == st_val and comp_filter == c_val and cell_filter is None)

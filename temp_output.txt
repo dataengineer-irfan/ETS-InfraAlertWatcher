@@ -1,0 +1,110 @@
+1440: cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
+1441: conf = st.session_state.get("confirm_action")
+1442: cur_dt = rec["exp_dt"].date()
+1443: 
+1444: # Unified Inspector Command Deck (Breadcrumb + Entity Title + Status + Action Chips)
+1445: head_c1, head_c2 = st.columns([2.5, 1.5])
+1446: with head_c1:
+1447: st.markdown(f"""
+1448: <div class="entity-head" style="border-left:3px solid {meta['color']};margin-bottom:6px;">
+1449: <div class="entity-crumb">
+1450: <span>ENTITY #{rec['id']} · <b style="color:var(--text);letter-spacing:0.04em;">State {rec['state']}</b> · <span style="color:{team_meta['color']};font-weight:600;">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
+1451: <span class="status-pill" style="background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+1452: </div>
+1453: <div class="entity-name">{rec['schema_name']} <span class="env-tag">{rec['env_label']}</span></div>
+1454: </div>
+1455: """, unsafe_allow_html=True)
+1456: 
+1457: with head_c2:
+1458: if conf and conf.get("id") == rec["id"]:
+1459: st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+1460: cf_y, cf_n = st.columns(2)
+1461: with cf_y:
+1462: if st.button("✓ Confirm", key=f"op_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+1463: apply_edits([(conf["id"], conf["new_dt"])])
+1464: del st.session_state["confirm_action"]
+1465: st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
+1466: rerun()
+1467: with cf_n:
+1468: if st.button("Cancel", key=f"op_cf_no_{rec['id']}", use_container_width=True):
+1469: del st.session_state["confirm_action"]
+1470: rerun()
+1471: else:
+1472: n_act = 4 if rec["edited"] else 3
+1473: act_cols = st.columns(n_act)
+1474: if act_cols[0].button("+90d", key=f"op_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+1475: st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+1476: rerun()
+1477: if act_cols[1].button("+1yr", key=f"op_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+1478: st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+1479: rerun()
+1480: with act_cols[2]:
+1481: if hasattr(st, "popover"):
+1482: with st.popover("📅 Date"):
+1483: c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+1484: if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+1485: apply_edits([(rec["id"], c_date)])
+1486: st.success(f"Updated to {c_date}")
+1487: rerun()
+1488: else:
+1489: with st.expander("📅 Date"):
+1490: c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
+1491: if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
+1492: apply_edits([(rec["id"], c_date)])
+1493: st.success(f"Updated to {c_date}")
+1494: rerun()
+1495: if rec["edited"] and len(act_cols) > 3:
+1496: with act_cols[3]:
+1497: if st.button("↩ Rev", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+1498: conn = get_connection(DB_PATH)
+1499: try:
+1500: revert_component_exp_date(conn, int(rec["id"]))
+1501: finally:
+1502: conn.close()
+1503: bust_cache()
+1504: st.success("Reverted to source workbook.")
+1505: rerun()
+1506: 
+1507: i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
+1508: 
+1509: with i_tab1:
+1510: st.markdown("<div style='max-height:220px;overflow-y:auto;padding-right:2px;'>", unsafe_allow_html=True)
+1511: exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
+1512: _life_gauge = ui.life_gauge(int(rec['days_left']))
+1513: _team_chip = ui.alert_chip(rec["band"])
+1514: st.markdown(f"""
+1515: <div class="fact-grid" style="padding:4px 0 8px;">
+1516: <div class="fact-panel">
+1517: <div class="fact-row"><span class="fact-key">Team Owner</span><span class="fact-val" style="color:{team_meta['color']};font-weight:600;">{rec['team']} <span style="font-size:9.5px;color:var(--mute);font-weight:400;">({team_meta['lead']})</span> {_team_chip}</span></div>
+1518: <div class="fact-row"><span class="fact-key">Component</span><span class="fact-val" style="font-weight:500;">{rec['component']}</span></div>
+1519: <div class="fact-row"><span class="fact-key">Environment</span><span class="fact-val"><span class="env-tag">{rec['env_label']}</span> {ui.sla_badge(rec['env_label'])}</span></div>
+1520: <div class="fact-row"><span class="fact-key">Module Code</span><span class="fact-val" style="color:var(--slate);">{rec['module'] or 'N/A'}</span></div>
+1521: </div>
+1522: <div class="fact-panel">
+1523: <div class="fact-row"><span class="fact-key">Current Expiry</span><span class="fact-val" style="color:{meta['color']};font-weight:600;">{rec['exp_date']}</span></div>
+1524: <div class="fact-row"><span class="fact-key">Workbook Source</span><span class="fact-val" style="color:var(--slate);">{rec['source_exp_date']}</span></div>
+1525: <div class="fact-row"><span class="fact-key">Life Remaining</span><span class="fact-val crit" style="color:{meta['color']};font-weight:700;">{ui.fmt_days(rec['days_left'])} <span style="font-size:9.5px;font-weight:400;color:var(--mute);">{exp_detail}</span></span></div>
+1526: <div class="fact-row"><span class="fact-key">Quarter Horizon</span><span class="fact-val" style="color:var(--slate);">{rec['quarter']}</span></div>
+1527: <div style="margin-top:6px;">{_life_gauge}</div>
+1528: </div>
+1529: </div>
+1530: """, unsafe_allow_html=True)
+1531: 
+1532: payload = {
+1533: "id": int(rec["id"]),
+1534: "state": rec["state"],
+1535: "team": rec["team"],
+1536: "component": rec["component"],
+1537: "environment": rec["env_label"],
+1538: "schema_name": rec["schema_name"],
+1539: "exp_date": rec["exp_date"],
+1540: "source_exp_date": rec["source_exp_date"],
+1541: "days_left": int(rec["days_left"]),
+1542: "band": rec["band"],
+1543: "edited_at": str(rec["edited_at"]),
+1544: }
+1545: with st.expander("Technical Diagnostics & Database Query", expanded=False):
+1546: if hasattr(st, "code"):
+1547: st.caption("Technical Diagnostics & Database Query")
+1548: st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
+1549: st.code(json.dumps(payload, indent=2), language="json")
