@@ -3238,22 +3238,23 @@ with st.sidebar:
 
 
 
-    # --- Global Release Filter Override ---
-    global_sel = st.session_state.get("global_release_selection")
-    if global_sel:
-        extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
-        if extracted_state in ["NH", "ND", "AK"]:
-            records = records[records["state"] == extracted_state]
-            st.session_state["_override_canvas_state"] = extracted_state
-    # --------------------------------------
 
-    tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
-        "Schedule Release Plan",
-        "Executive Command Center",
-        "Portfolio Matrix & Operations Hub",
-        "Governance & Alerts",
-        "Access Control & Audit (RBAC)",
-    ])
+# --- Global Release Filter Override ---
+global_sel = st.session_state.get("global_release_selection")
+if global_sel:
+    extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
+    if extracted_state in ["NH", "ND", "AK"]:
+        records = records[records["state"] == extracted_state]
+        st.session_state["_override_canvas_state"] = extracted_state
+# --------------------------------------
+
+tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
+    "Schedule Release Plan",
+    "Executive Command Center",
+    "Portfolio Matrix & Operations Hub",
+    "Governance & Alerts",
+    "Access Control & Audit (RBAC)",
+])
 
 with tab_releases:
     render_release_plan_workspace(DB_PATH)
