@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 
 from db import get_connection, get_release_schedules
-from dashboard.release_plan import _get_stage_info, _days_between, render_html
+from release_plan import _get_stage_info, _days_between, render_html
 
 def _render_dense_story_card(title: str, rel_data: dict | None, accent_color: str, icon: str):
     if not rel_data:
