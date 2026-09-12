@@ -3241,12 +3241,6 @@ with st.sidebar:
     # --- Global Release Filter Override ---
     global_sel = st.session_state.get("global_release_selection")
     if global_sel:
-        st.sidebar.markdown(
-            f"<div style='margin-top:10px;padding:8px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:4px;color:#38bdf8;font-size:11px;'>"
-            f"<b>Scope Locked:</b> <span style='font-family:var(--mono);'>{global_sel}</span><br/>"
-            f"<span style='color:var(--slate);font-size:9px;'>Via Release Schedule</span>"
-            f"</div>", 
-            unsafe_allow_html=True
         )
         extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
         if extracted_state in ["NH", "ND", "AK"]:
