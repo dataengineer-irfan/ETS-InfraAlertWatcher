@@ -3250,7 +3250,7 @@ with st.sidebar:
         )
         extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
         if extracted_state in ["NH", "ND", "AK"]:
-            records = [r for r in records if r["state"] == extracted_state]
+            records = records[records["state"] == extracted_state]
             st.session_state["_override_canvas_state"] = extracted_state
     # --------------------------------------
 
