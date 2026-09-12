@@ -250,43 +250,46 @@ def render_release_plan_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 3. Categorize into: Current, Active, Upcoming, Completed
     # --------------------------------------------------------------------------
-    future_or_today = [r for r in all_releases if r.get("prod_deploy_date", "") >= now_iso]
-    future_or_today.sort(key=lambda x: x.get("prod_deploy_date", ""))
-
-    cutovers_today = [r for r in future_or_today if r.get("prod_deploy_date", "") == now_iso]
-
-    if cutovers_today:
-        current_releases = cutovers_today
-    elif future_or_today:
-        st_seen = set()
-        current_releases = []
-        for r in future_or_today:
-            if r["state"] not in st_seen:
-                st_seen.add(r["state"])
-                current_releases.append(r)
-    else:
-        current_releases = [all_releases[-1]] if all_releases else []
-
-    current_ids = {r["release_id"] for r in current_releases}
-
-    active_releases = []
+    current_releases = []
     upcoming_releases = []
     completed_releases = []
-
+    
+    # Sort all by prod_deploy_date
+    all_releases.sort(key=lambda x: x.get("prod_deploy_date", "9999-12-31"))
+    
+    # We want one "Current" release per state.
+    # Current = The release currently in dev phase (dev_start_date <= now <= prod_deploy_date).
+    # If multiple are in dev, pick the one with the earliest prod_deploy_date.
+    # If none are in dev, pick the very next future release.
+    st_current_chosen = set()
+    
+    # Pass 1: Find active dev cycles
     for r in all_releases:
-        rid = r["release_id"]
+        d_s = r.get("dev_start_date") or r.get("prod_deploy_date", "")
         p_d = r.get("prod_deploy_date", "")
-        d_s = r.get("dev_start_date")
-
-        if rid in current_ids:
+        if d_s <= now_iso <= p_d:
+            if r["state"] not in st_current_chosen:
+                current_releases.append(r)
+                st_current_chosen.add(r["state"])
+                
+    # Pass 2: Process the rest
+    for r in all_releases:
+        if r["state"] in st_current_chosen and r in current_releases:
             continue
-
+            
+        p_d = r.get("prod_deploy_date", "")
+        
         if p_d < now_iso:
             completed_releases.append(r)
-        elif r["status"] == "In Progress" or (d_s and d_s <= now_iso <= p_d):
-            active_releases.append(r)
         else:
-            upcoming_releases.append(r)
+            if r["state"] not in st_current_chosen:
+                current_releases.append(r)
+                st_current_chosen.add(r["state"])
+            else:
+                upcoming_releases.append(r)
+
+    current_ids = {r["release_id"] for r in current_releases}
+    active_releases = [] # Kept for compatibility with other arrays if needed
 
     # --------------------------------------------------------------------------
     # 4. Strict Grafana Metric Ribbon (ui.grafana_stat_card)

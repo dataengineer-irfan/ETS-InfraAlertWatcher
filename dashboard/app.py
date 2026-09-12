@@ -63,7 +63,6 @@ from notifier import (  # noqa: E402
 )
 from ingest_releases import run_release_ingest  # noqa: E402
 from release_plan import render_release_plan_workspace
-from release_split_view import render_release_split_view
   # noqa: E402
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
@@ -3238,20 +3237,35 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 
-tab_releases, tab_split, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
-    "Schedule Release Plan",
-    "Split-Pane Radar (New)",
-    "Executive Command Center",
-    "Portfolio Matrix & Operations Hub",
-    "Governance & Alerts",
-    "Access Control & Audit (RBAC)",
-])
+
+    # --- Global Release Filter Override ---
+    global_sel = st.session_state.get("global_release_selection")
+    if global_sel:
+        st.sidebar.markdown(
+            f"<div style='margin-top:10px;padding:8px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:4px;color:#38bdf8;font-size:11px;'>"
+            f"<b>Scope Locked:</b> <span style='font-family:var(--mono);'>{global_sel}</span><br/>"
+            f"<span style='color:var(--slate);font-size:9px;'>Via Release Schedule</span>"
+            f"</div>", 
+            unsafe_allow_html=True
+        )
+        extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
+        if extracted_state in ["NH", "ND", "AK"]:
+            records = [r for r in records if r["state"] == extracted_state]
+            st.session_state["_override_canvas_state"] = extracted_state
+    # --------------------------------------
+
+    tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
+        "Schedule Release Plan",
+        "Executive Command Center",
+        "Portfolio Matrix & Operations Hub",
+        "Governance & Alerts",
+        "Access Control & Audit (RBAC)",
+    ])
 
 with tab_releases:
     render_release_plan_workspace(DB_PATH)
 
-with tab_split:
-    render_release_split_view(DB_PATH)
+
 
 with tab_overview:
     canvas("all", None, CANVAS_OVERVIEW)
