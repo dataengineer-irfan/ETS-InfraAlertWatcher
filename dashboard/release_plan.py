@@ -570,22 +570,70 @@ def render_release_plan_workspace(db_path: str) -> None:
                 ), unsafe_allow_html=True)
                 
     with tab_matrix:
+        st.markdown("<div style='font-size:11px;font-weight:800;color:var(--mute);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #2c3235;padding-bottom:8px;margin-bottom:16px;'>GRANULAR MILESTONE INSPECTOR</div>", unsafe_allow_html=True)
+
         if not all_releases:
-            st.info("No releases available for roadmap.")
+            st.info("No releases available.")
         else:
-            roadmap_rows = []
-            for r in all_releases:
-                d_end = r.get('prod_deploy_date', 'TBD')
-                status = '<span style="color:#73bf69;font-weight:700;">DEPLOYED</span>' if d_end < now_iso else '<span style="color:#ff9830;font-weight:700;">SCHEDULED</span>'
-                roadmap_rows.append(f"<tr><td>{r.get('state')}</td><td><b>{r.get('release_id')}</b></td><td>{r.get('dev_end_date', 'TBD')}</td><td>{r.get('sit_end_date', 'TBD')}</td><td>{r.get('uat_end_date', 'TBD')}</td><td>{d_end}</td><td style='text-align:right;'>{status}</td></tr>")
+            rel_dict = {r["release_id"]: r for r in all_releases}
+            all_rel_ids = list(rel_dict.keys())
             
-            st.markdown(f'''
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:300px;overflow-y:auto;">
-                <table class="tblx" style="width:100%;font-size:11px;">
-                    <tr style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;">
-                        <th style="text-align:left;">State</th><th style="text-align:left;">Release</th><th style="text-align:left;">DEV</th><th style="text-align:left;">SIT</th><th style="text-align:left;">UAT</th><th style="text-align:left;">PROD</th><th style="text-align:right;">Status</th>
-                    </tr>
-                    {''.join(roadmap_rows)}
-                </table>
-            </div>
-            ''', unsafe_allow_html=True)
+            sel_c1, sel_c2 = st.columns([1, 3])
+            with sel_c1:
+                st.markdown("<div style='font-size:12px;font-weight:700;color:var(--slate);margin-bottom:8px;'>🎯 Target Release</div>", unsafe_allow_html=True)
+                def_idx = 0
+                if current_releases and current_releases[0]["release_id"] in all_rel_ids:
+                    def_idx = all_rel_ids.index(current_releases[0]["release_id"])
+                    
+                selected_id = st.selectbox("Release Filter", all_rel_ids, index=def_idx, label_visibility="collapsed", key="rel_master_select_unique")
+                
+                # Cross page filtering
+                if st.session_state.get("global_release_selection") != selected_id:
+                    st.session_state["global_release_selection"] = selected_id
+                    st.rerun()
+
+            with sel_c2:
+                rel = rel_dict[selected_id]
+                st_code = rel.get("state", "Unknown")
+                is_deployed = rel.get("prod_deploy_date", "TBD") < now_iso
+                stat_color = "#73bf69" if is_deployed else "#38bdf8"
+                stat_text = "DEPLOYED" if is_deployed else "ACTIVE FLIGHT"
+                
+                st.markdown(f'''
+                <div style="background:#181b1f;border:1px solid #2c3235;border-left:3px solid {stat_color};border-radius:2px;padding:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                        <div>
+                            <div style="font-size:16px;font-weight:800;color:var(--text);letter-spacing:0.02em;">{st_code}.{selected_id}</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);padding:4px 8px;border-radius:2px;font-size:10px;font-weight:700;color:{stat_color};letter-spacing:0.05em;">{stat_text}</div>
+                    </div>
+                    
+                    <table style="width:100%;font-size:11px;color:var(--text);border-collapse:collapse;">
+                        <tr style="background:#141619;border-top:1px solid #2c3235;border-bottom:1px solid #2c3235;">
+                            <th style="padding:6px;text-align:left;color:var(--mute);">PHASE</th>
+                            <th style="padding:6px;text-align:left;color:var(--mute);">ENVIRONMENT</th>
+                            <th style="padding:6px;text-align:right;color:var(--mute);">TARGET DATE</th>
+                        </tr>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:6px;color:var(--slate);">DEV Freeze</td>
+                            <td style="padding:6px;">Build-76 / ENV52</td>
+                            <td style="padding:6px;text-align:right;font-family:var(--mono);">{rel.get('dev_end_date', 'TBD')}</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:6px;color:var(--slate);">SIT Exit</td>
+                            <td style="padding:6px;">SIT QA / ENV57</td>
+                            <td style="padding:6px;text-align:right;font-family:var(--mono);">{rel.get('sit_end_date', 'TBD')}</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <td style="padding:6px;color:var(--slate);">UAT Sign-off</td>
+                            <td style="padding:6px;">Acceptance / ENV04</td>
+                            <td style="padding:6px;text-align:right;font-family:var(--mono);">{rel.get('uat_end_date', 'TBD')}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:6px;color:var(--slate);font-weight:700;">PROD Cutover</td>
+                            <td style="padding:6px;font-weight:700;">Production</td>
+                            <td style="padding:6px;text-align:right;font-family:var(--mono);font-weight:700;color:#38bdf8;">{rel.get('prod_deploy_date', 'TBD')}</td>
+                        </tr>
+                    </table>
+                </div>
+                ''', unsafe_allow_html=True)
