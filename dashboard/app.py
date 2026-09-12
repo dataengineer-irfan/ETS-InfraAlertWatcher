@@ -3241,7 +3241,6 @@ with st.sidebar:
     # --- Global Release Filter Override ---
     global_sel = st.session_state.get("global_release_selection")
     if global_sel:
-        )
         extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
         if extracted_state in ["NH", "ND", "AK"]:
             records = records[records["state"] == extracted_state]
