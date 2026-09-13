@@ -1082,7 +1082,7 @@ function legend(){
 // ---- header -----------------------------------------------------------
 function renderCrumbs(S){
   const bits = [];
-  if (DATA.mode === "all" && S.state) bits.push(["State", S.state, "state"]);
+  if (S.state) bits.push(["State", S.state, "state"]);
   if (S.team) bits.push(["Team", S.team, "team"]);
   if (S.component) bits.push(["Component", CODE[S.component], "component"]);
   if (S.environment) bits.push(["Environment", S.environment, "environment"]);
@@ -1102,8 +1102,13 @@ function renderCrumbs(S){
 }
 
 function renderViews(S){
-  return '<span class="lead">Saved views</span>' + DATA.bookmarks.map(b =>
-    chip({ act: "view", val: b.id, label: b.label, on: S.view === b.id, tip: b.tip })).join("");
+  return '<span class="lead">Saved views</span>' + DATA.bookmarks.map(b => {
+    let lbl = b.label;
+    if (b.id === "all" && S.state){
+      lbl = "Everything (" + S.state + ")";
+    }
+    return chip({ act: "view", val: b.id, label: lbl, on: S.view === b.id, tip: b.tip });
+  }).join("");
 }
 
 // ---- sparkline SVG ----------------------------------------------------
@@ -1303,10 +1308,10 @@ function cascadeSelect(dim, options, current){
 
 function renderCascades(S){
   const out = [];
-  if (DATA.mode === "all"){
-    const stOpts = [{ id: "", label: "State: All" }].concat(DATA.states.map(st => ({ id: st, label: "State: " + st })));
-    out.push(cascadeSelect("state", stOpts, S.state || ""));
-  }
+  const curState = S.state || "";
+  const stOpts = [{ id: "", label: "State: All" }].concat(DATA.states.map(st => ({ id: st, label: "State: " + st })));
+  out.push(cascadeSelect("state", stOpts, curState));
+
   const teamOpts = [{ id: "", label: "Team: All" }].concat((DATA.teams || []).map(t => ({ id: t, label: "Team: " + t })));
   out.push(cascadeSelect("team", teamOpts, S.team || ""));
   const compOpts = [{ id: "", label: "Comp: All" }].concat(DATA.components.map(c => ({ id: c, label: "Comp: " + CODE[c] })));
@@ -2665,8 +2670,8 @@ function whenHint(S){
 function tableHint(S){
   const n = rows(S).length;
   const bits = [];
-  if (DATA.mode === "all" && S.state) bits.push(S.state);
-  else if (DATA.mode === "state") bits.push(DATA.state);
+  if (S.state) bits.push(S.state);
+  else if (DATA.mode === "state" && DATA.state) bits.push(DATA.state);
   bits.push(S.component ? CODE[S.component] : "all components");
   bits.push(S.environment ? S.environment : "all environments");
   const lead = S.tview === "summary"
@@ -2676,8 +2681,9 @@ function tableHint(S){
 }
 
 function whereLabel(S){
+  if (S.state) return S.state;
   if (DATA.mode === "state") return DATA.state;
-  return S.state ? S.state : "All states";
+  return "All states";
 }
 /*==ENGINE-END==*/
 
