@@ -303,56 +303,38 @@ def get_connection(db_path: str) -> sqlite3.Connection:
         conn.commit()
 
     # Seed default administrative and state RM identities if not present
-    existing_users = {r[0] for r in conn.execute("SELECT username FROM users").fetchall()}
-    if "admin" not in existing_users:
-        create_user(
-            conn,
-            username="admin",
-            password="Admin@ETS2026!",
-            role="Admin",
-            full_name="ETS Enterprise Administrator",
-            email="admin@ets.internal",
-            assigned_state=None,
-        )
-        log_audit_event(
-            conn,
-            actor="SYSTEM_INIT",
-            role="Admin",
-            action="SYSTEM_INITIALIZATION",
-            target_entity="Security Subsystem",
-            details="Default administrative identity provisioned with PBKDF2-HMAC-SHA256.",
-            ip_address="127.0.0.1",
-        )
-    if "ak_rm" not in existing_users:
-        create_user(
-            conn,
-            username="ak_rm",
-            password="AkRM@ETS2026!",
-            role="Operator",
-            full_name="Alaska State RM Lead",
-            email="ak-rm@ets.state.gov",
-            assigned_state="AK",
-        )
-    if "nd_rm" not in existing_users:
-        create_user(
-            conn,
-            username="nd_rm",
-            password="NdRM@ETS2026!",
-            role="Operator",
-            full_name="North Dakota State RM Lead",
-            email="nd-rm@ets.state.gov",
-            assigned_state="ND",
-        )
-    if "nh_rm" not in existing_users:
-        create_user(
-            conn,
-            username="nh_rm",
-            password="NhRM@ETS2026!",
-            role="Operator",
-            full_name="New Hampshire State RM Lead",
-            email="nh-rm@ets.state.gov",
-            assigned_state="NH",
-        )
+    seed_users = [
+        ("admin", "Admin@ETS2026!", "Admin", "ETS Enterprise Administrator", "admin@ets.internal", None),
+        ("ak_rm", "AkRM@ETS2026!", "Operator", "Alaska State RM Lead", "ak-rm@ets.state.gov", "AK"),
+        ("nd_rm", "NdRM@ETS2026!", "Operator", "North Dakota State RM Lead", "nd-rm@ets.state.gov", "ND"),
+        ("nh_rm", "NhRM@ETS2026!", "Operator", "New Hampshire State RM Lead", "nh-rm@ets.state.gov", "NH"),
+    ]
+    for uname, pwd, role, fname, mail, st_assign in seed_users:
+        try:
+            row = conn.execute("SELECT id FROM users WHERE LOWER(TRIM(username)) = LOWER(?)", (uname,)).fetchone()
+            if not row:
+                create_user(
+                    conn,
+                    username=uname,
+                    password=pwd,
+                    role=role,
+                    full_name=fname,
+                    email=mail,
+                    assigned_state=st_assign,
+                )
+                if uname == "admin":
+                    log_audit_event(
+                        conn,
+                        actor="SYSTEM_INIT",
+                        role="Admin",
+                        action="SYSTEM_INITIALIZATION",
+                        target_entity="Security Subsystem",
+                        details="Default administrative identity provisioned with PBKDF2-HMAC-SHA256.",
+                        ip_address="127.0.0.1",
+                    )
+        except (sqlite3.IntegrityError, sqlite3.OperationalError):
+            # Gracefully handle concurrent multi-threaded provisioning
+            pass
 
     conn.commit()
     return conn
@@ -700,14 +682,28 @@ def create_user(
 
     pwd_hash, salt = hash_password(password)
     now = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        """
-        INSERT INTO users (username, password_hash, salt, role, assigned_state, full_name, email, created_at, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-        """,
-        (clean_username, pwd_hash, salt, role, assigned_state, full_name.strip(), email.strip(), now),
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            """
+            INSERT INTO users (username, password_hash, salt, role, assigned_state, full_name, email, created_at, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (clean_username, pwd_hash, salt, role, assigned_state, full_name.strip(), email.strip(), now),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError as err:
+        if "unique" in str(err).lower() or "users.username" in str(err).lower():
+            conn.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, salt = ?, role = ?, assigned_state = ?, full_name = ?, email = ?
+                WHERE LOWER(TRIM(username)) = LOWER(?)
+                """,
+                (pwd_hash, salt, role, assigned_state, full_name.strip(), email.strip(), clean_username),
+            )
+            conn.commit()
+        else:
+            raise
     return {
         "username": clean_username,
         "role": role,

@@ -259,12 +259,17 @@ def build_page(db_path: str, mode: str, state: str | None, _bust: int = 0) -> st
 
 
 def ensure_ingested() -> None:
-    """Auto-ingest workbooks and release schedules on fresh startup if database table is empty."""
+    """Auto-ingest workbooks, release schedules, and on-call rosters on fresh startup if database table is empty."""
     conn = get_connection(DB_PATH)
     count = conn.execute("SELECT count(*) FROM component_records").fetchone()[0]
     rel_count = 0
     try:
         rel_count = conn.execute("SELECT count(*) FROM release_schedules").fetchone()[0]
+    except Exception:
+        pass
+    roster_count = 0
+    try:
+        roster_count = conn.execute("SELECT count(*) FROM on_call_rosters").fetchone()[0]
     except Exception:
         pass
     conn.close()
@@ -281,10 +286,19 @@ def ensure_ingested() -> None:
             )
             st.stop()
 
-    if not rel_count:
-        input_dir = ROOT / "_Input"
-        if input_dir.exists():
-            run_release_ingest(input_dir, DB_PATH)
+    input_dir = ROOT / "_Input"
+    if not rel_count and input_dir.exists():
+        run_release_ingest(input_dir, DB_PATH)
+
+    if not roster_count and input_dir.exists():
+        for fpath in input_dir.glob("*.xlsx"):
+            if "on call" in fpath.name.lower() or "roster" in fpath.name.lower():
+                try:
+                    from src.ingest_roster import ingest_roster_file
+                    ingest_roster_file(str(fpath), DB_PATH)
+                    break
+                except Exception as e:
+                    pass
 
 
 def rerun() -> None:
