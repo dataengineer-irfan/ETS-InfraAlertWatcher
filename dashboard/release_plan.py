@@ -424,97 +424,148 @@ def render_release_plan_workspace(db_path: str) -> None:
         """)
 
     # --------------------------------------------------------------------------
-    # 6. 3 EXECUTIVE STORYBOARD DECKS (Previous, Current, Upcoming — Zero-Scroll)
+    # 5b. Milestone Extraction Helper (DEV, SIT, REGRESSION, UAT, PROD)
+    # --------------------------------------------------------------------------
+    def _extract_milestones(r: dict) -> dict:
+        rj = r.get("raw_json")
+        dev_f = r.get("dev_end_date") or "TBD"
+        dev_s = r.get("dev_start_date") or "TBD"
+        sit_f = r.get("sit_end_date") or "TBD"
+        uat_f = r.get("uat_end_date") or "None"
+        prod_f = r.get("prod_deploy_date") or "TBD"
+        reg_f = "TBD"
+
+        if rj:
+            try:
+                m_data = json.loads(rj) if isinstance(rj, str) else rj
+                milestones = m_data.get("milestones", [])
+                for m in milestones:
+                    tname = m.get("task_name", "").lower()
+                    if "regression" in tname:
+                        reg_f = m.get("finish_date") or m.get("start_date") or reg_f
+                        if "execution" in tname or "complete" in tname or "reversal" in tname:
+                            break
+                for m in milestones:
+                    tname = m.get("task_name", "").lower()
+                    if "sit" in tname and "regression" not in tname:
+                        f_date = m.get("finish_date")
+                        if f_date and f_date != reg_f:
+                            sit_f = f_date
+                            break
+            except Exception:
+                pass
+
+        if reg_f == "TBD":
+            reg_f = sit_f if sit_f != "TBD" else dev_f
+
+        return {
+            "dev_start": dev_s,
+            "dev_end": dev_f,
+            "sit_end": sit_f,
+            "regression_end": reg_f,
+            "uat_end": uat_f,
+            "prod_date": prod_f
+        }
+
+    def _fmt_md(dt_str: str | None) -> str:
+        if not dt_str or dt_str in ("TBD", "None", ""):
+            return "None" if dt_str == "None" else "TBD"
+        parts = dt_str.split("-")
+        return f"{parts[1]}-{parts[2]}" if len(parts) == 3 else dt_str
+
+    # --------------------------------------------------------------------------
+    # 6. 3 EXECUTIVE STORYBOARD DECKS (5-Stage Pipeline: DEV, SIT, REGRESS, UAT, PROD)
     # --------------------------------------------------------------------------
     story_c1, story_c2, story_c3 = st.columns(3, gap="small")
 
     def _render_story_card(title: str, rel_data: dict | None, accent_color: str, icon: str):
         if not rel_data:
             return f'''
-            <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid #2c3235;border-radius:2px;padding:10px 12px;height:138px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
-              <div style="text-align:center;color:var(--mute);font-size:11px;">
-                <div style="font-size:18px;">{icon}</div>
-                <div style="margin-top:4px;">No {title} Found</div>
+            <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid #2c3235;border-radius:2px;padding:8px 12px;min-height:102px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+              <div style="text-align:center;color:#6e7681;font-size:11px;">
+                <div style="font-size:16px;">{icon}</div>
+                <div style="margin-top:3px;">No {title} Found</div>
               </div>
             </div>
             '''
 
         rid = rel_data.get("release_id", "Unknown")
         state_mmis = rel_data.get("state", "Unknown")
-        pd_date = rel_data.get("prod_deploy_date", "TBD")
         readiness = rel_data.get("readiness_pct", 0)
+        m = _extract_milestones(rel_data)
 
-        dev_s = rel_data.get("dev_start_date", "TBD")
-        dev_f = rel_data.get("dev_end_date", "TBD")
-        sit_f = rel_data.get("sit_end_date", "TBD")
-        uat_f = rel_data.get("uat_end_date", "TBD")
+        dev_s = m["dev_start"]
+        dev_f = m["dev_end"]
+        sit_f = m["sit_end"]
+        reg_f = m["regression_end"]
+        uat_f = m["uat_end"]
+        pd_date = m["prod_date"]
 
-        prod_env = "ENV05" if state_mmis == "NH" else ("PRM" if state_mmis == "ND" else "ENV30")
         is_deployed = str(pd_date) < now_iso
         is_active_dev = str(dev_s) <= now_iso <= str(dev_f)
 
         if is_deployed:
-            status_label = "DEPLOYED"
-            badge_bg = "rgba(115, 191, 105, 0.15)"
+            status_label = "Dev Complete" if "Previous" in title else "Deployed"
+            badge_bg = "rgba(115, 191, 105, 0.16)"
             badge_col = "#73bf69"
         elif is_active_dev:
-            status_label = "ACTIVE DEV"
-            badge_bg = "rgba(56, 189, 248, 0.15)"
-            badge_col = "#38bdf8"
+            status_label = "Active Dev"
+            badge_bg = "rgba(87, 148, 242, 0.2)"
+            badge_col = "#8fb8f8"
         elif "Previous" in title:
-            status_label = "DEV COMPLETE"
-            badge_bg = "rgba(115, 191, 105, 0.15)"
+            status_label = "Dev Complete"
+            badge_bg = "rgba(115, 191, 105, 0.16)"
             badge_col = "#73bf69"
         else:
-            status_label = "UPCOMING DEV"
-            badge_bg = "rgba(245, 158, 11, 0.15)"
-            badge_col = "#f59e0b"
+            status_label = "Upcoming"
+            badge_bg = "rgba(255, 152, 48, 0.16)"
+            badge_col = "#ff9830"
 
-        # Milestone box status styling
-        def _box_style(target_date):
-            if not target_date or target_date == "TBD":
-                return "#8b949e", "rgba(255,255,255,0.02)"
-            if str(target_date) < now_iso:
-                return "#73bf69", "rgba(115,191,105,0.12)"
-            elif str(target_date) == now_iso:
-                return "#f2495c", "rgba(242,73,92,0.18)"
-            else:
-                return "#8b949e", "rgba(255,255,255,0.03)"
+        active_border = "border:1px solid rgba(87,148,242,0.4);border-top:3px solid #5794f2;" if is_active_dev else f"border:1px solid #2c3235;border-top:3px solid {accent_color};"
 
-        d_col, d_bg = _box_style(dev_f)
-        s_col, s_bg = _box_style(sit_f)
-        u_col, u_bg = _box_style(uat_f)
-        p_col, p_bg = _box_style(pd_date)
+        # Format 5 stages: Dev, Sit, Regress, Uat, Prod
+        s_dev = _fmt_md(dev_f)
+        s_sit = _fmt_md(sit_f)
+        s_reg = _fmt_md(reg_f)
+        s_uat = _fmt_md(uat_f)
+        s_prd = _fmt_md(pd_date)
 
         return f'''
-        <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid {accent_color};border-radius:2px;padding:8px 12px;height:138px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:0.04em;">
-              <span>{icon}</span> {title}
+        <div style="background:#181b1f;{active_border}border-radius:2px;padding:8px 12px;min-height:102px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <span style="font-size:14px;font-weight:700;color:#d8d9da;font-family:var(--mono);">{rid}</span>
+              <span style="font-size:9.5px;color:#9fa7b3;margin-left:4px;">{state_mmis} Scope</span>
             </div>
-            <span style="font-size:8.5px;font-weight:800;color:{badge_col};background:{badge_bg};border:1px solid {badge_col}40;padding:2px 6px;border-radius:2px;letter-spacing:0.03em;">{status_label}</span>
+            <span style="font-size:8.5px;padding:2px 7px;border-radius:2px;font-weight:700;text-transform:uppercase;background:{badge_bg};color:{badge_col};">{status_label}</span>
           </div>
 
-          <div style="display:flex;justify-content:space-between;align-items:baseline;">
-            <div style="display:flex;align-items:baseline;gap:6px;">
-              <span style="font-size:16px;font-weight:900;color:var(--ink);font-family:var(--mono);line-height:1;">{rid}</span>
-              <span style="font-size:10px;font-weight:700;color:{accent_color};background:rgba(255,255,255,0.04);padding:1px 6px;border-radius:2px;">{state_mmis} Scope</span>
-            </div>
-            <div style="font-size:10px;font-weight:700;color:var(--slate);font-family:var(--mono);">
-              Gate: <span style="color:{accent_color};font-size:11px;font-weight:800;">{readiness:.0f}%</span>
-            </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:2px;">
+            <div style="font-size:11px;color:#9fa7b3;">Gate: <b style="color:#8fb8f8;font-size:11.5px;">{readiness:.0f}%</b></div>
+            <div style="font-size:9.5px;color:#6e7681;">DEV: <span style="font-family:var(--mono);color:#d8d9da;font-weight:600;">{dev_s} &rarr; {dev_f}</span></div>
           </div>
 
-          <div style="background:rgba(255,255,255,0.02);border:1px solid #22252b;border-left:2.5px solid {accent_color};border-radius:2px;padding:3px 7px;display:flex;justify-content:space-between;align-items:center;font-size:9.5px;">
-            <span style="color:var(--slate);"><b>DEV Window:</b> <span style="font-family:var(--mono);color:var(--ink);font-weight:600;">{dev_s} &rarr; {dev_f}</span></span>
-            <span style="color:var(--slate);"><b>PROD:</b> <span style="font-family:var(--mono);color:#38bdf8;font-weight:700;">{pd_date}</span></span>
-          </div>
-
-          <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:3px 6px;display:grid;grid-template-columns:1fr 1fr 1fr 1.35fr;gap:4px;font-size:9px;font-family:var(--mono);">
-            <div style="background:{d_bg};padding:2px 4px;border-radius:2px;border:1px solid {d_col}30;"><span style="color:var(--mute);">DEV:</span> <span style="color:{d_col};font-weight:600;">{dev_f}</span></div>
-            <div style="background:{s_bg};padding:2px 4px;border-radius:2px;border:1px solid {s_col}30;"><span style="color:var(--mute);">SIT:</span> <span style="color:{s_col};font-weight:600;">{sit_f}</span></div>
-            <div style="background:{u_bg};padding:2px 4px;border-radius:2px;border:1px solid {u_col}30;"><span style="color:var(--mute);">UAT:</span> <span style="color:{u_col};font-weight:600;">{uat_f}</span></div>
-            <div style="background:{p_bg};padding:2px 4px;border-radius:2px;border:1px solid {p_col}30;"><span style="color:var(--mute);">PROD:</span> <span style="color:#38bdf8;font-weight:700;">{pd_date} ({prod_env})</span></div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:6px;">
+            <div style="background:#212429;border-radius:2px;padding:4px 3px;text-align:center;" title="DEV Freeze: {dev_f}">
+              <div style="font-size:8.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Dev</div>
+              <div style="font-size:10.5px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_dev}</div>
+            </div>
+            <div style="background:#212429;border-radius:2px;padding:4px 3px;text-align:center;" title="SIT Gate: {sit_f}">
+              <div style="font-size:8.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Sit</div>
+              <div style="font-size:10.5px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_sit}</div>
+            </div>
+            <div style="background:#212429;border-radius:2px;padding:4px 3px;text-align:center;border:1px solid rgba(87,148,242,0.25);" title="Regression Gate: {reg_f}">
+              <div style="font-size:8.5px;color:#8fb8f8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">Regress</div>
+              <div style="font-size:10.5px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_reg}</div>
+            </div>
+            <div style="background:#212429;border-radius:2px;padding:4px 3px;text-align:center;" title="UAT Gate: {uat_f}">
+              <div style="font-size:8.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Uat</div>
+              <div style="font-size:10.5px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_uat}</div>
+            </div>
+            <div style="background:#212429;border-radius:2px;padding:4px 3px;text-align:center;" title="PROD Cutover: {pd_date}">
+              <div style="font-size:8.5px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Prod</div>
+              <div style="font-size:10.5px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#8fb8f8;">{s_prd}</div>
+            </div>
           </div>
         </div>
         '''
@@ -523,10 +574,10 @@ def render_release_plan_workspace(db_path: str) -> None:
         render_html(_render_story_card("Previous Release", prev_r, "#73bf69", "📁"))
 
     with story_c2:
-        render_html(_render_story_card("Current Release", curr_r, "#38bdf8", "🎯"))
+        render_html(_render_story_card("Current Release", curr_r, "#5794f2", "🎯"))
 
     with story_c3:
-        render_html(_render_story_card("Upcoming Release", next_r, "#f59e0b", "🚀"))
+        render_html(_render_story_card("Upcoming Release", next_r, "#ff9830", "🚀"))
 
     # --------------------------------------------------------------------------
     # 7. MASTER-DETAIL ROADMAP INSPECTOR (Clean Subtabs / Switcher, Zero-Scroll)
@@ -549,7 +600,7 @@ def render_release_plan_workspace(db_path: str) -> None:
 
     sub_c1, sub_c2 = st.columns([1.5, 3.5])
     with sub_c1:
-        st.markdown("<div style='font-size:10.5px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;padding-top:4px;'>Roadmap &amp; Flight Deck</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:11px;font-weight:600;color:#d8d9da;padding-top:4px;'>Roadmap &amp; Flight Deck</div>", unsafe_allow_html=True)
     with sub_c2:
         mode = st.radio(
             "View Mode",
@@ -577,26 +628,26 @@ def render_release_plan_workspace(db_path: str) -> None:
                 d_s = rel_data.get('dev_start_date', 'TBD')
                 d_e = rel_data.get('dev_end_date', 'TBD')
                 is_in_dev = str(d_s) <= now_iso <= str(d_e)
-                status_color = "#73bf69" if is_deployed else ("#38bdf8" if is_in_dev else "#ff9830")
+                status_color = "#73bf69" if is_deployed else ("#5794f2" if is_in_dev else "#ff9830")
                 status_text = "DEPLOYED" if is_deployed else ("ACTIVE DEV" if is_in_dev else "SCHEDULED")
 
                 st.markdown(f'''
-                <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:2px;padding:8px 12px;height:165px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+                <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:2px;padding:10px 12px;height:190px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:9.5px;color:var(--mute);text-transform:uppercase;font-weight:700;">Selected Target Release</div>
+                        <div style="font-size:9.5px;color:#9fa7b3;text-transform:uppercase;font-weight:700;">Selected Target Release</div>
                         <span style="font-size:8.5px;font-weight:700;color:{status_color};background:rgba(255,255,255,0.05);border:1px solid {status_color}40;padding:1px 6px;border-radius:2px;">{status_text}</span>
                     </div>
                     <div>
-                        <div style="font-size:16px;font-weight:800;color:var(--text);font-family:var(--mono);">{st_code}.{rel_data.get('release_id')}</div>
-                        <div style="font-size:10px;color:var(--slate);margin-top:3px;line-height:1.4;">
-                            <b>DEV Window:</b> <span style="font-family:var(--mono);color:var(--ink);">{d_s} &rarr; {d_e}</span><br/>
-                            <b>Target PROD:</b> <span style="color:#38bdf8;font-weight:700;">{prod_env}</span> ({rel_data.get('prod_deploy_date', 'TBD')})<br/>
+                        <div style="font-size:16px;font-weight:800;color:#d8d9da;font-family:var(--mono);">{st_code}.{rel_data.get('release_id')}</div>
+                        <div style="font-size:10px;color:#9fa7b3;margin-top:3px;line-height:1.4;">
+                            <b>DEV Window:</b> <span style="font-family:var(--mono);color:#d8d9da;">{d_s} &rarr; {d_e}</span><br/>
+                            <b>Target PROD:</b> <span style="color:#8fb8f8;font-weight:700;">{prod_env}</span> ({rel_data.get('prod_deploy_date', 'TBD')})<br/>
                             <b>RM:</b> {rel_data.get('state_rm_name', 'Unassigned')} &bull; <b>Lead:</b> {rel_data.get('tech_lead_name', 'Unassigned')}
                         </div>
                     </div>
-                    <div style="font-size:10px;font-family:var(--mono);color:var(--slate);display:flex;justify-content:space-between;border-top:1px solid #22252b;padding-top:4px;">
+                    <div style="font-size:10px;font-family:var(--mono);color:#9fa7b3;display:flex;justify-content:space-between;border-top:1px solid #22252b;padding-top:4px;">
                         <span>Readiness: <b style="color:{status_color};">{rel_data.get('readiness_pct', 0):.0f}%</b></span>
-                        <span style="color:#38bdf8;font-weight:700;">PROD: {rel_data.get('prod_deploy_date', 'TBD')}</span>
+                        <span style="color:#8fb8f8;font-weight:700;">PROD: {rel_data.get('prod_deploy_date', 'TBD')}</span>
                     </div>
                 </div>
                 ''', unsafe_allow_html=True)
@@ -605,105 +656,130 @@ def render_release_plan_workspace(db_path: str) -> None:
             if rel_data:
                 st_code = rel_data.get('state', 'NH')
                 prod_env_label = "PROD / ENV05" if st_code == "NH" else ("PROD / PRM" if st_code == "ND" else "PROD / ENV30")
+                m_curr = _extract_milestones(rel_data)
+                
                 st.markdown('''
-                <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:8px 12px;height:200px;overflow-y:auto;box-sizing:border-box;">
+                <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:8px 12px;height:230px;overflow-y:auto;box-sizing:border-box;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <div style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.03em;">Milestone Execution Ledger</div>
-                        <div style="font-size:9.5px;color:var(--mute);font-family:var(--mono);">Target: {rid}</div>
+                        <div style="font-size:11px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.03em;">Milestone Execution Ledger (5-Phase Pipeline)</div>
+                        <div style="font-size:9.5px;color:#9fa7b3;font-family:var(--mono);">Target: {rid}</div>
                     </div>
-                    <table class="tblx" style="width:100%;font-size:10.5px;line-height:1.5;">
+                    <table class="tblx" style="width:100%;font-size:10.5px;line-height:1.4;">
                         <thead>
-                            <tr style="border-bottom:1px solid #2c3235;color:var(--mute);">
-                                <th style="text-align:left;padding:4px 6px;">Phase</th>
-                                <th style="text-align:left;padding:4px 6px;">Target Environment</th>
-                                <th style="text-align:left;padding:4px 6px;">Target Date</th>
-                                <th style="text-align:right;padding:4px 6px;">Status</th>
+                            <tr style="border-bottom:1px solid #2c3235;color:#6e7681;">
+                                <th style="text-align:left;padding:3px 6px;">Phase</th>
+                                <th style="text-align:left;padding:3px 6px;">Target Environment</th>
+                                <th style="text-align:left;padding:3px 6px;">Target Date</th>
+                                <th style="text-align:right;padding:3px 6px;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td style="padding:4px 6px;font-weight:600;">DEV Cycle Window</td>
-                                <td style="padding:4px 6px;color:var(--slate);">Build-76 / ENV52</td>
-                                <td style="padding:4px 6px;font-family:var(--mono);">{dev_s} &rarr; {dev_e}</td>
-                                <td style="padding:4px 6px;text-align:right;">{d_stat}</td>
+                                <td style="padding:3px 6px;font-weight:600;">DEV Cycle Window</td>
+                                <td style="padding:3px 6px;color:#9fa7b3;">Build-76 / ENV52</td>
+                                <td style="padding:3px 6px;font-family:var(--mono);">{dev_s} &rarr; {dev_e}</td>
+                                <td style="padding:3px 6px;text-align:right;">{d_stat}</td>
                             </tr>
                             <tr>
-                                <td style="padding:4px 6px;font-weight:600;">SIT Gate Exit</td>
-                                <td style="padding:4px 6px;color:var(--slate);">SIT QA / ENV57</td>
-                                <td style="padding:4px 6px;font-family:var(--mono);">{sit}</td>
-                                <td style="padding:4px 6px;text-align:right;">{s_stat}</td>
+                                <td style="padding:3px 6px;font-weight:600;">SIT Gate Exit</td>
+                                <td style="padding:3px 6px;color:#9fa7b3;">SIT QA / ENV57</td>
+                                <td style="padding:3px 6px;font-family:var(--mono);">{sit}</td>
+                                <td style="padding:3px 6px;text-align:right;">{s_stat}</td>
+                            </tr>
+                            <tr style="background:rgba(87,148,242,0.04);">
+                                <td style="padding:3px 6px;font-weight:700;color:#8fb8f8;">Regression Testing Gate</td>
+                                <td style="padding:3px 6px;color:#9fa7b3;">Regression / ENV53</td>
+                                <td style="padding:3px 6px;font-family:var(--mono);font-weight:600;">{reg}</td>
+                                <td style="padding:3px 6px;text-align:right;">{r_stat}</td>
                             </tr>
                             <tr>
-                                <td style="padding:4px 6px;font-weight:600;">UAT Gate Exit</td>
-                                <td style="padding:4px 6px;color:var(--slate);">Acceptance / ENV04</td>
-                                <td style="padding:4px 6px;font-family:var(--mono);">{uat}</td>
-                                <td style="padding:4px 6px;text-align:right;">{u_stat}</td>
+                                <td style="padding:3px 6px;font-weight:600;">State UAT Acceptance</td>
+                                <td style="padding:3px 6px;color:#9fa7b3;">Acceptance / ENV04</td>
+                                <td style="padding:3px 6px;font-family:var(--mono);">{uat}</td>
+                                <td style="padding:3px 6px;text-align:right;">{u_stat}</td>
                             </tr>
                             <tr>
-                                <td style="padding:4px 6px;font-weight:700;color:var(--ink);">PROD Cutover</td>
-                                <td style="padding:4px 6px;font-weight:700;color:#38bdf8;">{prod_env}</td>
-                                <td style="padding:4px 6px;font-family:var(--mono);font-weight:700;color:var(--text);">{prod}</td>
-                                <td style="padding:4px 6px;text-align:right;">{p_stat}</td>
+                                <td style="padding:3px 6px;font-weight:700;color:#d8d9da;">PROD Cutover</td>
+                                <td style="padding:3px 6px;font-weight:700;color:#8fb8f8;">{prod_env}</td>
+                                <td style="padding:3px 6px;font-family:var(--mono);font-weight:700;color:#d8d9da;">{prod}</td>
+                                <td style="padding:3px 6px;text-align:right;">{p_stat}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
                 '''.format(
                     rid=f"{st_code}.{rel_data.get('release_id')}",
-                    dev_s=rel_data.get('dev_start_date', 'TBD'),
-                    dev_e=rel_data.get('dev_end_date', 'TBD'),
-                    d_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(rel_data.get('dev_end_date', '')) < now_iso else ('<span style="color:#38bdf8;font-weight:700;">ACTIVE DEV</span>' if str(rel_data.get('dev_start_date', '')) <= now_iso <= str(rel_data.get('dev_end_date', '')) else '<span style="color:#5794f2;font-weight:700;">PENDING</span>'),
-                    sit=rel_data.get('sit_end_date', 'TBD'),
-                    s_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(rel_data.get('sit_end_date', '')) < now_iso else '<span style="color:#5794f2;font-weight:700;">PENDING</span>',
-                    uat=rel_data.get('uat_end_date', 'TBD'),
-                    u_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(rel_data.get('uat_end_date', '')) < now_iso else '<span style="color:#5794f2;font-weight:700;">PENDING</span>',
+                    dev_s=m_curr['dev_start'],
+                    dev_e=m_curr['dev_end'],
+                    d_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['dev_end']) < now_iso else ('<span style="color:#8fb8f8;font-weight:700;">ACTIVE DEV</span>' if str(m_curr['dev_start']) <= now_iso <= str(m_curr['dev_end']) else '<span style="color:#9fa7b3;font-weight:700;">PENDING</span>'),
+                    sit=m_curr['sit_end'],
+                    s_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['sit_end']) < now_iso else '<span style="color:#9fa7b3;font-weight:700;">PENDING</span>',
+                    reg=m_curr['regression_end'],
+                    r_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['regression_end']) < now_iso else '<span style="color:#8fb8f8;font-weight:700;">SCHEDULED</span>',
+                    uat=m_curr['uat_end'],
+                    u_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['uat_end']) < now_iso else '<span style="color:#9fa7b3;font-weight:700;">PENDING</span>',
                     prod_env=prod_env_label,
-                    prod=rel_data.get('prod_deploy_date', 'TBD'),
-                    p_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(rel_data.get('prod_deploy_date', '')) < now_iso else '<span style="color:#ff9830;font-weight:700;">PENDING</span>'
+                    prod=m_curr['prod_date'],
+                    p_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['prod_date']) < now_iso else '<span style="color:#ff9830;font-weight:700;">PENDING</span>'
                 ), unsafe_allow_html=True)
     else:
+        # Multi-Release Roadmap Matrix (Utilizes Vertical Space + Regression Column)
         roadmap_rows = []
         for r in all_releases:
             st_code = r.get("state", "NH")
             prod_env = "PROD (ENV05)" if st_code == "NH" else ("PROD (PRM)" if st_code == "ND" else "PROD (ENV30)")
-            d_s = r.get('dev_start_date', 'TBD')
-            d_e = r.get('dev_end_date', 'TBD')
-            p_d = r.get('prod_deploy_date', 'TBD')
+            m_r = _extract_milestones(r)
+            d_s = m_r['dev_start']
+            d_e = m_r['dev_end']
+            p_d = m_r['prod_date']
+            reg_d = m_r['regression_end']
             is_deployed = str(p_d) < now_iso
             is_in_dev = str(d_s) <= now_iso <= str(d_e)
-            if is_deployed:
-                status = '<span style="color:#73bf69;font-weight:700;">DEPLOYED</span>'
+            is_today = str(p_d) == now_iso
+
+            if is_today:
+                status = '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:2px;background:rgba(255,152,48,0.16);color:#ff9830;">CUTOVER TODAY</span>'
+            elif is_deployed:
+                status = '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:2px;background:rgba(115,191,105,0.16);color:#73bf69;">DEPLOYED</span>'
             elif is_in_dev:
-                status = '<span style="color:#38bdf8;font-weight:700;">ACTIVE DEV</span>'
+                status = '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:2px;background:rgba(87,148,242,0.2);color:#8fb8f8;">ACTIVE DEV</span>'
             else:
-                status = '<span style="color:#ff9830;font-weight:700;">SCHEDULED</span>'
+                status = '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:2px;background:rgba(255,152,48,0.16);color:#ff9830;">SCHEDULED</span>'
+
             roadmap_rows.append(
                 f"<tr>"
-                f"<td style='padding:4px 6px;'><span style='font-weight:700;color:var(--slate);'>{st_code}</span></td>"
-                f"<td style='padding:4px 6px;'><b>{r.get('release_id')}</b></td>"
-                f"<td style='padding:4px 6px;font-family:var(--mono);'>{d_s} &rarr; {d_e}</td>"
-                f"<td style='padding:4px 6px;font-family:var(--mono);'>{r.get('sit_end_date', 'TBD')}</td>"
-                f"<td style='padding:4px 6px;font-family:var(--mono);'>{r.get('uat_end_date', 'TBD')}</td>"
-                f"<td style='padding:4px 6px;font-family:var(--mono);font-weight:700;color:var(--text);'>{p_d}</td>"
-                f"<td style='padding:4px 6px;font-size:10px;color:#38bdf8;'>{prod_env}</td>"
-                f"<td style='padding:4px 6px;text-align:right;'>{status}</td>"
+                f"<td style='padding:5px 8px;'><span style='font-weight:700;color:#9fa7b3;'>{st_code}</span></td>"
+                f"<td style='padding:5px 8px;'><b>{r.get('release_id')}</b></td>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);color:#d8d9da;'>{d_s} &rarr; {d_e}</td>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);'>{m_r['sit_end']}</td>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);color:#8fb8f8;font-weight:600;'>{reg_d}</td>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);'>{m_r['uat_end']}</td>"
+                f"<td style='padding:5px 8px;font-family:var(--mono);font-weight:700;color:#d8d9da;'>{p_d}</td>"
+                f"<td style='padding:5px 8px;font-size:10px;color:#8fb8f8;'>{prod_env}</td>"
+                f"<td style='padding:5px 8px;text-align:right;'>{status}</td>"
                 f"</tr>"
             )
 
+        # Height expanded to 295px to fully utilize space for the 2nd view
         st.markdown(f'''
-        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:210px;overflow-y:auto;">
-            <table class="tblx" style="width:100%;font-size:10px;">
-                <tr style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
-                    <th style="text-align:left;padding:4px 6px;">State</th>
-                    <th style="text-align:left;padding:4px 6px;">Release</th>
-                    <th style="text-align:left;padding:4px 6px;">DEV Window</th>
-                    <th style="text-align:left;padding:4px 6px;">SIT Gate</th>
-                    <th style="text-align:left;padding:4px 6px;">UAT Gate</th>
-                    <th style="text-align:left;padding:4px 6px;">PROD Cutover</th>
-                    <th style="text-align:left;padding:4px 6px;">Production Env</th>
-                    <th style="text-align:right;padding:4px 6px;">Status</th>
-                </tr>
-                {''.join(roadmap_rows)}
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;height:295px;max-height:295px;overflow-y:auto;box-sizing:border-box;">
+            <table class="tblx" style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
+                    <tr>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">State</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">Release</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">DEV Window</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">SIT Gate</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#8fb8f8;font-weight:700;text-transform:uppercase;">Regression</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">UAT Gate</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">PROD Cutover</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">Production Env</th>
+                        <th style="padding:6px 8px;text-align:right;font-size:10px;color:#6e7681;font-weight:500;text-transform:uppercase;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(roadmap_rows)}
+                </tbody>
             </table>
         </div>
         ''', unsafe_allow_html=True)
