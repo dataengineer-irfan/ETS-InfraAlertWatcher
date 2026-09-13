@@ -227,7 +227,16 @@ def render_release_plan_workspace(db_path: str) -> None:
     with h_col2:
         if is_enterprise_admin:
             state_options = ["All States", "Alaska (AK)", "North Dakota (ND)", "New Hampshire (NH)"]
-            chosen_state_label = st.selectbox("Filter State", state_options, index=0, key="sl_state_clean", label_visibility="collapsed")
+            cur_ovr = st.session_state.get("_override_canvas_state")
+            def_st_idx = 0
+            if cur_ovr == "AK":
+                def_st_idx = 1
+            elif cur_ovr == "ND":
+                def_st_idx = 2
+            elif cur_ovr == "NH":
+                def_st_idx = 3
+
+            chosen_state_label = st.selectbox("Filter State", state_options, index=def_st_idx, key="sl_state_clean", label_visibility="collapsed")
             if "Alaska" in chosen_state_label:
                 effective_state = "AK"
             elif "North Dakota" in chosen_state_label:
@@ -236,6 +245,16 @@ def render_release_plan_workspace(db_path: str) -> None:
                 effective_state = "NH"
             else:
                 effective_state = None
+
+            # Sync cross-page state selection across all tabs
+            if st.session_state.get("_override_canvas_state") != effective_state:
+                st.session_state["_override_canvas_state"] = effective_state
+                st.session_state["gov_state_filter"] = effective_state or "All"
+                reset_idx = st.session_state.get("op_reset_idx", 0)
+                st.session_state[f"op_state_{reset_idx}"] = effective_state or "All States"
+                if effective_state is None:
+                    st.session_state["global_release_selection"] = None
+                st.rerun()
         else:
             effective_state = user_assigned_state
 
@@ -257,13 +276,9 @@ def render_release_plan_workspace(db_path: str) -> None:
     # Sort all by prod_deploy_date
     all_releases.sort(key=lambda x: x.get("prod_deploy_date", "9999-12-31"))
     
-    # We want one "Current" release per state.
-    # Current = The release currently in dev phase (dev_start_date <= now <= prod_deploy_date).
-    # If multiple are in dev, pick the one with the earliest prod_deploy_date.
-    # If none are in dev, pick the very next future release.
     st_current_chosen = set()
     
-    # Pass 1: Find active dev cycles
+    # Pass 1: Find active dev cycles (dev_start_date <= now_iso <= prod_deploy_date)
     for r in all_releases:
         d_s = r.get("dev_start_date") or r.get("prod_deploy_date", "")
         p_d = r.get("prod_deploy_date", "")
@@ -288,8 +303,7 @@ def render_release_plan_workspace(db_path: str) -> None:
             else:
                 upcoming_releases.append(r)
 
-    current_ids = {r["release_id"] for r in current_releases}
-    active_releases = [] # Kept for compatibility with other arrays if needed
+    active_releases = []
 
     # --------------------------------------------------------------------------
     # 4. Strict Grafana Metric Ribbon (ui.grafana_stat_card)
@@ -307,12 +321,11 @@ def render_release_plan_workspace(db_path: str) -> None:
     except Exception:
         pass
 
-    uat_count = sum(1 for r in active_releases if _get_stage_info(r, now_iso)[0].startswith("State UAT"))
-    sit_count = sum(1 for r in active_releases if _get_stage_info(r, now_iso)[0].startswith("SIT"))
-    dev_count = sum(1 for r in active_releases if _get_stage_info(r, now_iso)[0].startswith("Development"))
+    uat_count = sum(1 for r in all_releases if _get_stage_info(r, now_iso)[0].startswith("State UAT"))
+    sit_count = sum(1 for r in all_releases if _get_stage_info(r, now_iso)[0].startswith("SIT"))
+    dev_count = sum(1 for r in all_releases if _get_stage_info(r, now_iso)[0].startswith("Development"))
 
-    # Calculate average gate readiness across active + current releases
-    monitored_pool = (current_releases + active_releases)
+    monitored_pool = (current_releases + upcoming_releases[:2])
     avg_readiness = (sum(r.get("readiness_pct", 0) for r in monitored_pool) / len(monitored_pool)) if monitored_pool else 100.0
 
     # Card 1: Immediate Cutover Focus
@@ -334,11 +347,11 @@ def render_release_plan_workspace(db_path: str) -> None:
     with kpi_col2:
         st.markdown(ui.grafana_stat_card(
             label="Active In-Flight Pipeline",
-            value=f"{len(active_releases)} Active",
+            value=f"{len(current_releases)} Active",
             color="#5794f2",
             subtext=f"{uat_count} in UAT · {sit_count} in SIT · {dev_count} in DEV",
             badge="LIVE TESTING",
-            sparkline_vals=[dev_count, sit_count, uat_count, len(active_releases)] if active_releases else [0],
+            sparkline_vals=[dev_count, sit_count, uat_count, len(current_releases)],
             delta="DEV➔SIT➔UAT Flow",
             state="ok",
         ), unsafe_allow_html=True)
@@ -371,10 +384,8 @@ def render_release_plan_workspace(db_path: str) -> None:
             state="ok" if avg_readiness >= 80 else "pending",
         ), unsafe_allow_html=True)
 
-    st.markdown('<div style="margin-top:4px;"></div>', unsafe_allow_html=True)
-
     # --------------------------------------------------------------------------
-    # 5. RELEASE CUTOFF ALERT STRIP (DEV / SIT / UAT / GO-NOGO / PROD)
+    # 5. RELEASE CUTOFF ALERT STRIP (Zero-Scroll Compact Inline Ticker)
     # --------------------------------------------------------------------------
     alert_chips = _build_alert_chips(all_releases, now_iso)
 
@@ -387,56 +398,44 @@ def render_release_plan_workspace(db_path: str) -> None:
         deduped = list(seen.values())
         deduped.sort(key=lambda x: (0 if x["chip_cls"] == "firing" else 1, x["days"]))
 
-        alert_cards = ""
-        for a in deduped:
+        chips_html = []
+        for a in deduped[:4]:
             border_c = "#f2495c" if a["chip_cls"] == "firing" else "#ff9830"
-            bg_c = "rgba(242, 73, 92, 0.05)" if a["chip_cls"] == "firing" else "rgba(255, 152, 48, 0.05)"
-            alert_cards += f'''
-            <div style="background:{bg_c};border:1px solid {border_c};border-radius:2px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;min-width:180px;flex:1;">
-              <div style="display:flex;align-items:center;justify-content:space-between;">
-                <span style="font-size:10px;font-weight:800;color:var(--ink);">{a["state"]}</span>
-                <span style="font-size:9.5px;font-family:var(--mono);color:var(--slate);">{a["release_id"]}</span>
-              </div>
-              <div style="font-size:11px;font-weight:700;color:{border_c};margin-top:2px;">
-                {a["label"]}
-              </div>
-            </div>
-            '''
+            bg_c = "rgba(242, 73, 92, 0.12)" if a["chip_cls"] == "firing" else "rgba(255, 152, 48, 0.12)"
+            chips_html.append(
+                f"<span style='background:{bg_c};border:1px solid {border_c};border-radius:2px;padding:2px 8px;font-size:10px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;'>"
+                f"<b style='color:var(--ink);'>{a['state']}.{a['release_id']}</b>"
+                f"<span style='color:{border_c};font-weight:700;'>{a['label']}</span>"
+                f"</span>"
+            )
 
         n_firing = sum(1 for a in deduped if a["chip_cls"] == "firing")
-        n_pending = sum(1 for a in deduped if a["chip_cls"] == "pending")
-        severity_txt = f'<span style="color:#f2495c;font-weight:700;font-size:11px;margin-right:8px;">{n_firing} FIRING</span>' if n_firing else ''
-        pending_txt = f'<span style="color:#ff9830;font-weight:700;font-size:11px;">{n_pending} PENDING</span>' if n_pending else ''
         dot_color = "#f2495c" if n_firing else "#ff9830"
 
         render_html(f"""
-        <div style="margin-bottom:16px;">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-            <span style="width:8px;height:8px;border-radius:50%;background:{dot_color};box-shadow:0 0 6px {dot_color};display:inline-block;"></span>
-            <span style="font-size:12px;font-weight:700;color:var(--ink);letter-spacing:0.04em;text-transform:uppercase;">Release Gate Alerts</span>
-            <span style="display:flex;margin-left:8px;">{severity_txt}{pending_txt}</span>
+        <div style="display:flex;align-items:center;gap:8px;padding:3px 8px;background:rgba(255,255,255,0.02);border:1px solid #22252b;border-radius:2px;margin-top:4px;margin-bottom:6px;overflow-x:auto;">
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+            <span style="width:7px;height:7px;border-radius:50%;background:{dot_color};box-shadow:0 0 5px {dot_color};"></span>
+            <span style="font-size:10px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;">Gate Alerts:</span>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            {alert_cards}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
+            {''.join(chips_html)}
           </div>
         </div>
         """)
 
     # --------------------------------------------------------------------------
+    # 6. EXECUTIVE RELEASE STORYBOARD (Previous, Current, Upcoming — Compact Zero-Scroll)
     # --------------------------------------------------------------------------
-    # 6. EXECUTIVE RELEASE STORYBOARD (Previous, Current, Upcoming)
-    # --------------------------------------------------------------------------
-    st.markdown("<div style='margin-top:12px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;'>Enterprise Release Storyboard</div>", unsafe_allow_html=True)
-
-    story_c1, story_c2, story_c3 = st.columns(3, gap="medium")
+    story_c1, story_c2, story_c3 = st.columns(3, gap="small")
 
     def _render_story_card(title: str, rel_data: dict | None, accent_color: str, icon: str):
         if not rel_data:
             return f'''
-            <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid #2c3235;border-radius:2px;padding:12px;min-height:300px;display:flex;align-items:center;justify-content:center;">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid #2c3235;border-radius:2px;padding:10px;height:120px;display:flex;align-items:center;justify-content:center;">
               <div style="text-align:center;color:var(--mute);font-size:11px;">
                 <div>{icon}</div>
-                <div style="margin-top:6px;">No {title} Found</div>
+                <div style="margin-top:4px;">No {title} Found</div>
               </div>
             </div>
             '''
@@ -449,52 +448,35 @@ def render_release_plan_workspace(db_path: str) -> None:
         dev_f = rel_data.get("dev_end_date", "TBD")
         sit_f = rel_data.get("sit_end_date", "TBD")
         uat_f = rel_data.get("uat_end_date", "TBD")
-        gn_d = rel_data.get("go_nogo_date", "TBD")
+        
+        prod_env = "ENV05" if state_mmis == "NH" else ("PRM" if state_mmis == "ND" else "ENV30")
+        is_deployed = str(pd_date) < now_iso
+        status_label = "DEPLOYED" if is_deployed else ("ACTIVE DEV" if "Current" in title else "PLANNED")
         
         return f'''
-        <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid {accent_color};border-radius:2px;padding:12px;min-height:280px;display:flex;flex-direction:column;justify-content:space-between;">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">
+        <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid {accent_color};border-radius:2px;padding:8px 10px;height:120px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="display:flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">
               <span>{icon}</span> {title}
             </div>
-            <div style="font-size:18px;font-weight:800;color:var(--ink);font-family:var(--mono);line-height:1.2;">
-              {rid}
-            </div>
-            <div style="font-size:11px;font-weight:600;color:{accent_color};margin-top:2px;">
-              {state_mmis} MMIS Scope
-            </div>
+            <span style="font-size:8.5px;font-weight:700;color:{accent_color};background:rgba(255,255,255,0.04);padding:1px 5px;border-radius:2px;">{status_label}</span>
           </div>
           
-          <div style="margin:16px 0;background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;">
-            <div style="font-size:9px;color:var(--mute);text-transform:uppercase;margin-bottom:6px;">Milestone Ledger</div>
-            
-            <div style="display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px;border-bottom:1px dashed #2c3235;padding-bottom:2px;">
-              <span style="color:var(--slate);">DEV Freeze</span>
-              <span style="color:var(--text);font-family:var(--mono);">{dev_f}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px;border-bottom:1px dashed #2c3235;padding-bottom:2px;">
-              <span style="color:var(--slate);">SIT Exit</span>
-              <span style="color:var(--text);font-family:var(--mono);">{sit_f}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px;border-bottom:1px dashed #2c3235;padding-bottom:2px;">
-              <span style="color:var(--slate);">UAT Sign-off</span>
-              <span style="color:var(--text);font-family:var(--mono);">{uat_f}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px;border-bottom:1px dashed #2c3235;padding-bottom:2px;">
-              <span style="color:var(--slate);">Go / No-Go</span>
-              <span style="color:var(--text);font-family:var(--mono);">{gn_d}</span>
-            </div>
-          </div>
-          
-          <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.02);border:1px solid #2c3235;padding:6px 10px;border-radius:2px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin:1px 0;">
             <div>
-              <div style="font-size:9px;color:var(--slate);text-transform:uppercase;">Cutover Target</div>
-              <div style="font-size:12px;font-weight:700;color:var(--ink);font-family:var(--mono);">{pd_date}</div>
+              <span style="font-size:15px;font-weight:800;color:var(--ink);font-family:var(--mono);line-height:1;">{rid}</span>
+              <span style="font-size:10px;font-weight:600;color:{accent_color};margin-left:6px;">{state_mmis} Scope</span>
             </div>
-            <div style="text-align:right;">
-              <div style="font-size:9px;color:var(--slate);text-transform:uppercase;">Readiness</div>
-              <div style="font-size:12px;font-weight:700;color:{accent_color};font-family:var(--mono);">{readiness:.0f}%</div>
+            <div style="font-size:10px;font-weight:700;color:var(--slate);font-family:var(--mono);">
+              Gate: <span style="color:{accent_color};">{readiness:.0f}%</span>
             </div>
+          </div>
+          
+          <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 6px;display:grid;grid-template-columns:1fr 1fr 1fr 1.3fr;gap:4px;font-size:9px;font-family:var(--mono);">
+            <div><span style="color:var(--mute);">DEV:</span> <span style="color:var(--slate);">{dev_f}</span></div>
+            <div><span style="color:var(--mute);">SIT:</span> <span style="color:var(--slate);">{sit_f}</span></div>
+            <div><span style="color:var(--mute);">UAT:</span> <span style="color:var(--slate);">{uat_f}</span></div>
+            <div><span style="color:var(--mute);">PROD:</span> <span style="color:#38bdf8;font-weight:700;">{pd_date} ({prod_env})</span></div>
           </div>
         </div>
         '''
@@ -514,9 +496,9 @@ def render_release_plan_workspace(db_path: str) -> None:
     conn.close()
 
     # --------------------------------------------------------------------------
-    # 7. GRANULAR MASTER-DETAIL INSPECTOR
+    # 7. GRANULAR MASTER-DETAIL INSPECTOR (2 Clean Subtabs, Zero-Scroll)
     # --------------------------------------------------------------------------
-    st.markdown("<div style='margin-top:20px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;'>Granular Milestone Ledger & Roadmap</div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:10px;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;'>Granular Milestone Ledger & Roadmap</div>", unsafe_allow_html=True)
     
     tab_deck, tab_matrix = st.tabs([
         "🎯 Release Flight Deck", 
@@ -544,30 +526,39 @@ def render_release_plan_workspace(db_path: str) -> None:
                 label_visibility="collapsed"
             )
             
-            # Cross-page global filter synchronization
-            if st.session_state.get("global_release_selection") != chosen_rel:
+            # Synchronize cross-page filter to all dashboard tabs immediately
+            if chosen_rel and st.session_state.get("global_release_selection") != chosen_rel:
+                rel_st = chosen_rel.split(".")[0] if "." in chosen_rel else chosen_rel
                 st.session_state["global_release_selection"] = chosen_rel
+                st.session_state["_override_canvas_state"] = rel_st
+                st.session_state["gov_state_filter"] = rel_st
+                reset_idx = st.session_state.get("op_reset_idx", 0)
+                st.session_state[f"op_state_{reset_idx}"] = rel_st
                 st.rerun()
 
             rel_data = release_dict.get(chosen_rel)
             if rel_data:
                 st_code = rel_data.get('state', 'NH')
                 prod_env = "PROD / ENV05" if st_code == "NH" else ("PROD / PRM" if st_code == "ND" else "PROD / ENV30")
-                is_deployed = rel_data.get('prod_deploy_date', 'TBD') < now_iso
+                is_deployed = str(rel_data.get('prod_deploy_date', 'TBD')) < now_iso
                 status_color = "#73bf69" if is_deployed else "#38bdf8"
                 status_text = "DEPLOYED" if is_deployed else "ACTIVE FLIGHT"
 
                 st.markdown(f'''
-                <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:2px;padding:14px;">
+                <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:2px;padding:10px 12px;height:140px;display:flex;flex-direction:column;justify-content:space-between;">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div style="font-size:10px;color:var(--mute);text-transform:uppercase;">Selected Target</div>
-                        <span style="font-size:9px;font-weight:700;color:{status_color};background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:2px;">{status_text}</span>
+                        <div style="font-size:9.5px;color:var(--mute);text-transform:uppercase;">Selected Target</div>
+                        <span style="font-size:8.5px;font-weight:700;color:{status_color};background:rgba(255,255,255,0.05);padding:1px 5px;border-radius:2px;">{status_text}</span>
                     </div>
-                    <div style="font-size:16px;font-weight:700;color:var(--text);margin-top:2px;">{st_code}.{rel_data['release_id']}</div>
-                    <div style="margin-top:10px;font-size:11.5px;color:var(--slate);line-height:1.6;">
-                        <b>Release Manager:</b> {rel_data.get('state_rm_name', 'Unassigned')}<br/>
-                        <b>Target Production:</b> <span style="color:#38bdf8;font-weight:600;">{prod_env}</span><br/>
-                        <b>Cutover Date:</b> <span style="font-family:var(--mono);color:var(--ink);">{rel_data.get('prod_deploy_date', 'TBD')}</span>
+                    <div>
+                        <div style="font-size:15px;font-weight:800;color:var(--text);">{st_code}.{rel_data['release_id']}</div>
+                        <div style="font-size:10.5px;color:var(--slate);margin-top:2px;">
+                            <b>Target PROD:</b> <span style="color:#38bdf8;font-weight:700;">{prod_env}</span><br/>
+                            <b>RM:</b> {rel_data.get('state_rm_name', 'Unassigned')} &bull; <b>Lead:</b> {rel_data.get('tech_lead_name', 'Unassigned')}
+                        </div>
+                    </div>
+                    <div style="font-size:10px;font-family:var(--mono);color:var(--slate);">
+                        Cutover: <b style="color:var(--ink);">{rel_data.get('prod_deploy_date', 'TBD')}</b> | Readiness: <b style="color:{status_color};">{rel_data.get('readiness_pct', 0):.0f}%</b>
                     </div>
                 </div>
                 ''', unsafe_allow_html=True)
@@ -577,14 +568,14 @@ def render_release_plan_workspace(db_path: str) -> None:
                 st_code = rel_data.get('state', 'NH')
                 prod_env_label = "PROD / ENV05" if st_code == "NH" else ("PROD / PRM" if st_code == "ND" else "PROD / ENV30")
                 st.markdown('''
-                <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:12px;">
-                    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">Milestone Execution Ledger</div>
-                    <table class="tblx" style="width:100%;font-size:11px;">
+                <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:8px 10px;height:140px;overflow-y:auto;">
+                    <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px;">Milestone Execution Ledger</div>
+                    <table class="tblx" style="width:100%;font-size:10.5px;">
                         <tr><th style="text-align:left;">Phase</th><th style="text-align:left;">Target Environment</th><th style="text-align:left;">Target Date</th><th style="text-align:right;">Status</th></tr>
                         <tr><td>DEV Freeze</td><td>Build-76 / ENV52</td><td style="font-family:var(--mono);">{dev}</td><td style="text-align:right;">{d_stat}</td></tr>
                         <tr><td>SIT Gate</td><td>SIT QA / ENV57</td><td style="font-family:var(--mono);">{sit}</td><td style="text-align:right;">{s_stat}</td></tr>
                         <tr><td>UAT Gate</td><td>Acceptance / ENV04</td><td style="font-family:var(--mono);">{uat}</td><td style="text-align:right;">{u_stat}</td></tr>
-                        <tr><td>PROD Cutover</td><td style="font-weight:600;color:#38bdf8;">{prod_env}</td><td style="font-family:var(--mono);font-weight:700;color:var(--text);">{prod}</td><td style="text-align:right;">{p_stat}</td></tr>
+                        <tr><td>PROD Cutover</td><td style="font-weight:700;color:#38bdf8;">{prod_env}</td><td style="font-family:var(--mono);font-weight:700;color:var(--text);">{prod}</td><td style="text-align:right;">{p_stat}</td></tr>
                     </table>
                 </div>
                 '''.format(
@@ -614,14 +605,14 @@ def render_release_plan_workspace(db_path: str) -> None:
                     f"<td style='font-family:var(--mono);'>{r.get('sit_end_date', 'TBD')}</td>"
                     f"<td style='font-family:var(--mono);'>{r.get('uat_end_date', 'TBD')}</td>"
                     f"<td style='font-family:var(--mono);font-weight:700;color:var(--text);'>{d_end}</td>"
-                    f"<td style='font-size:10.5px;color:#38bdf8;'>{prod_env}</td>"
+                    f"<td style='font-size:10px;color:#38bdf8;'>{prod_env}</td>"
                     f"<td style='text-align:right;'>{status}</td>"
                     f"</tr>"
                 )
             
             st.markdown(f'''
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:280px;overflow-y:auto;">
-                <table class="tblx" style="width:100%;font-size:11px;">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:160px;overflow-y:auto;">
+                <table class="tblx" style="width:100%;font-size:10.5px;">
                     <tr style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
                         <th style="text-align:left;">State</th>
                         <th style="text-align:left;">Release</th>

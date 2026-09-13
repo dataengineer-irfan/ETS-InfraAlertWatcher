@@ -668,7 +668,12 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     # 1. Top Slicer Command Bar (7 columns with inline Export CSV & Reset Scope)
     f1, f2, f3, f4, f5, f6, f7 = st.columns([1.4, 0.8, 0.85, 1.0, 0.8, 0.65, 0.65])
     q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
-    state_filter = f2.selectbox("State", ["All States"] + STATES, key=f"op_state_{reset_idx}", label_visibility="collapsed")
+    state_opts = ["All States"] + STATES
+    active_scope = st.session_state.get("_override_canvas_state")
+    op_st_key = f"op_state_{reset_idx}"
+    if active_scope and active_scope in STATES and op_st_key not in st.session_state:
+        st.session_state[op_st_key] = active_scope
+    state_filter = f2.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
     team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
     comp_filter = f4.selectbox(
         "Component",
@@ -1847,7 +1852,12 @@ def render_governance_center() -> None:
 
     gov_drill = st.session_state.setdefault("gov_drill_scope", "all")
     gov_team_filter = st.session_state.setdefault("gov_team_filter", "All")
-    gov_state_filter = st.session_state.setdefault("gov_state_filter", "All")
+    active_scope = st.session_state.get("_override_canvas_state")
+    if active_scope and active_scope in ["NH", "ND", "AK"]:
+        gov_state_filter = active_scope
+        st.session_state["gov_state_filter"] = active_scope
+    else:
+        gov_state_filter = st.session_state.setdefault("gov_state_filter", "All")
 
 
 
@@ -3239,14 +3249,34 @@ with st.sidebar:
 
 
 
-# --- Global Release Filter Override ---
+# --- Global Release & State Scope Synchronization ---
+active_scope_state = st.session_state.get("_override_canvas_state")
 global_sel = st.session_state.get("global_release_selection")
-if global_sel:
-    extracted_state = global_sel.split(".")[0] if "." in global_sel else global_sel
-    if extracted_state in ["NH", "ND", "AK"]:
-        records = records[records["state"] == extracted_state]
-        st.session_state["_override_canvas_state"] = extracted_state
-# --------------------------------------
+
+if active_scope_state in ["NH", "ND", "AK"]:
+    records = records[records["state"] == active_scope_state]
+
+# Prominent Scope Indicator & Global Reset Bar
+if active_scope_state in ["NH", "ND", "AK"]:
+    rel_tag = f" &bull; Release <b>{global_sel}</b>" if global_sel else ""
+    c_banner1, c_banner2 = st.columns([5.2, 1.0])
+    with c_banner1:
+        st.markdown(
+            f"<div style='display:inline-flex;align-items:center;gap:8px;padding:3px 10px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:3px;font-size:11px;color:#38bdf8;margin-bottom:6px;'>"
+            f"<b>🔒 Scope Locked:</b> <span style='font-family:var(--mono);'>{active_scope_state} MMIS</span>{rel_tag} "
+            f"<span style='color:var(--slate);font-size:10px;'>(Applied across all 5 dashboard views)</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    with c_banner2:
+        if st.button("✕ Reset Scope", key="btn_reset_global_scope"):
+            st.session_state["_override_canvas_state"] = None
+            st.session_state["global_release_selection"] = None
+            st.session_state["global_state_filter"] = None
+            st.session_state["gov_state_filter"] = "All"
+            reset_idx = st.session_state.get("op_reset_idx", 0)
+            st.session_state[f"op_state_{reset_idx}"] = "All States"
+            st.rerun()
 
 tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
     "Schedule Release Plan",
@@ -3259,10 +3289,11 @@ tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
 with tab_releases:
     render_release_plan_workspace(DB_PATH)
 
-
-
 with tab_overview:
-    canvas("all", None, CANVAS_OVERVIEW)
+    if active_scope_state in ["NH", "ND", "AK"]:
+        canvas("state", active_scope_state, CANVAS_OVERVIEW)
+    else:
+        canvas("all", None, CANVAS_OVERVIEW)
 
 with tab_operations:
     render_operations_hub(records)
