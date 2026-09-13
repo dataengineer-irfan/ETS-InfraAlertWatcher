@@ -420,8 +420,7 @@ code, kbd, .mono, .num {{
 ::-webkit-scrollbar-thumb:hover {{ background:var(--mute); }}
 
 /* ---- primary navigation tabs: hidden since primary navigation is in Left Panel Drawer ---------- */
-[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] > div > [role="tablist"],
-[data-baseweb="tab-list"] {{
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"]:first-of-type > div:first-of-type > [role="tablist"] {{
   height: 0 !important;
   min-height: 0 !important;
   max-height: 0 !important;

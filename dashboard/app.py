@@ -3276,6 +3276,9 @@ if active_scope_state in ["NH", "ND", "AK"]:
             st.session_state["gov_state_filter"] = "All"
             reset_idx = st.session_state.get("op_reset_idx", 0)
             st.session_state[f"op_state_{reset_idx}"] = "All States"
+            st.session_state["sl_state_clean"] = "All States"
+            if "rp_target_rel_picker" in st.session_state:
+                del st.session_state["rp_target_rel_picker"]
             st.rerun()
 
 tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
