@@ -45,3 +45,4 @@ tests/fixture/
 Thumbs.db
 scratch/
 tests/render_live/
+*.lnk

@@ -2062,4 +2062,84 @@ def heatmap_visual_cell(n: int, exp: int, crit: int, warn: int, hlth: int,
 sla_pill = sla_badge
 
 
+# --------------------------------------------------------------------------
+# On-Call Operations UI Helpers & Status Formatting
+# --------------------------------------------------------------------------
+
+def on_call_status_chip(win_str: str, s_type: str = "") -> str:
+    """Render a compact, high-contrast Grafana-style status chip for shift rosters."""
+    s_low = (win_str or "").lower()
+    t_low = (s_type or "").lower()
+
+    if "6:30" in s_low or "morning" in t_low:
+        bg = "rgba(245, 158, 11, 0.12)"
+        border = "rgba(245, 158, 11, 0.35)"
+        color = "#f59e0b"
+        icon = "🌅"
+        label = "06:30-15:30"
+    elif "14:30" in s_low or "evening" in t_low:
+        bg = "rgba(56, 189, 248, 0.12)"
+        border = "rgba(56, 189, 248, 0.35)"
+        color = "#38bdf8"
+        icon = "☀️"
+        label = "14:30-23:30"
+    elif "22:30" in s_low or "night" in t_low:
+        bg = "rgba(168, 85, 247, 0.12)"
+        border = "rgba(168, 85, 247, 0.35)"
+        color = "#c084fc"
+        icon = "🌙"
+        label = "22:30-07:30"
+    elif "comp" in s_low:
+        bg = "rgba(16, 185, 129, 0.10)"
+        border = "rgba(16, 185, 129, 0.25)"
+        color = "#34d399"
+        icon = "✓"
+        label = "Comp OFF"
+    elif "float" in s_low or "holiday" in s_low:
+        bg = "rgba(236, 72, 153, 0.10)"
+        border = "rgba(236, 72, 153, 0.25)"
+        color = "#f472b6"
+        icon = "🎉"
+        label = "Holiday"
+    elif "leave" in s_low:
+        bg = "rgba(239, 68, 68, 0.12)"
+        border = "rgba(239, 68, 68, 0.35)"
+        color = "#f87171"
+        icon = "✕"
+        label = "Leave"
+    elif "wo" in s_low or "off" in s_low:
+        bg = "rgba(255, 255, 255, 0.04)"
+        border = "rgba(255, 255, 255, 0.08)"
+        color = "#64748b"
+        icon = "—"
+        label = "Week Off"
+    else:
+        bg = "rgba(255, 255, 255, 0.05)"
+        border = "rgba(255, 255, 255, 0.1)"
+        color = "#94a3b8"
+        icon = "•"
+        label = win_str or "N/A"
+
+    return (
+        f'<span style="display:inline-flex;align-items:center;gap:3px;background:{bg};border:1px solid {border};'
+        f'color:{color};border-radius:3px;padding:1px 5px;font-family:var(--mono);font-size:9.5px;font-weight:600;white-space:nowrap;" '
+        f'title="{escape(win_str)}">{icon} {escape(label)}</span>'
+    )
+
+
+def on_call_avatar(name: str) -> str:
+    """Generate a 2-character initials avatar with deterministic hue."""
+    if not name or name.lower() in ("none", "nan", "null"):
+        return ""
+    parts = [p for p in name.strip().split(" ") if p]
+    initials = (parts[0][0] + (parts[1][0] if len(parts) > 1 else parts[0][1:2])).upper() if parts else "NA"
+    hash_val = sum(ord(c) for c in name) % 360
+    return (
+        f'<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;'
+        f'border-radius:50%;background:hsl({hash_val}, 65%, 22%);border:1px solid hsl({hash_val}, 70%, 45%);'
+        f'color:hsl({hash_val}, 85%, 75%);font-size:8.5px;font-weight:700;font-family:var(--mono);flex-shrink:0;">'
+        f'{initials}</span>'
+    )
+
+
 

@@ -202,6 +202,74 @@ CREATE TABLE IF NOT EXISTS release_milestones (
 
 CREATE INDEX IF NOT EXISTS idx_release_milestones_rel
     ON release_milestones (release_id, state);
+
+CREATE TABLE IF NOT EXISTS on_call_rosters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roster_name TEXT NOT NULL,
+    valid_from TEXT NOT NULL,
+    valid_to TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL,
+    uploaded_by TEXT NOT NULL DEFAULT 'admin',
+    source_file TEXT NOT NULL DEFAULT '',
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_on_call_rosters_dates
+    ON on_call_rosters (valid_from, valid_to);
+
+CREATE TABLE IF NOT EXISTS on_call_production_support (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roster_id INTEGER NOT NULL,
+    resource_name TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    day_name TEXT NOT NULL,
+    shift_type TEXT NOT NULL,
+    shift_window TEXT NOT NULL,
+    is_working INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY(roster_id) REFERENCES on_call_rosters(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_on_call_ps_lookup
+    ON on_call_production_support (roster_id, shift_date, resource_name);
+
+CREATE TABLE IF NOT EXISTS on_call_shifts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roster_id INTEGER NOT NULL,
+    division TEXT NOT NULL,
+    domain_state TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    day_name TEXT NOT NULL,
+    shift_slot INTEGER NOT NULL,
+    time_est TEXT NOT NULL,
+    time_ist TEXT NOT NULL,
+    primary_on_call TEXT,
+    secondary_on_call TEXT,
+    module_lead TEXT DEFAULT '',
+    module_backup TEXT DEFAULT '',
+    FOREIGN KEY(roster_id) REFERENCES on_call_rosters(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_on_call_shifts_lookup
+    ON on_call_shifts (roster_id, division, domain_state, shift_date, shift_slot);
+
+CREATE TABLE IF NOT EXISTS on_call_escalations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roster_id INTEGER NOT NULL,
+    division TEXT NOT NULL,
+    domain_state TEXT NOT NULL,
+    shift_date TEXT NOT NULL,
+    shift_slot INTEGER NOT NULL,
+    tier1_name TEXT DEFAULT '',
+    tier1_title TEXT DEFAULT '',
+    tier2_name TEXT DEFAULT '',
+    tier2_title TEXT DEFAULT '',
+    tier3_name TEXT DEFAULT '',
+    tier3_title TEXT DEFAULT '',
+    FOREIGN KEY(roster_id) REFERENCES on_call_rosters(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_on_call_escalations_lookup
+    ON on_call_escalations (roster_id, division, domain_state, shift_date, shift_slot);
 """
 
 
@@ -1116,4 +1184,218 @@ def get_current_active_releases(conn: sqlite3.Connection, as_of_date: str | None
 
     results.sort(key=lambda x: x["days_to_cutover"])
     return results
+
+
+# ==============================================================================
+# 24/7 On-Call Operations Roster Queries & Ingestion
+# ==============================================================================
+
+def save_on_call_roster(
+    conn: sqlite3.Connection,
+    roster_meta: dict,
+    ps_records: list[dict],
+    shift_records: list[dict],
+    escalation_records: list[dict],
+) -> int:
+    """Save an on-call roster and all associated division/shift/escalation records atomically."""
+    # Deactivate previous rosters if this one is marked active
+    if roster_meta.get("is_active", 1):
+        conn.execute("UPDATE on_call_rosters SET is_active = 0")
+
+    cur = conn.execute(
+        """
+        INSERT INTO on_call_rosters (
+            roster_name, valid_from, valid_to, uploaded_at, uploaded_by, source_file, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            roster_meta.get("roster_name", "Weekly On-Call Roster"),
+            roster_meta["valid_from"],
+            roster_meta["valid_to"],
+            roster_meta.get("uploaded_at", datetime.now(timezone.utc).isoformat()),
+            roster_meta.get("uploaded_by", "admin"),
+            roster_meta.get("source_file", ""),
+            roster_meta.get("is_active", 1),
+        ),
+    )
+    roster_id = cur.lastrowid
+
+    # 1. Production Support rows
+    for r in ps_records:
+        conn.execute(
+            """
+            INSERT INTO on_call_production_support (
+                roster_id, resource_name, shift_date, day_name, shift_type, shift_window, is_working
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                roster_id,
+                r["resource_name"],
+                r["shift_date"],
+                r["day_name"],
+                r["shift_type"],
+                r["shift_window"],
+                r.get("is_working", 1),
+            ),
+        )
+
+    # 2. On-Call Shifts (Infra, Core Dev, Non-Core Dev)
+    for s in shift_records:
+        conn.execute(
+            """
+            INSERT INTO on_call_shifts (
+                roster_id, division, domain_state, shift_date, day_name, shift_slot,
+                time_est, time_ist, primary_on_call, secondary_on_call, module_lead, module_backup
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                roster_id,
+                s["division"],
+                s["domain_state"],
+                s["shift_date"],
+                s["day_name"],
+                s["shift_slot"],
+                s.get("time_est", ""),
+                s.get("time_ist", ""),
+                s.get("primary_on_call") or None,
+                s.get("secondary_on_call") or None,
+                s.get("module_lead", ""),
+                s.get("module_backup", ""),
+            ),
+        )
+
+    # 3. Escalations
+    for e in escalation_records:
+        conn.execute(
+            """
+            INSERT INTO on_call_escalations (
+                roster_id, division, domain_state, shift_date, shift_slot,
+                tier1_name, tier1_title, tier2_name, tier2_title, tier3_name, tier3_title
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                roster_id,
+                e["division"],
+                e["domain_state"],
+                e["shift_date"],
+                e["shift_slot"],
+                e.get("tier1_name", ""),
+                e.get("tier1_title", ""),
+                e.get("tier2_name", ""),
+                e.get("tier2_title", ""),
+                e.get("tier3_name", ""),
+                e.get("tier3_title", ""),
+            ),
+        )
+
+    conn.commit()
+    return roster_id
+
+
+def get_active_on_call_roster(conn: sqlite3.Connection) -> dict | None:
+    """Retrieve the currently active roster metadata."""
+    row = conn.execute(
+        "SELECT * FROM on_call_rosters WHERE is_active = 1 ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row:
+        return dict(row)
+    # Fallback to the latest roster
+    fallback = conn.execute(
+        "SELECT * FROM on_call_rosters ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    return dict(fallback) if fallback else None
+
+
+def get_all_rosters(conn: sqlite3.Connection) -> list[dict]:
+    """Retrieve all roster upload records."""
+    rows = conn.execute(
+        "SELECT * FROM on_call_rosters ORDER BY id DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_on_call_production_support(
+    conn: sqlite3.Connection,
+    roster_id: int | None = None,
+) -> list[dict]:
+    """Retrieve all Production Support resource rows for a roster."""
+    if roster_id is None:
+        active = get_active_on_call_roster(conn)
+        if not active:
+            return []
+        roster_id = active["id"]
+
+    rows = conn.execute(
+        """
+        SELECT * FROM on_call_production_support
+        WHERE roster_id = ?
+        ORDER BY resource_name ASC, shift_date ASC
+        """,
+        (roster_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_on_call_shifts(
+    conn: sqlite3.Connection,
+    roster_id: int | None = None,
+    division: str | None = None,
+    domain_state: str | None = None,
+    shift_date: str | None = None,
+) -> list[dict]:
+    """Retrieve filtered on-call shift records."""
+    if roster_id is None:
+        active = get_active_on_call_roster(conn)
+        if not active:
+            return []
+        roster_id = active["id"]
+
+    query = "SELECT * FROM on_call_shifts WHERE roster_id = ?"
+    params: list[object] = [roster_id]
+
+    if division and division != "All":
+        query += " AND division = ?"
+        params.append(division)
+    if domain_state and domain_state != "All":
+        query += " AND domain_state = ?"
+        params.append(domain_state)
+    if shift_date and shift_date != "All":
+        query += " AND shift_date = ?"
+        params.append(shift_date)
+
+    query += " ORDER BY division ASC, domain_state ASC, shift_date ASC, shift_slot ASC"
+    rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_on_call_escalations(
+    conn: sqlite3.Connection,
+    roster_id: int | None = None,
+    division: str | None = None,
+    domain_state: str | None = None,
+    shift_date: str | None = None,
+) -> list[dict]:
+    """Retrieve filtered on-call escalation tier records."""
+    if roster_id is None:
+        active = get_active_on_call_roster(conn)
+        if not active:
+            return []
+        roster_id = active["id"]
+
+    query = "SELECT * FROM on_call_escalations WHERE roster_id = ?"
+    params: list[object] = [roster_id]
+
+    if division and division != "All":
+        query += " AND division = ?"
+        params.append(division)
+    if domain_state and domain_state != "All":
+        query += " AND domain_state = ?"
+        params.append(domain_state)
+    if shift_date and shift_date != "All":
+        query += " AND shift_date = ?"
+        params.append(shift_date)
+
+    query += " ORDER BY division ASC, domain_state ASC, shift_date ASC, shift_slot ASC"
+    rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
 

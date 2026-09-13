@@ -63,7 +63,10 @@ from notifier import (  # noqa: E402
 )
 from ingest_releases import run_release_ingest  # noqa: E402
 from release_plan import render_release_plan_workspace
-  # noqa: E402
+import importlib
+import on_call
+importlib.reload(on_call)
+from on_call import render_on_call_workspace
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
 WORKBOOK_DIR = os.environ.get("EXPIRY_WORKBOOK_DIR", str(ROOT))
@@ -3199,6 +3202,10 @@ with st.sidebar:
         <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🔐</span>
         <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Access Control (RBAC)</span>
       </button>
+      <button class="ets-nav-item" data-nav-idx="5" title="24/7 On-Call Operations Command Hub">
+        <span class="nav-icon" style="font-size:15px;display:flex;align-items:center;justify-content:center;width:20px;flex-shrink:0;">🚨</span>
+        <span class="nav-label" style="font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">On-Call Command Hub</span>
+      </button>
     </div>
     """, unsafe_allow_html=True)
 
@@ -3281,12 +3288,13 @@ if active_scope_state in ["NH", "ND", "AK"]:
                 del st.session_state["rp_target_rel_picker"]
             st.rerun()
 
-tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac = st.tabs([
+tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac, tab_oncall = st.tabs([
     "Schedule Release Plan",
     "Executive Command Center",
     "Portfolio Matrix & Operations Hub",
     "Governance & Alerts",
     "Access Control & Audit (RBAC)",
+    "24/7 On-Call Operations Hub",
 ])
 
 with tab_releases:
@@ -3306,3 +3314,6 @@ with tab_governance:
 
 with tab_rbac:
     render_rbac_workspace()
+
+with tab_oncall:
+    render_on_call_workspace(DB_PATH)
