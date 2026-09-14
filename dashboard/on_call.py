@@ -695,12 +695,13 @@ def render_on_call_workspace(db_path: str) -> None:
             ), unsafe_allow_html=True)
 
             # Build Header with TODAY indicator
+            today_badge_html = "<br/><span style='font-size:7.5px;color:#f59e0b;font-weight:800;'>TODAY</span>"
             th_days = "".join(
                 f"<th style='padding:4px 6px;text-align:center;min-width:82px;"
                 f"{'background:rgba(245,158,11,0.12);border-top:2px solid #f59e0b;' if d == today_str else ''}'>"
                 f"{date_day_map.get(d, d)[:3]}<br/>"
                 f"<span style='font-size:8px;font-weight:400;color:var(--slate);'>{d[5:]}</span>"
-                f"{'<br/><span style="font-size:7.5px;color:#f59e0b;font-weight:800;">TODAY</span>' if d == today_str else ''}"
+                f"{today_badge_html if d == today_str else ''}"
                 f"</th>"
                 for d in pivot_dates
             )
@@ -1106,11 +1107,12 @@ def render_on_call_workspace(db_path: str) -> None:
 
         # 4. Weekly Schedule Strip for this Engineer
         if matching_ps:
+            today_bull = " <b style='color:#f59e0b;'>&bull;</b>"
             sched_chips = "".join(
                 f"<div style='text-align:center;padding:2px 4px;border-radius:3px;"
                 f"{'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);' if p['shift_date'] == today_str else ''}'>"
                 f"<div style='font-size:8.5px;color:var(--mute);'>{p['day_name'][:3]}"
-                f"{' <b style="color:#f59e0b;">&bull;</b>' if p['shift_date'] == today_str else ''}</div>"
+                f"{today_bull if p['shift_date'] == today_str else ''}</div>"
                 f"<div style='margin-top:2px;'>{ui.on_call_status_chip(p['shift_window'])}</div></div>"
                 for p in matching_ps
             )
