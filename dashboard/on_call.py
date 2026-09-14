@@ -58,13 +58,13 @@ _SDM_OPTIONS = [
 ]
 
 _SHIFT_CHIPS = [
-    ("All Shifts", None),
-    ("🌅 Morning (06:30-15:30)", "morning"),
-    ("☀️ Evening (14:30-23:30)", "evening"),
-    ("🌙 Night (22:30-07:30)", "night"),
-    ("— Week Off", "wo"),
+    ("All", None),
+    ("🌅 Morning", "morning"),
+    ("☀️ Evening", "evening"),
+    ("🌙 Night", "night"),
+    ("☕ Week Off", "wo"),
     ("🎉 Holiday", "holiday"),
-    ("✕ Leave", "leave"),
+    ("🏖️ Leave", "leave"),
 ]
 
 _PAGE_SIZE = 14
@@ -336,7 +336,7 @@ def render_on_call_workspace(db_path: str) -> None:
     ss = st.session_state
 
     # 0. Session State Initialization
-    ss.setdefault("oncall_div", "Live Ops Radar")
+    ss.setdefault("oncall_div", "Module On-Call — Today")
     ss.setdefault("oncall_tz", "IST")
     ss.setdefault("oncall_state_filter", "All States")
     ss.setdefault("oncall_location_filter", "All Locations")
@@ -495,17 +495,20 @@ def render_on_call_workspace(db_path: str) -> None:
     .today-col-glow { background: rgba(255, 120, 10, 0.09) !important; box-shadow: inset 2px 0 0 #ff780a; }
     .today-col-hdr { color: #ff780a !important; font-weight: 800 !important; }
     .oc-sdm-missing { color: #ff9830; font-style: italic; font-size: 9px; background: rgba(255,152,48,0.08); padding: 1px 5px; border-radius: 2px; border: 1px dashed rgba(255,152,48,0.3); }
+    .oc-team-infra { background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8.5px; font-weight: 700; }
+    .oc-team-noncore { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8.5px; font-weight: 700; }
+    .oc-team-core { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8.5px; font-weight: 700; }
     thead th { position: sticky; top: 0; background: #141619; z-index: 5; }
     </style>
     """, unsafe_allow_html=True)
 
 
     # --------------------------------------------------------------------------
-    # 3. Top Executive Slicer Command Bar (Power BI / Cognos Multi-Dimensional Strip)
+    # 3. Slim Executive Header (Title & Cycle Scope & Action Controls)
     # --------------------------------------------------------------------------
-    c_hdr1, c_hdr2, c_hdr3, c_hdr4, c_hdr5 = st.columns([2.5, 1.0, 1.0, 1.3, 1.0])
+    c_h_left, c_h_right = st.columns([8.2, 1.8])
 
-    with c_hdr1:
+    with c_h_left:
         st_val = ss["oncall_state_filter"]
         state_badge = (
             f'<span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.12);'
@@ -514,103 +517,27 @@ def render_on_call_workspace(db_path: str) -> None:
         ) if st_val != "All States" else ""
 
         hdr_box = (
-            '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 3px 0;border-left:3px solid var(--accent);padding-left:10px;margin-left:2px;">'
+            '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 0;border-left:3px solid var(--accent);padding-left:10px;margin-left:2px;">'
             '<div>'
-            '<div style="font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;line-height:1.1;display:flex;align-items:center;gap:6px;">'
+            '<div style="font-size:13px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;line-height:1.1;display:flex;align-items:center;gap:6px;">'
             '<span>24/7 On-Call Command Hub</span>'
             '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.12);font-size:8.5px;font-weight:700;border:1px solid rgba(16,185,129,0.3);">ACTIVE ROSTER</span>'
             f'{state_badge}'
             '</div>'
             f'<div style="font-size:9.5px;color:var(--slate);margin-top:1px;">'
-            f'Cycle: <b style="color:#f8fafc;font-family:var(--mono);">{escape(valid_from)} &rarr; {escape(valid_to)}</b> &bull; <code style="color:#38bdf8;font-size:9px;">{escape(active_roster.get("source_file", "Excel Roster"))}</code>'
+            f'Cycle: <b style="color:#f8fafc;font-family:var(--mono);">{escape(valid_from)} &rarr; {escape(valid_to)}</b> &bull; <span style="color:#10b981;font-weight:600;">ACTIVE ROTATION</span>'
             '</div></div></div>'
         )
         st.markdown(hdr_box, unsafe_allow_html=True)
 
-    with c_hdr2:
-        # State Slicer (NH, ND, AK)
-        if active_scope_state in ["NH", "ND", "AK"]:
-            locked_st = f"{active_scope_state} MMIS"
-            st.selectbox(
-                "State Slicer",
-                [locked_st],
-                index=0,
-                key="oncall_state_pick",
-                disabled=True,
-                label_visibility="collapsed",
-                help=f"Scope locked to {locked_st} via Global Filter",
-            )
-            ss["oncall_state_filter"] = locked_st
-        else:
-            cur_st = ss.get("oncall_state_filter", "All States")
-            if cur_st not in _STATE_OPTIONS:
-                cur_st = "All States"
-                ss["oncall_state_filter"] = "All States"
-            st_idx = _STATE_OPTIONS.index(cur_st)
-            picked_state = st.selectbox(
-                "State Slicer",
-                _STATE_OPTIONS,
-                index=st_idx,
-                key="oncall_state_pick",
-                label_visibility="collapsed",
-                help="Filter by MMIS State Scope (NH, ND, AK)",
-            )
-            if picked_state != ss.get("oncall_state_filter"):
-                ss["oncall_state_filter"] = picked_state
-                ss["oncall_shift_page"] = 0
-
-    with c_hdr3:
-        # Location Slicer (Offshore vs Onshore)
-        cur_loc = ss.get("oncall_location_filter", "All Locations")
-        if cur_loc not in _LOCATION_OPTIONS:
-            cur_loc = "All Locations"
-            ss["oncall_location_filter"] = "All Locations"
-        loc_idx = _LOCATION_OPTIONS.index(cur_loc)
-        picked_loc = st.selectbox(
-            "Location Slicer",
-            _LOCATION_OPTIONS,
-            index=loc_idx,
-            key="oncall_location_pick",
-            label_visibility="collapsed",
-            help="Filter by Location: Offshore (IST) vs Onshore (EST)",
-        )
-        if picked_loc != ss.get("oncall_location_filter"):
-            ss["oncall_location_filter"] = picked_loc
-            # Auto-align timezone clock
-            if "Offshore" in picked_loc:
-                ss["oncall_tz"] = "IST"
-            elif "Onshore" in picked_loc:
-                ss["oncall_tz"] = "EST"
-            ss["oncall_shift_page"] = 0
-
-    with c_hdr4:
-        # SDM Slicer (Service Delivery Managers)
-        cur_sdm = ss.get("oncall_sdm_filter", "All SDMs")
-        if cur_sdm not in _SDM_OPTIONS:
-            cur_sdm = "All SDMs"
-            ss["oncall_sdm_filter"] = "All SDMs"
-        sdm_idx = _SDM_OPTIONS.index(cur_sdm)
-        picked_sdm = st.selectbox(
-            "SDM Slicer",
-            _SDM_OPTIONS,
-            index=sdm_idx,
-            key="oncall_sdm_pick",
-            label_visibility="collapsed",
-            help="Filter by Service Delivery Manager (SDM Lead)",
-        )
-        if picked_sdm != ss.get("oncall_sdm_filter"):
-            ss["oncall_sdm_filter"] = picked_sdm
-            ss["oncall_shift_page"] = 0
-
-    with c_hdr5:
-        # Quick Action Buttons
+    with c_h_right:
         act1, act2, act3 = st.columns(3)
         with act1:
-            if st.button("📤", key="oncall_toggle_upload_btn", type="secondary", use_container_width=True, help="Upload weekly Excel"):
+            if st.button("📤 Ingest", key="oncall_toggle_upload_btn", type="secondary", use_container_width=True, help="Upload weekly Excel"):
                 ss["oncall_show_upload"] = not ss.get("oncall_show_upload", False)
                 st.rerun()
         with act2:
-            if st.button("🔄", key="oncall_sync_disk_btn", type="secondary", use_container_width=True, help="Sync latest from _Input"):
+            if st.button("🔄 Sync", key="oncall_sync_disk_btn", type="secondary", use_container_width=True, help="Sync latest from _Input"):
                 input_dir = ROOT / "_Input"
                 target_files = sorted(
                     [f for f in input_dir.glob("*.xlsx") if "on call" in f.name.lower() or "roster" in f.name.lower()],
@@ -626,7 +553,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 else:
                     st.warning("No files found in _Input.")
         with act3:
-            if st.button("✕", key="oncall_clear_filters_btn", type="secondary", use_container_width=True, help="Reset all filters"):
+            if st.button("✕ Reset", key="oncall_clear_filters_btn", type="secondary", use_container_width=True, help="Reset all filters"):
                 def_st = f"{active_scope_state} MMIS" if active_scope_state in ["NH", "ND", "AK"] else "All States"
                 ss["oncall_state_filter"] = def_st
                 ss["oncall_state_pick"] = def_st
@@ -678,23 +605,86 @@ def render_on_call_workspace(db_path: str) -> None:
                 st.markdown(notice_box, unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # 4. Temporal Slicers Ribbon (Timezone Clock, Day Slicer & Shift Type Chips)
+    # 4. Unified Single-Row Template Variable Bar (Grafana-Style Slicers)
     # --------------------------------------------------------------------------
-    c_slicers_t1, c_slicers_t2, c_slicers_t3 = st.columns([1.1, 1.4, 4.5])
+    col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns([1.0, 1.05, 1.25, 1.05, 0.95, 3.7])
 
-    with c_slicers_t1:
-        tz_val = ss["oncall_tz"]
-        t1, t2 = st.columns(2)
-        with t1:
-            if st.button("EST", key="oncall_tz_est_btn", type="primary" if tz_val == "EST" else "secondary", use_container_width=True, help="Eastern Standard Time (UTC-5)"):
-                ss["oncall_tz"] = "EST"
-        with t2:
-            if st.button("IST", key="oncall_tz_ist_btn", type="primary" if tz_val == "IST" else "secondary", use_container_width=True, help="India Standard Time (UTC+5:30)"):
+    with col_f1:
+        # State Slicer (NH, ND, AK)
+        if active_scope_state in ["NH", "ND", "AK"]:
+            locked_st = f"{active_scope_state} MMIS"
+            st.selectbox(
+                "State Slicer",
+                [locked_st],
+                index=0,
+                key="oncall_state_pick",
+                disabled=True,
+                label_visibility="collapsed",
+                help=f"Scope locked to {locked_st} via Global Filter",
+            )
+            ss["oncall_state_filter"] = locked_st
+        else:
+            cur_st = ss.get("oncall_state_filter", "All States")
+            if cur_st not in _STATE_OPTIONS:
+                cur_st = "All States"
+                ss["oncall_state_filter"] = "All States"
+            st_idx = _STATE_OPTIONS.index(cur_st)
+            picked_state = st.selectbox(
+                "State Slicer",
+                _STATE_OPTIONS,
+                index=st_idx,
+                key="oncall_state_pick",
+                label_visibility="collapsed",
+                help="Filter by MMIS State Scope (NH, ND, AK)",
+            )
+            if picked_state != ss.get("oncall_state_filter"):
+                ss["oncall_state_filter"] = picked_state
+                ss["oncall_shift_page"] = 0
+
+    with col_f2:
+        # Location Slicer (Offshore vs Onshore)
+        cur_loc = ss.get("oncall_location_filter", "All Locations")
+        if cur_loc not in _LOCATION_OPTIONS:
+            cur_loc = "All Locations"
+            ss["oncall_location_filter"] = "All Locations"
+        loc_idx = _LOCATION_OPTIONS.index(cur_loc)
+        picked_loc = st.selectbox(
+            "Location Slicer",
+            _LOCATION_OPTIONS,
+            index=loc_idx,
+            key="oncall_location_pick",
+            label_visibility="collapsed",
+            help="Filter by Location: Offshore (IST) vs Onshore (EST)",
+        )
+        if picked_loc != ss.get("oncall_location_filter"):
+            ss["oncall_location_filter"] = picked_loc
+            if "Offshore" in picked_loc:
                 ss["oncall_tz"] = "IST"
+            elif "Onshore" in picked_loc:
+                ss["oncall_tz"] = "EST"
+            ss["oncall_shift_page"] = 0
 
-    use_ist = (ss["oncall_tz"] == "IST")
+    with col_f3:
+        # SDM Slicer (Service Delivery Managers & Technical Managers)
+        cur_sdm = ss.get("oncall_sdm_filter", "All SDMs")
+        if cur_sdm not in _SDM_OPTIONS:
+            cur_sdm = "All SDMs"
+            ss["oncall_sdm_filter"] = "All SDMs"
+        sdm_idx = _SDM_OPTIONS.index(cur_sdm)
+        picked_sdm = st.selectbox(
+            "SDM / TM Slicer",
+            _SDM_OPTIONS,
+            index=sdm_idx,
+            key="oncall_sdm_pick",
+            label_visibility="collapsed",
+            help="Filter by Service Delivery Manager (SDM) or Technical Manager (TM)",
+        )
+        if picked_sdm != ss.get("oncall_sdm_filter"):
+            ss["oncall_sdm_filter"] = picked_sdm
+            ss["oncall_shift_page"] = 0
 
-    with c_slicers_t2:
+    with col_f4:
+        # Day Slicer
         day_pick = st.selectbox(
             "Filter Day",
             day_options,
@@ -707,7 +697,23 @@ def render_on_call_workspace(db_path: str) -> None:
             ss["oncall_day_filter"] = day_pick
             ss["oncall_shift_page"] = 0
 
-    with c_slicers_t3:
+    with col_f5:
+        # Timezone Toggle (EST / IST)
+        tz_val = ss["oncall_tz"]
+        t1, t2 = st.columns(2)
+        with t1:
+            if st.button("EST", key="oncall_tz_est_btn", type="primary" if tz_val == "EST" else "secondary", use_container_width=True, help="Eastern Standard Time (UTC-5)"):
+                ss["oncall_tz"] = "EST"
+                st.rerun()
+        with t2:
+            if st.button("IST", key="oncall_tz_ist_btn", type="primary" if tz_val == "IST" else "secondary", use_container_width=True, help="India Standard Time (UTC+5:30)"):
+                ss["oncall_tz"] = "IST"
+                st.rerun()
+
+    use_ist = (ss["oncall_tz"] == "IST")
+
+    with col_f6:
+        # Shift Quick Chips
         cur_shift_chip = ss.get("oncall_shift_chip")
         chip_cols = st.columns(len(_SHIFT_CHIPS))
         for idx, (chip_label, chip_val) in enumerate(_SHIFT_CHIPS):
@@ -719,48 +725,21 @@ def render_on_call_workspace(db_path: str) -> None:
                     type="primary" if is_sel else "secondary",
                     use_container_width=True,
                 ):
-                    ss["oncall_shift_chip"] = chip_val
+                    ss["oncall_shift_chip"] = None if is_sel else chip_val
                     ss["oncall_shift_page"] = 0
+                    st.rerun()
 
     cur_shift_chip = ss.get("oncall_shift_chip")
 
     # --------------------------------------------------------------------------
-    # 5. Division Navigation Tabs
-    # --------------------------------------------------------------------------
-    div_names = [
-        "Live Ops Radar",
-        "Production Support 24x7",
-        "Infrastructure Ops",
-        "State Core Dev",
-        "Non-Core Dev",
-    ]
-    div_icons = ["⚡", "🏢", "⚙️", "🏛️", "📦"]
-    div_cols = st.columns(len(div_names))
-    for idx, d_title in enumerate(div_names):
-        is_sel = (ss["oncall_div"] == d_title)
-        with div_cols[idx]:
-            if st.button(
-                f"{div_icons[idx]} {d_title}",
-                key=f"oncall_div_btn_{idx}",
-                type="primary" if is_sel else "secondary",
-                use_container_width=True,
-            ):
-                ss["oncall_div"] = d_title
-                ss["oncall_shift_page"] = 0
-
-    cur_div = ss["oncall_div"]
-
-    # --------------------------------------------------------------------------
-    # 6. Slicer Value Extraction & Multi-Dimensional Pre-Filtering
+    # 5. Slicer Value Extraction & Pre-filtering
     # --------------------------------------------------------------------------
     state_slicer = ss.get("oncall_state_filter", "All States")
     loc_slicer = ss.get("oncall_location_filter", "All Locations")
     sdm_slicer = ss.get("oncall_sdm_filter", "All SDMs")
     clean_sdm_name = sdm_slicer.split("(")[0].strip() if sdm_slicer != "All SDMs" else None
 
-    # --------------------------------------------------------------------------
-    # 7. Grafana Stat Ribbon (5 Operational KPI Cards with Dynamic 5th Card)
-    # --------------------------------------------------------------------------
+    # Resolve active slot shifts
     active_now_shifts = [
         s for s in shifts_with_sdm
         if s["shift_slot"] == cur_slot and s.get("primary_on_call")
@@ -768,7 +747,13 @@ def render_on_call_workspace(db_path: str) -> None:
     distinct_active_now = list(set(s["primary_on_call"] for s in active_now_shifts))
 
     # Dynamic 5th KPI Card tailored to current division
-    if cur_div == "Non-Core Dev":
+    cur_div = ss.get("oncall_div", "Module On-Call — Today")
+    if cur_div == "Module On-Call — Today":
+        kpi5_label = "Modules Active"
+        kpi5_val = '14 <span style="font-size:10px;color:#6e7681;font-weight:400;">Domains</span>'
+        kpi5_sub = "Infra &bull; Core &bull; Non-Core"
+        kpi5_cls = "oc-stat-fill-purple"
+    elif cur_div == "Non-Core Dev":
         kpi5_label = "Technical Managers"
         kpi5_val = f'{tm_count} <span style="font-size:10px;color:#6e7681;font-weight:400;">Active</span>'
         kpi5_sub = "TM / TL &bull; Non-Core Dev"
@@ -795,6 +780,9 @@ def render_on_call_workspace(db_path: str) -> None:
         kpi5_sub = f"Slot {cur_slot} &bull; Live Operations"
         kpi5_cls = "oc-stat-fill-yellow"
 
+    # --------------------------------------------------------------------------
+    # 6. Compact 5-KPI Ribbon
+    # --------------------------------------------------------------------------
     kpi_ribbon_html = (
         '<div class="oc-kpi-row">'
         '<div class="oc-stat-card oc-stat-fill-green">'
@@ -827,16 +815,97 @@ def render_on_call_workspace(db_path: str) -> None:
     st.markdown(kpi_ribbon_html, unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
+    # 7. Integrated Division Navigation & Global Search / Inspector Strip
+    # --------------------------------------------------------------------------
+    all_available_engineers = sorted(list(set(
+        [p["resource_name"] for p in all_ps if p.get("resource_name")] +
+        [s["primary_on_call"] for s in shifts_with_sdm if s.get("primary_on_call")] +
+        [s["secondary_on_call"] for s in shifts_with_sdm if s.get("secondary_on_call") and s.get("secondary_on_call") not in ["—", "None", ""]]
+    )))
+
+    if not ss.get("oncall_selected_eng") or ss["oncall_selected_eng"] not in all_available_engineers:
+        if distinct_active_now:
+            ss["oncall_selected_eng"] = distinct_active_now[0]
+        elif all_available_engineers:
+            ss["oncall_selected_eng"] = all_available_engineers[0]
+
+    cur_selected = ss.get("oncall_selected_eng")
+    safe_eng_idx = all_available_engineers.index(cur_selected) if cur_selected in all_available_engineers else 0
+
+    c_nav, c_tools = st.columns([3.5, 2.5])
+
+    with c_nav:
+        div_names = [
+            "Module On-Call — Today",
+            "Live Ops Radar",
+            "Production Support 24x7",
+            "Infrastructure Ops",
+            "State Core Dev",
+            "Non-Core Dev",
+        ]
+        div_short_labels = [
+            "🧩 Today",
+            "⚡ Live Ops",
+            "🏢 Prod Support",
+            "⚙️ Infra Ops",
+            "🏛️ Core Dev",
+            "📦 Non-Core",
+        ]
+        d_cols = st.columns(len(div_names))
+        for idx, d_title in enumerate(div_names):
+            is_sel = (ss["oncall_div"] == d_title)
+            with d_cols[idx]:
+                if st.button(
+                    div_short_labels[idx],
+                    key=f"oncall_div_btn_{idx}",
+                    type="primary" if is_sel else "secondary",
+                    use_container_width=True,
+                    help=f"Switch view to {d_title}",
+                ):
+                    ss["oncall_div"] = d_title
+                    ss["oncall_shift_page"] = 0
+                    st.rerun()
+
+    cur_div = ss["oncall_div"]
+
+    with c_tools:
+        s1, s2, s3 = st.columns([1.5, 1.5, 0.7])
+        with s1:
+            search_val = st.text_input(
+                "Search",
+                value=ss["oncall_search"],
+                placeholder="🔍 Search engineer, domain...",
+                key="oncall_global_search_input",
+                label_visibility="collapsed",
+            )
+            if search_val != ss["oncall_search"]:
+                ss["oncall_search"] = search_val
+                ss["oncall_shift_page"] = 0
+                st.rerun()
+        with s2:
+            picked_eng = st.selectbox(
+                "Inspect Person",
+                all_available_engineers,
+                index=safe_eng_idx,
+                key="oncall_unified_eng_picker",
+                label_visibility="collapsed",
+                help="Select engineer to inspect in the Detail Inspector panel",
+            )
+            if picked_eng != ss.get("oncall_selected_eng"):
+                ss["oncall_selected_eng"] = picked_eng
+                st.rerun()
+        with s3:
+            tz_label = "IST" if use_ist else "EST"
+            st.markdown(
+                f'<div style="font-size:10px;font-weight:700;color:var(--slate);line-height:28px;text-align:right;">'
+                f'<span class="pulse-dot"></span><b style="color:#38bdf8;">{tz_label}</b></div>',
+                unsafe_allow_html=True,
+            )
+
+    # --------------------------------------------------------------------------
     # 8. Master-Detail Command Workspace (58% Master / 42% Detail Inspector)
     # --------------------------------------------------------------------------
     master_col, detail_col = st.columns([3.5, 2.5])
-
-    # Pre-select first engineer if none selected
-    if not ss["oncall_selected_eng"]:
-        if distinct_active_now:
-            ss["oncall_selected_eng"] = distinct_active_now[0]
-        elif all_ps:
-            ss["oncall_selected_eng"] = all_ps[0]["resource_name"]
 
     target_day = None
     if ss["oncall_day_filter"] != "All Days":
@@ -849,46 +918,130 @@ def render_on_call_workspace(db_path: str) -> None:
     # MASTER PANE (Left Column)
     # ==========================================================================
     with master_col:
-        # A. MODE 1: PRODUCTION SUPPORT 24x7 (Hierarchical Cross-Tab Matrix)
-        if cur_div == "Production Support 24x7":
-            # Quick status toggle, Search & Inspector Toolbar (Unified Single Row)
-            all_ps_names = sorted(list(set(p["resource_name"] for p in all_ps)))
-            safe_idx = all_ps_names.index(cur_selected) if cur_selected in all_ps_names else 0
+        # A. MODE 1: MODULE ON-CALL — TODAY (Dedicated Real-Time Module Matrix)
+        if cur_div == "Module On-Call — Today":
+            mod_date = target_day if target_day else "2026-09-14"
+            mod_shifts = [s for s in shifts_with_sdm if s["shift_date"] == mod_date]
 
-            tb1, tb2, tb3, tb4, tb5 = st.columns([1.0, 1.1, 1.1, 1.7, 1.8])
-            with tb1:
-                if st.button("All Resources", key="oncall_qs_all", type="primary" if quick_status == "All" else "secondary", use_container_width=True):
-                    ss["oncall_quick_status"] = "All"
-            with tb2:
-                if st.button("Working Today", key="oncall_qs_working", type="primary" if quick_status == "Working Today" else "secondary", use_container_width=True):
-                    ss["oncall_quick_status"] = "Working Today"
-            with tb3:
-                if st.button("Off / Holiday", key="oncall_qs_off", type="primary" if quick_status == "Off / Holiday" else "secondary", use_container_width=True):
-                    ss["oncall_quick_status"] = "Off / Holiday"
-            with tb4:
-                search_val = st.text_input(
-                    "Search Resource",
-                    value=ss["oncall_search"],
-                    placeholder="Search engineer name...",
-                    key="oncall_ps_search_box",
-                    label_visibility="collapsed",
-                )
-                if search_val != ss["oncall_search"]:
-                    ss["oncall_search"] = search_val
-                    st.rerun()
-            with tb5:
-                picked_eng = st.selectbox(
-                    "Inspect Engineer",
-                    all_ps_names,
-                    index=safe_idx,
-                    key="oncall_ps_eng_picker",
-                    label_visibility="collapsed",
-                    help="Inspect Engineer contacts & escalation hierarchy",
-                )
-                if picked_eng != cur_selected:
-                    ss["oncall_selected_eng"] = picked_eng
-                    cur_selected = picked_eng
+            # Slot filter: active slot cur_slot unless chip filtered
+            if cur_shift_chip:
+                mod_shifts = [s for s in mod_shifts if _matches_domain_slot(cur_shift_chip, s.get("shift_slot", 0))]
+            elif loc_slicer == "🌏 Offshore (IST)":
+                mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [1, 2]]
+            elif loc_slicer == "🏛️ Onshore (EST)":
+                mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [3, 4]]
+            else:
+                mod_shifts_curr = [s for s in mod_shifts if s.get("shift_slot") == cur_slot]
+                if mod_shifts_curr:
+                    mod_shifts = mod_shifts_curr
+                else:
+                    mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [1, 3]]
 
+            # State Slicer filter
+            if state_slicer != "All States":
+                st_code = state_slicer.split()[0].upper()
+                mod_shifts = [
+                    s for s in mod_shifts
+                    if st_code in s["domain_state"].upper() or s["division"] in ["Infra Team", "Non-Core Dev"]
+                ]
+
+            # SDM Slicer filter
+            if clean_sdm_name:
+                mod_shifts = [
+                    s for s in mod_shifts
+                    if clean_sdm_name.lower() in s.get("governed_sdm", "").lower()
+                ]
+
+            # Search filter
+            if ss["oncall_search"].strip():
+                q_term = ss["oncall_search"].strip().lower()
+                mod_shifts = [
+                    s for s in mod_shifts
+                    if q_term in s["domain_state"].lower()
+                    or q_term in (s.get("primary_on_call") or "").lower()
+                    or q_term in (s.get("secondary_on_call") or "").lower()
+                    or q_term in s.get("governed_sdm", "").lower()
+                    or q_term in s["division"].lower()
+                ]
+
+            # Sort modules: Infra Ops first, then Non-Core, then Core Dev
+            div_order = {"Infra Team": 0, "Non-Core Dev": 1, "Core Dev": 2}
+            mod_shifts.sort(key=lambda m: (div_order.get(m["division"], 3), m["domain_state"]))
+
+            total_mods = len(mod_shifts)
+
+            hdr_left, hdr_right = st.columns([3.5, 1.5])
+            with hdr_left:
+                st.markdown(
+                    f'<div style="font-size:12px;font-weight:800;color:var(--ink);line-height:28px;">'
+                    f'🧩 Module On-Call &mdash; Today &bull; <span style="font-size:9.5px;color:#10b981;font-weight:700;">{total_mods} Functional Domains</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with hdr_right:
+                slot_label = f"Slot {cur_slot} &bull; Active Now" if not cur_shift_chip else f"Chip: {cur_shift_chip}"
+                st.markdown(
+                    f'<div style="text-align:right;font-size:9.5px;color:var(--slate);line-height:28px;">'
+                    f'<span class="pulse-dot"></span>{slot_label}</div>',
+                    unsafe_allow_html=True,
+                )
+
+            tz_hdr = "Time in IST" if use_ist else "Time in EST"
+            mod_rows_html = []
+            for idx, m in enumerate(mod_shifts):
+                p_name = m.get("primary_on_call") or "Unassigned"
+                s_name = m.get("secondary_on_call") or "—"
+                lead_name = m.get("governed_sdm") or ("Technical Manager" if m["division"] == "Non-Core Dev" else "Governing SDM")
+                time_disp = m["time_ist"] if use_ist else m["time_est"]
+                is_sel = (cur_selected == p_name)
+
+                if m["division"] == "Infra Team":
+                    div_badge = '<span class="oc-team-tag oc-team-infra">Infra Ops</span>'
+                elif m["division"] == "Non-Core Dev":
+                    div_badge = '<span class="oc-team-tag oc-team-noncore">Non-Core</span>'
+                else:
+                    div_badge = '<span class="oc-team-tag oc-team-core">Core Dev</span>'
+
+                row_bg = "rgba(56, 189, 248, 0.09)" if is_sel else ("#181b1f" if idx % 2 == 0 else "#141619")
+                border_style = "border-left:3px solid var(--accent);" if is_sel else "border-left:3px solid transparent;"
+                p_avatar = ui.on_call_avatar(p_name)
+                sec_disp = '<span style="color:var(--mute);">&mdash;</span>' if s_name in ["—", "None", "", None] else escape(s_name)
+
+                mod_rows_html.append(
+                    f"<tr style='background:{row_bg};border-bottom:1px solid #22252b;{border_style}'>"
+                    f"<td style='padding:5px 8px;font-family:var(--mono);font-weight:700;color:#f8fafc;'><span class='st-tag'>{escape(m['domain_state'])}</span></td>"
+                    f"<td style='padding:5px 8px;'>{div_badge}</td>"
+                    f"<td style='padding:5px 8px;font-family:var(--mono);font-size:9.5px;color:var(--ink);'>{escape(time_disp)}</td>"
+                    f"<td style='padding:5px 8px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;'>{p_avatar}<span>{escape(p_name)}</span></td>"
+                    f"<td style='padding:5px 8px;color:var(--slate);font-size:10px;'>{sec_disp}</td>"
+                    f"<td style='padding:5px 8px;color:var(--slate);font-size:10px;'><b style='color:#f59e0b;'>{escape(lead_name)}</b></td>"
+                    f"<td style='padding:5px 8px;'><span style='color:#10b981;font-weight:700;font-size:8.5px;background:rgba(16,185,129,0.15);padding:1px 5px;border-radius:2px;border:1px solid rgba(16,185,129,0.3);'><span class='pulse-dot'></span>ACTIVE NOW</span></td>"
+                    f"</tr>"
+                )
+
+            empty_mod_notice = "<tr><td colspan='7' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>No active modules match the selected filters. Click ✕ Reset to view all.</td></tr>"
+            table_mod_html = (
+                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);overflow-y:auto;'>"
+                "<table style='width:100%;border-collapse:collapse;font-size:10.5px;'>"
+                "<thead>"
+                "<tr style='background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;text-transform:uppercase;color:var(--slate);'>"
+                "<th style='padding:5px 8px;text-align:left;'>Module / Domain</th>"
+                "<th style='padding:5px 8px;text-align:left;'>Division</th>"
+                f"<th style='padding:5px 8px;text-align:left;'>{tz_hdr}</th>"
+                "<th style='padding:5px 8px;text-align:left;'>Primary On-Call</th>"
+                "<th style='padding:5px 8px;text-align:left;'>Secondary</th>"
+                "<th style='padding:5px 8px;text-align:left;'>Governing Lead</th>"
+                "<th style='padding:5px 8px;text-align:left;'>Status</th>"
+                "</tr>"
+                "</thead>"
+                f"<tbody>{''.join(mod_rows_html) if mod_rows_html else empty_mod_notice}</tbody>"
+                "</table>"
+                "</div>"
+            )
+            st.markdown(table_mod_html, unsafe_allow_html=True)
+
+        # B. MODE 2: PRODUCTION SUPPORT 24x7 (Hierarchical Cross-Tab Matrix)
+        elif cur_div == "Production Support 24x7":
             ps_df = pd.DataFrame(all_ps)
 
             # 1. Text Search Filter
@@ -896,7 +1049,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 q_term = ss["oncall_search"].strip().lower()
                 ps_df = ps_df[ps_df["resource_name"].str.lower().str.contains(q_term, na=False)]
 
-            # 2. Shift-Type Filter (applied to PS shift_window column)
+            # 2. Shift-Type Filter
             if cur_shift_chip:
                 if target_day:
                     matching_names = [
@@ -928,9 +1081,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     ps_df = state_matches
 
             # 5. SDM Slicer on Production Support
-            # Anil Tankala & Kishore Nagarajan govern Production Support
             if clean_sdm_name and clean_sdm_name not in ["Anil Tankala", "Kishore Nagarajan"]:
-                # When state-specific SDMs are selected, display state-aligned resources
                 if clean_sdm_name in ["Ravi M Shankar", "Kishore Nagarajan"]:
                     st_m = ps_df[ps_df["resource_name"].str.upper().str.contains("AK", na=False)]
                     if not st_m.empty: ps_df = st_m
@@ -941,7 +1092,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     st_m = ps_df[ps_df["resource_name"].str.upper().str.contains("NH", na=False)]
                     if not st_m.empty: ps_df = st_m
 
-            # Pivot cross-tab across all 7 days (SAT to FRI guaranteed)
+            # Pivot cross-tab across all 7 days
             pivot_dates = ps_dates if ps_dates else all_unique_dates
             if not ps_df.empty:
                 pivoted = ps_df.pivot(index="resource_name", columns="shift_date", values="shift_window").reindex(columns=pivot_dates).reset_index()
@@ -949,14 +1100,31 @@ def render_on_call_workspace(db_path: str) -> None:
                 pivoted = pd.DataFrame(columns=["resource_name"] + pivot_dates)
 
             filtered_eng_count = len(pivoted)
-            st.markdown(ui.panel_header(
-                "Production Support 24x7 Resource Matrix (7-Day Cross-Tab)",
-                color="#f59e0b",
-                count=f"{filtered_eng_count} of {distinct_ps_engineers} Engineers",
-                info="Live 24x7 rotation across 31 engineers. Use toolbar to filter by shift or inspect an engineer.",
-            ), unsafe_allow_html=True)
 
-            # Build Header with TODAY indicator
+            # In-Header Toolbar: Title + Quick Status Pills
+            h_col1, h_col2 = st.columns([2.0, 3.0])
+            with h_col1:
+                st.markdown(
+                    f'<div style="font-size:12px;font-weight:800;color:var(--ink);line-height:28px;">'
+                    f'🏢 Production Support 24x7 &bull; <span style="font-size:9.5px;color:#38bdf8;font-weight:600;">{filtered_eng_count} of {distinct_ps_engineers} Engineers</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with h_col2:
+                tb1, tb2, tb3 = st.columns(3)
+                with tb1:
+                    if st.button("All Resources", key="oncall_qs_all", type="primary" if quick_status == "All" else "secondary", use_container_width=True):
+                        ss["oncall_quick_status"] = "All"
+                        st.rerun()
+                with tb2:
+                    if st.button("Working Today", key="oncall_qs_working", type="primary" if quick_status == "Working Today" else "secondary", use_container_width=True):
+                        ss["oncall_quick_status"] = "Working Today"
+                        st.rerun()
+                with tb3:
+                    if st.button("Off / Holiday", key="oncall_qs_off", type="primary" if quick_status == "Off / Holiday" else "secondary", use_container_width=True):
+                        ss["oncall_quick_status"] = "Off / Holiday"
+                        st.rerun()
+
             today_badge_html = "<br/><span style='font-size:7.5px;color:#ff780a;font-weight:800;'>TODAY</span>"
             th_days = "".join(
                 f"<th style='padding:4px 6px;text-align:center;min-width:82px;"
@@ -994,14 +1162,8 @@ def render_on_call_workspace(db_path: str) -> None:
                     if win_val and not any(k in str(win_val).lower() for k in ["wo", "off", "holiday", "leave"]):
                         w_count += 1
 
-                row_bg = (
-                    "rgba(56, 189, 248, 0.09)" if is_active_eng
-                    else ("#181b1f" if len(body_rows) % 2 == 0 else "#141619")
-                )
-                border_style = (
-                    "border-left:3px solid var(--accent);" if is_active_eng
-                    else "border-left:3px solid transparent;"
-                )
+                row_bg = "rgba(56, 189, 248, 0.09)" if is_active_eng else ("#181b1f" if len(body_rows) % 2 == 0 else "#141619")
+                border_style = "border-left:3px solid var(--accent);" if is_active_eng else "border-left:3px solid transparent;"
                 avatar = ui.on_call_avatar(r_name)
 
                 body_rows.append(
@@ -1013,7 +1175,6 @@ def render_on_call_workspace(db_path: str) -> None:
                     f"</tr>"
                 )
 
-            # Daily Headcount Summary Footer
             foot_cells = []
             for d in pivot_dates:
                 d_rows = [r.get(d) for _, r in pivoted.iterrows()]
@@ -1038,12 +1199,9 @@ def render_on_call_workspace(db_path: str) -> None:
                 "</tfoot>"
             )
 
-            empty_notice = (
-                "<tr><td colspan='100' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>"
-                "No engineers match the selected filters. Click ✕ in the top right to reset filters.</td></tr>"
-            )
+            empty_notice = "<tr><td colspan='100' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>No engineers match the selected filters. Click ✕ Reset to restore all.</td></tr>"
             table_crosstab_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 325px);overflow-y:auto;overflow-x:hidden;'>"
+                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 240px);overflow-y:auto;overflow-x:hidden;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10px;min-width:780px;'>"
                 f"{head_html}"
                 f"<tbody>{''.join(body_rows) if body_rows else empty_notice}</tbody>"
@@ -1053,7 +1211,7 @@ def render_on_call_workspace(db_path: str) -> None:
             )
             st.markdown(table_crosstab_html, unsafe_allow_html=True)
 
-        # B. MODE 2: LIVE OPS RADAR & DOMAIN SHIFTS (Infra / Core Dev / Non-Core Dev)
+        # C. MODE 3: LIVE OPS RADAR & DIVISION SHIFTS (Infra / Core Dev / Non-Core Dev)
         else:
             filtered_shifts = shifts_with_sdm.copy()
 
@@ -1075,7 +1233,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     if st_code in s["domain_state"].upper() or s["division"] == "Infra Team"
                 ]
 
-            # 3. Location Slicer (Offshore = Slots 1 & 2 / Onshore = Slots 3 & 4)
+            # 3. Location Slicer
             if loc_slicer == "🌏 Offshore (IST)":
                 filtered_shifts = [s for s in filtered_shifts if s["shift_slot"] in [1, 2]]
             elif loc_slicer == "🏛️ Onshore (EST)":
@@ -1092,151 +1250,14 @@ def render_on_call_workspace(db_path: str) -> None:
             if target_day:
                 filtered_shifts = [s for s in filtered_shifts if s["shift_date"] == target_day]
 
-            # 6. Shift-Type Filter (applied to shift slot)
+            # 6. Shift-Type Filter
             if cur_shift_chip:
                 filtered_shifts = [
                     s for s in filtered_shifts
                     if _matches_domain_slot(cur_shift_chip, s.get("shift_slot", 0))
                 ]
 
-            # Multi-control horizontal strip: Domain Filter + Search box + Inspect Engineer + Clock in the SAME line
-            all_shift_primaries = sorted(list(set(s["primary_on_call"] for s in filtered_shifts if s.get("primary_on_call"))))
-            safe_shift_idx = all_shift_primaries.index(cur_selected) if cur_selected in all_shift_primaries else 0
-
-            if cur_div == "Non-Core Dev":
-                nc_domains = ["All Domains"] + sorted(list(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Non-Core Dev")))
-                fc1, fc2, fc3, fc4 = st.columns([1.3, 1.8, 1.8, 0.9])
-                with fc1:
-                    picked_nc_dom = st.selectbox(
-                        "Domain Slicer",
-                        nc_domains,
-                        index=nc_domains.index(ss.get("oncall_dom_filter", "All Domains")) if ss.get("oncall_dom_filter") in nc_domains else 0,
-                        key="oncall_nc_dom_filter",
-                        label_visibility="collapsed",
-                        help="Filter by Non-Core Domain (Cognos, Letters, Informatica, EDMS, TMSIS)",
-                    )
-                    if picked_nc_dom != ss.get("oncall_dom_filter", "All Domains"):
-                        ss["oncall_dom_filter"] = picked_nc_dom
-                        ss["oncall_shift_page"] = 0
-                        st.rerun()
-                with fc2:
-                    search_shift = st.text_input(
-                        "Search Shifts",
-                        value=ss["oncall_search"],
-                        placeholder="Search engineer, module, TM...",
-                        key="oncall_shift_search_box",
-                        label_visibility="collapsed",
-                    )
-                    if search_shift != ss["oncall_search"]:
-                        ss["oncall_search"] = search_shift
-                        ss["oncall_shift_page"] = 0
-                        st.rerun()
-                with fc3:
-                    p_eng = st.selectbox(
-                        "Inspect Shift Engineer",
-                        all_shift_primaries if all_shift_primaries else [cur_selected or "No Engineers"],
-                        index=safe_shift_idx if all_shift_primaries else 0,
-                        key="oncall_mode2_eng_picker",
-                        label_visibility="collapsed",
-                        help="Inspect engineer escalation path",
-                    )
-                    if p_eng != cur_selected and all_shift_primaries:
-                        ss["oncall_selected_eng"] = p_eng
-                        cur_selected = p_eng
-                with fc4:
-                    tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
-                    st.markdown(
-                        f'<div style="font-size:10px;font-weight:600;color:var(--slate);line-height:28px;text-align:right;">'
-                        f'Clock: <b style="color:#38bdf8;">{tz_label}</b></div>',
-                        unsafe_allow_html=True,
-                    )
-                if ss.get("oncall_dom_filter", "All Domains") != "All Domains":
-                    filtered_shifts = [s for s in filtered_shifts if s["domain_state"] == ss["oncall_dom_filter"]]
-
-            elif cur_div == "Infrastructure Ops":
-                infra_domains = ["All Domains"] + sorted(list(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Infra Team")))
-                fc1, fc2, fc3, fc4 = st.columns([1.3, 1.8, 1.8, 0.9])
-                with fc1:
-                    picked_infra_dom = st.selectbox(
-                        "Infra Domain",
-                        infra_domains,
-                        index=infra_domains.index(ss.get("oncall_dom_filter", "All Domains")) if ss.get("oncall_dom_filter") in infra_domains else 0,
-                        key="oncall_infra_dom_filter",
-                        label_visibility="collapsed",
-                        help="Filter by Infrastructure Domain",
-                    )
-                    if picked_infra_dom != ss.get("oncall_dom_filter", "All Domains"):
-                        ss["oncall_dom_filter"] = picked_infra_dom
-                        ss["oncall_shift_page"] = 0
-                        st.rerun()
-                with fc2:
-                    search_shift = st.text_input(
-                        "Search Shifts",
-                        value=ss["oncall_search"],
-                        placeholder="Search engineer, domain, lead...",
-                        key="oncall_shift_search_box",
-                        label_visibility="collapsed",
-                    )
-                    if search_shift != ss["oncall_search"]:
-                        ss["oncall_search"] = search_shift
-                        ss["oncall_shift_page"] = 0
-                        st.rerun()
-                with fc3:
-                    p_eng = st.selectbox(
-                        "Inspect Shift Engineer",
-                        all_shift_primaries if all_shift_primaries else [cur_selected or "No Engineers"],
-                        index=safe_shift_idx if all_shift_primaries else 0,
-                        key="oncall_infra_eng_picker",
-                        label_visibility="collapsed",
-                        help="Inspect engineer escalation path",
-                    )
-                    if p_eng != cur_selected and all_shift_primaries:
-                        ss["oncall_selected_eng"] = p_eng
-                        cur_selected = p_eng
-                with fc4:
-                    tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
-                    st.markdown(
-                        f'<div style="font-size:10px;font-weight:600;color:var(--slate);line-height:28px;text-align:right;">'
-                        f'Clock: <b style="color:#38bdf8;">{tz_label}</b></div>',
-                        unsafe_allow_html=True,
-                    )
-                if ss.get("oncall_dom_filter", "All Domains") != "All Domains":
-                    filtered_shifts = [s for s in filtered_shifts if s["domain_state"] == ss["oncall_dom_filter"]]
-
-            else:
-                srch1, srch2, srch3 = st.columns([2.5, 2.0, 0.9])
-                with srch1:
-                    search_shift = st.text_input(
-                        "Search Shifts",
-                        value=ss["oncall_search"],
-                        placeholder="Search domain, lead, or on-call engineer...",
-                        key="oncall_shift_search_box",
-                        label_visibility="collapsed",
-                    )
-                    if search_shift != ss["oncall_search"]:
-                        ss["oncall_search"] = search_shift
-                        ss["oncall_shift_page"] = 0
-                        st.rerun()
-                with srch2:
-                    p_eng = st.selectbox(
-                        "Inspect Shift Engineer",
-                        all_shift_primaries if all_shift_primaries else [cur_selected or "No Engineers"],
-                        index=safe_shift_idx if all_shift_primaries else 0,
-                        key="oncall_core_eng_picker",
-                        label_visibility="collapsed",
-                        help="Inspect engineer escalation path",
-                    )
-                    if p_eng != cur_selected and all_shift_primaries:
-                        ss["oncall_selected_eng"] = p_eng
-                        cur_selected = p_eng
-                with srch3:
-                    tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
-                    st.markdown(
-                        f'<div style="font-size:10px;font-weight:600;color:var(--slate);line-height:28px;text-align:right;">'
-                        f'Clock: <b style="color:#38bdf8;">{tz_label}</b></div>',
-                        unsafe_allow_html=True,
-                    )
-
+            # 7. Search Filter
             if ss["oncall_search"].strip():
                 q_term = ss["oncall_search"].strip().lower()
                 filtered_shifts = [
@@ -1247,9 +1268,19 @@ def render_on_call_workspace(db_path: str) -> None:
                     or q_term in s.get("governed_sdm", "").lower()
                 ]
 
-            # Consolidate duplicate contiguous slots (Slots 1 & 2 for same engineer, Slots 3 & 4 for same engineer)
+            # Consolidate duplicate contiguous slots
             if cur_div in ["Non-Core Dev", "Infrastructure Ops"]:
                 filtered_shifts = _consolidate_contiguous_shifts(filtered_shifts)
+
+            # In-Header Domain Slicer (if Non-Core or Infra)
+            if cur_div == "Non-Core Dev":
+                nc_domains = ["All Domains"] + sorted(list(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Non-Core Dev")))
+                if ss.get("oncall_dom_filter", "All Domains") != "All Domains":
+                    filtered_shifts = [s for s in filtered_shifts if s["domain_state"] == ss["oncall_dom_filter"]]
+            elif cur_div == "Infrastructure Ops":
+                infra_domains = ["All Domains"] + sorted(list(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Infra Team")))
+                if ss.get("oncall_dom_filter", "All Domains") != "All Domains":
+                    filtered_shifts = [s for s in filtered_shifts if s["domain_state"] == ss["oncall_dom_filter"]]
 
             total_shift_rows = len(filtered_shifts)
             page = ss.get("oncall_shift_page", 0)
@@ -1258,13 +1289,73 @@ def render_on_call_workspace(db_path: str) -> None:
             ss["oncall_shift_page"] = page
             page_slice = filtered_shifts[page * _PAGE_SIZE: (page + 1) * _PAGE_SIZE]
 
-            div_title = "⚡ Live Ops Radar (All Active Shifts)" if cur_div == "Live Ops Radar" else f"{cur_div} On-Call Shifts"
-            st.markdown(ui.panel_header(
-                div_title,
-                color="#38bdf8",
-                count=f"Showing {len(page_slice)} of {total_shift_rows} Slots",
-                info="Live schedule across functional domains. Click an engineer to inspect contacts & escalation paths.",
-            ), unsafe_allow_html=True)
+            div_title = "⚡ Live Ops Radar" if cur_div == "Live Ops Radar" else f"{cur_div} Shifts"
+
+            # In-Header Pagination Row (Integrated into panel header)
+            if cur_div in ["Non-Core Dev", "Infrastructure Ops"]:
+                h_c1, h_c2, h_c3 = st.columns([2.0, 1.3, 1.2])
+                with h_c1:
+                    st.markdown(
+                        f'<div style="font-size:11.5px;font-weight:800;color:var(--ink);line-height:28px;">'
+                        f'{div_title} &bull; <span style="font-size:9.5px;color:#38bdf8;font-weight:600;">{total_shift_rows} Slots</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                with h_c2:
+                    dom_options = nc_domains if cur_div == "Non-Core Dev" else infra_domains
+                    cur_dom_sel = ss.get("oncall_dom_filter", "All Domains")
+                    dom_idx = dom_options.index(cur_dom_sel) if cur_dom_sel in dom_options else 0
+                    picked_dom = st.selectbox(
+                        "Domain Slicer",
+                        dom_options,
+                        index=dom_idx,
+                        key="oncall_inheader_dom_slicer",
+                        label_visibility="collapsed",
+                        help=f"Filter {cur_div} by specific module/domain",
+                    )
+                    if picked_dom != ss.get("oncall_dom_filter", "All Domains"):
+                        ss["oncall_dom_filter"] = picked_dom
+                        ss["oncall_shift_page"] = 0
+                        st.rerun()
+                with h_c3:
+                    if max_page > 0:
+                        pc1, pc2, pc3 = st.columns([0.8, 1.8, 0.8])
+                        with pc1:
+                            if page > 0 and st.button("◀", key="oncall_prev_page", help="Previous Page", use_container_width=True):
+                                ss["oncall_shift_page"] = page - 1
+                                st.rerun()
+                        with pc2:
+                            st.markdown(f'<div style="text-align:center;font-size:9.5px;color:var(--slate);line-height:28px;">Page {page + 1}/{max_page + 1}</div>', unsafe_allow_html=True)
+                        with pc3:
+                            if page < max_page and st.button("▶", key="oncall_next_page", help="Next Page", use_container_width=True):
+                                ss["oncall_shift_page"] = page + 1
+                                st.rerun()
+                    else:
+                        st.markdown(f'<div style="text-align:right;font-size:9.5px;color:var(--slate);line-height:28px;">All {total_shift_rows} items</div>', unsafe_allow_html=True)
+            else:
+                h_c1, h_c2 = st.columns([3.3, 1.2])
+                with h_c1:
+                    st.markdown(
+                        f'<div style="font-size:11.5px;font-weight:800;color:var(--ink);line-height:28px;">'
+                        f'{div_title} &bull; <span style="font-size:9.5px;color:#38bdf8;font-weight:600;">{total_shift_rows} Slots</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                with h_c2:
+                    if max_page > 0:
+                        pc1, pc2, pc3 = st.columns([0.8, 1.8, 0.8])
+                        with pc1:
+                            if page > 0 and st.button("◀", key="oncall_prev_page", help="Previous Page", use_container_width=True):
+                                ss["oncall_shift_page"] = page - 1
+                                st.rerun()
+                        with pc2:
+                            st.markdown(f'<div style="text-align:center;font-size:9.5px;color:var(--slate);line-height:28px;">Page {page + 1}/{max_page + 1}</div>', unsafe_allow_html=True)
+                        with pc3:
+                            if page < max_page and st.button("▶", key="oncall_next_page", help="Next Page", use_container_width=True):
+                                ss["oncall_shift_page"] = page + 1
+                                st.rerun()
+                    else:
+                        st.markdown(f'<div style="text-align:right;font-size:9.5px;color:var(--slate);line-height:28px;">All {total_shift_rows} items</div>', unsafe_allow_html=True)
 
             tz_hdr = "Time in IST" if use_ist else "Time in EST"
             governing_col_hdr = "Technical Manager (TM)" if cur_div == "Non-Core Dev" else "Governing SDM"
@@ -1315,10 +1406,10 @@ def render_on_call_workspace(db_path: str) -> None:
 
             empty_shifts_notice = (
                 "<tr><td colspan='6' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>"
-                "No shift assignments match the selected filters. Click ✕ to reset filters.</td></tr>"
+                "No shift assignments match the selected filters. Click ✕ Reset to view all.</td></tr>"
             )
             table_shifts_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 350px);overflow-y:auto;'>"
+                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);overflow-y:auto;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10.5px;'>"
                 "<thead>"
                 "<tr style='background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;text-transform:uppercase;color:var(--slate);'>"
@@ -1335,25 +1426,6 @@ def render_on_call_workspace(db_path: str) -> None:
                 "</div>"
             )
             st.markdown(table_shifts_html, unsafe_allow_html=True)
-
-            # Pagination Controls
-            if total_shift_rows > _PAGE_SIZE:
-                p_c1, p_c2, p_c3 = st.columns([1, 2.5, 1])
-                with p_c1:
-                    if page > 0 and st.button("◀ Previous", key="oncall_prev_page", use_container_width=True):
-                        ss["oncall_shift_page"] = page - 1
-                        st.rerun()
-                with p_c2:
-                    st.markdown(
-                        f'<div style="text-align:center;font-size:10px;color:var(--slate);padding-top:6px;">'
-                        f'Page {page + 1} of {max_page + 1} &bull; {total_shift_rows} Total Shift Slots'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-                with p_c3:
-                    if page < max_page and st.button("Next ▶", key="oncall_next_page", use_container_width=True):
-                        ss["oncall_shift_page"] = page + 1
-                        st.rerun()
 
 
     # ==========================================================================
@@ -1384,7 +1456,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 "tier3_title": "Project Director (PD)",
             }
 
-        st.markdown('<div style="max-height:calc(100vh - 340px);overflow-y:auto;padding-right:4px;">', unsafe_allow_html=True)
+        st.markdown('<div style="max-height:calc(100vh - 240px);overflow-y:auto;padding-right:4px;">', unsafe_allow_html=True)
         st.markdown(ui.panel_header(
             "On-Call Personnel & Escalation Inspector",
             color="#38bdf8",
