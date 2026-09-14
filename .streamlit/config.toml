@@ -10,6 +10,10 @@ font = "sans serif"
 [server]
 fileWatcherType = "auto"
 headless = true
+enableCORS = false
+enableXsrfProtection = false
+enableWebsocketCompression = false
+maxUploadSize = 50
 
 [browser]
 gatherUsageStats = false

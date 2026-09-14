@@ -83,73 +83,270 @@ st.set_page_config(
 )
 st.markdown(ui.css(), unsafe_allow_html=True)
 
-if hasattr(st, "html"):
-    st.html("""
+components.html("""
 <script>
 (function() {
-  if (window.__ets_patch_applied) return;
-  window.__ets_patch_applied = true;
+  const win = (window.parent && window.parent.window) ? window.parent.window : window;
+  const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+  if (!win || win.__ets_patch_applied) return;
+  win.__ets_patch_applied = true;
 
-  // 1. Intercept iframe creation to strip deprecated features and avoid sandbox escape warning
-  const origSetAttr = HTMLIFrameElement.prototype.setAttribute;
-  HTMLIFrameElement.prototype.setAttribute = function(name, val) {
-    if (typeof name === 'string') {
-      const lower = name.toLowerCase();
-      if (lower === 'allow' && typeof val === 'string') {
-        val = val.replace(/\\b(legacy-image-formats|oversized-images|vr|wake-lock|ambient-light-sensor|battery|document-domain|layout-animations)\\b;?/gi, '').replace(/;\\s*;/g, ';').trim();
-      } else if (lower === 'sandbox' && typeof val === 'string') {
-        val = val.replace(/\\ballow-same-origin\\b/gi, '').trim();
+  // Immediately hide this mounting iframe to preserve zero-scroll layout
+  try {
+    if (window.frameElement) {
+      window.frameElement.style.display = 'none';
+      if (window.frameElement.parentElement) {
+        window.frameElement.parentElement.style.display = 'none';
       }
     }
-    return origSetAttr.call(this, name, val);
-  };
+  } catch (_) {}
 
-  // 2. Intercept property assignment on iframe.allow
-  const allowDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'allow');
-  if (allowDesc && allowDesc.set) {
-    const origSet = allowDesc.set;
-    Object.defineProperty(HTMLIFrameElement.prototype, 'allow', {
-      get: allowDesc.get,
-      set: function(val) {
-        if (typeof val === 'string') {
+  // 1. Intercept parent iframe creation to strip deprecated features and avoid sandbox escape warning
+  try {
+    const origSetAttr = win.HTMLIFrameElement.prototype.setAttribute;
+    win.HTMLIFrameElement.prototype.setAttribute = function(name, val) {
+      if (typeof name === 'string') {
+        const lower = name.toLowerCase();
+        if (lower === 'allow' && typeof val === 'string') {
           val = val.replace(/\\b(legacy-image-formats|oversized-images|vr|wake-lock|ambient-light-sensor|battery|document-domain|layout-animations)\\b;?/gi, '').replace(/;\\s*;/g, ';').trim();
         }
-        return origSet.call(this, val);
-      },
-      configurable: true,
-      enumerable: true
-    });
+      }
+      return origSetAttr.call(this, name, val);
+    };
+  } catch (_) {}
+
+  // 2. Filter console warning/error notices in parent window
+  try {
+    const _warn = win.console.warn;
+    const _err = win.console.error;
+    const isSuppressed = function(m) {
+      if (typeof m !== 'string') return false;
+      return m.indexOf('Unrecognized feature:') !== -1 ||
+             m.indexOf('escape its sandboxing') !== -1 ||
+             m.indexOf('ambient-light-sensor') !== -1 ||
+             m.indexOf('legacy-image-formats') !== -1 ||
+             m.indexOf('oversized-images') !== -1 ||
+             m.indexOf('wake-lock') !== -1 ||
+             m.indexOf('Download Button source error') !== -1 ||
+             m.indexOf('source error - 404') !== -1 ||
+             m.indexOf('/media/') !== -1;
+    };
+    win.console.warn = function(...args) {
+      if (args.length > 0 && isSuppressed(args[0])) return;
+      return _warn.apply(win.console, args);
+    };
+    win.console.error = function(...args) {
+      if (args.length > 0 && isSuppressed(args[0])) return;
+      return _err.apply(win.console, args);
+    };
+  } catch (_) {}
+
+  // 3. Protect against Streamlit core JS bug (reading 'toLowerCase' on undefined event.key)
+  try {
+    const proto = win.KeyboardEvent.prototype;
+    const origKeyDesc = Object.getOwnPropertyDescriptor(proto, 'key');
+    if (origKeyDesc && origKeyDesc.get) {
+      const origKeyGet = origKeyDesc.get;
+      Object.defineProperty(proto, 'key', {
+        get: function() {
+          try {
+            const v = origKeyGet.call(this);
+            return (typeof v === 'string') ? v : '';
+          } catch (_) {
+            return '';
+          }
+        },
+        configurable: true,
+        enumerable: true
+      });
+    }
+  } catch (_) {}
+
+  function sanitizeKeyEvent(e) {
+    if (!e) return;
+    if (typeof e.key === 'undefined' || e.key === null) {
+      try {
+        Object.defineProperty(e, 'key', {
+          value: '',
+          writable: true,
+          configurable: true,
+          enumerable: true
+        });
+      } catch (_) {}
+    }
   }
+  win.addEventListener('keydown', sanitizeKeyEvent, true);
+  doc.addEventListener('keydown', sanitizeKeyEvent, true);
+  win.addEventListener('keyup', sanitizeKeyEvent, true);
+  doc.addEventListener('keyup', sanitizeKeyEvent, true);
+  win.addEventListener('keypress', sanitizeKeyEvent, true);
+  doc.addEventListener('keypress', sanitizeKeyEvent, true);
 
-  // 3. Filter console warning/error notices
-  const _warn = console.warn;
-  const _err = console.error;
-  const isSuppressed = function(m) {
-    if (typeof m !== 'string') return false;
-    return m.indexOf('Unrecognized feature:') !== -1 ||
-           m.indexOf('escape its sandboxing') !== -1 ||
-           m.indexOf('ambient-light-sensor') !== -1 ||
-           m.indexOf('legacy-image-formats') !== -1 ||
-           m.indexOf('oversized-images') !== -1 ||
-           m.indexOf('wake-lock') !== -1 ||
-           m.indexOf('Download Button source error') !== -1 ||
-           m.indexOf('source error - 404') !== -1 ||
-           m.indexOf('/media/') !== -1;
-  };
-  console.warn = function(...args) {
-    if (args.length > 0 && isSuppressed(args[0])) return;
-    return _warn.apply(console, args);
-  };
-  console.error = function(...args) {
-    if (args.length > 0 && isSuppressed(args[0])) return;
-    return _err.apply(console, args);
-  };
+  // Global uncaught error suppressor for toLowerCase in parent window
+  win.addEventListener('error', function(evt) {
+    if (evt && evt.message && evt.message.indexOf("reading 'toLowerCase'") !== -1) {
+      evt.preventDefault();
+      evt.stopImmediatePropagation();
+      return true;
+    }
+  }, true);
 
-  // 4. Native Sidebar Rail Toggle & Navigation Engine (Self-contained in parent window)
+  // 4. WebSocket Resilience & Auto-Reconnection Watchdog
+  (function initWebSocketWatchdog() {
+    let isReconnecting = false;
+    let reconnectBanner = null;
+
+    function getOrCreateBanner() {
+      if (reconnectBanner && doc.body && doc.body.contains(reconnectBanner)) return reconnectBanner;
+      if (!doc.body) return null;
+      reconnectBanner = doc.createElement('div');
+      reconnectBanner.id = 'ets-reconnect-watchdog-banner';
+      reconnectBanner.style.cssText = [
+        'position: fixed',
+        'bottom: 18px',
+        'right: 18px',
+        'z-index: 9999999',
+        'background: rgba(15, 23, 42, 0.95)',
+        'border: 1px solid #0284C7',
+        'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.25)',
+        'border-radius: 8px',
+        'padding: 10px 16px',
+        'display: flex',
+        'align-items: center',
+        'gap: 10px',
+        'font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        'font-size: 12px',
+        'font-weight: 600',
+        'color: #F8FAFC',
+        'backdrop-filter: blur(8px)',
+        'transition: opacity 0.3s ease, transform 0.3s ease',
+        'transform: translateY(100px)',
+        'opacity: 0',
+        'pointer-events: none'
+      ].join(';');
+      reconnectBanner.innerHTML = '<span id="ets-reconnect-dot" style="width:9px; height:9px; border-radius:50%; background:#F59E0B; display:inline-block; box-shadow:0 0 8px #F59E0B;"></span><span id="ets-reconnect-text">Reconnecting to Expiry Watchtower...</span>';
+
+      const style = doc.createElement('style');
+      style.textContent = '@keyframes etsPulse { 0%, 100% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } } #ets-reconnect-dot { animation: etsPulse 1.2s infinite ease-in-out; }';
+      doc.head.appendChild(style);
+      doc.body.appendChild(reconnectBanner);
+      return reconnectBanner;
+    }
+
+    function showBanner(text, isOk) {
+      const b = getOrCreateBanner();
+      if (!b) return;
+      const txtSpan = b.querySelector('#ets-reconnect-text');
+      const dot = b.querySelector('#ets-reconnect-dot');
+      if (txtSpan) txtSpan.textContent = text;
+      if (dot) {
+        dot.style.background = isOk ? '#10B981' : '#F59E0B';
+        dot.style.boxShadow = isOk ? '0 0 8px #10B981' : '0 0 8px #F59E0B';
+      }
+      b.style.transform = 'translateY(0)';
+      b.style.opacity = '1';
+    }
+
+    function hideBanner() {
+      if (reconnectBanner) {
+        reconnectBanner.style.transform = 'translateY(100px)';
+        reconnectBanner.style.opacity = '0';
+      }
+    }
+
+    function triggerAutoReconnect() {
+      if (isReconnecting) return;
+      isReconnecting = true;
+      showBanner('Connection interrupted. Restoring session...', false);
+
+      let attempts = 0;
+      const pollHealth = function() {
+        attempts++;
+        win.fetch('/_stcore/health?t=' + Date.now(), { cache: 'no-store' })
+          .then(function(res) {
+            if (res.ok) {
+              showBanner('Server reachable! Reloading...', true);
+              setTimeout(function() {
+                win.location.reload();
+              }, 400);
+            } else {
+              showBanner('Server waking up (attempt ' + attempts + ')...', false);
+              setTimeout(pollHealth, 2500);
+            }
+          })
+          .catch(function() {
+            showBanner('Reconnecting to server (attempt ' + attempts + ')...', false);
+            setTimeout(pollHealth, 2500);
+          });
+      };
+
+      setTimeout(pollHealth, 1200);
+    }
+
+    // Intercept parent WebSocket creation
+    if (typeof win.WebSocket !== 'undefined') {
+      const OrigWS = win.WebSocket;
+      win.WebSocket = function(url, protocols) {
+        const ws = (typeof protocols !== 'undefined') ? new OrigWS(url, protocols) : new OrigWS(url);
+        win.__ets_active_ws = ws;
+
+        ws.addEventListener('open', function() {
+          isReconnecting = false;
+          hideBanner();
+        });
+
+        ws.addEventListener('close', function() {
+          triggerAutoReconnect();
+        });
+
+        ws.addEventListener('error', function() {
+          triggerAutoReconnect();
+        });
+
+        return ws;
+      };
+      win.WebSocket.prototype = OrigWS.prototype;
+      win.WebSocket.CONNECTING = OrigWS.CONNECTING;
+      win.WebSocket.OPEN = OrigWS.OPEN;
+      win.WebSocket.CLOSING = OrigWS.CLOSING;
+      win.WebSocket.CLOSED = OrigWS.CLOSED;
+      for (const key of Object.getOwnPropertyNames(OrigWS)) {
+        try {
+          if (typeof win.WebSocket[key] === 'undefined') {
+            win.WebSocket[key] = OrigWS[key];
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Reconnect watchdog on tab wake-up / visibility change
+    doc.addEventListener('visibilitychange', function() {
+      if (doc.visibilityState === 'visible') {
+        const ws = win.__ets_active_ws;
+        if (ws && (ws.readyState === 2 || ws.readyState === 3)) {
+          triggerAutoReconnect();
+        }
+      }
+    });
+
+    // Watch for Streamlit's connection error modal in DOM
+    const observer = new MutationObserver(function() {
+      const errEl = doc.querySelector('[data-testid="stConnectionStatus"]');
+      if (errEl) {
+        triggerAutoReconnect();
+      }
+    });
+    const targetNode = doc.body || doc.documentElement;
+    if (targetNode) {
+      observer.observe(targetNode, { childList: true, subtree: true });
+    }
+  })();
+
+  // 5. Native Sidebar Rail Toggle & Navigation Engine (Directly binding parent DOM)
   function setupNav() {
-    function getSidebar() { return document.querySelector('[data-testid="stSidebar"]'); }
+    function getSidebar() { return doc.querySelector('[data-testid="stSidebar"]'); }
 
-    document.addEventListener('click', function(e) {
+    doc.addEventListener('click', function(e) {
       const toggleBtn = e.target ? e.target.closest('#ets-rail-toggle-btn') : null;
       if (toggleBtn) {
         e.preventDefault();
@@ -177,17 +374,17 @@ if hasattr(st, "html"):
         e.stopPropagation();
         const idx = parseInt(navBtn.getAttribute('data-nav-idx'), 10);
         if (!isNaN(idx)) {
-          const topTabs = document.querySelectorAll('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] [role="tab"]');
+          const topTabs = doc.querySelectorAll('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"] [role="tab"]');
           if (topTabs && topTabs[idx]) {
             topTabs[idx].click();
           } else {
-            const topTabsContainer = document.querySelector('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"]');
+            const topTabsContainer = doc.querySelector('[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"]');
             const tl = topTabsContainer ? topTabsContainer.querySelector('[role="tablist"]') : null;
             if (tl && tl.children[idx]) {
               tl.children[idx].click();
             }
           }
-          document.querySelectorAll('.ets-nav-item').forEach(function(b) { b.classList.remove('active'); });
+          doc.querySelectorAll('.ets-nav-item').forEach(function(b) { b.classList.remove('active'); });
           navBtn.classList.add('active');
           const sb = getSidebar();
           if (sb) setTimeout(function() { sb.setAttribute('data-rail-state', 'collapsed'); }, 120);
@@ -197,14 +394,14 @@ if hasattr(st, "html"):
     }, true);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupNav);
+  if (doc.readyState === 'loading') {
+    doc.addEventListener('DOMContentLoaded', setupNav);
   } else {
     setupNav();
   }
 })();
 </script>
-""", unsafe_allow_javascript=True)
+""", height=0)
 
 
 

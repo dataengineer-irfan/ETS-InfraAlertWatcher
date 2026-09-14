@@ -506,6 +506,16 @@ code, kbd, .mono, .num {{
   box-shadow: none !important;
 }}
 
+/* Zero-height helper for background bridge iframe components */
+iframe[height="0"], [data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {{
+  display: none !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}}
+
 /* In collapsed (48px) state: hide labels, brand text, close button and telemetry */
 [data-testid="stSidebar"][data-rail-state="collapsed"] .rail-brand-text,
 [data-testid="stSidebar"]:not([data-rail-state="expanded"]) .rail-brand-text,
