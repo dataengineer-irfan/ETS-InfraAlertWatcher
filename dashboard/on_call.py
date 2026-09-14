@@ -238,10 +238,82 @@ def _consolidate_contiguous_shifts(shifts: list[dict]) -> list[dict]:
     return out
 
 
-# --------------------------------------------------------------------------
-# Caching Data Loaders (120s TTL)
-# --------------------------------------------------------------------------
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
+def _get_roster_bundle(db_path: str, roster_id: int) -> dict:
+    conn = get_connection(db_path)
+    try:
+        all_ps = [dict(r) for r in get_on_call_production_support(conn, roster_id)]
+        all_shifts = [dict(r) for r in get_on_call_shifts(conn, roster_id)]
+        all_escs = [dict(r) for r in get_on_call_escalations(conn, roster_id)]
+    finally:
+        conn.close()
+
+    esc_lookup = {
+        (e["division"], e["domain_state"], e["shift_slot"], e["shift_date"]): e
+        for e in all_escs
+    }
+    esc_fallback = {
+        (e["division"], e["domain_state"]): e
+        for e in all_escs
+    }
+
+    shifts_with_sdm = []
+    for s in all_shifts:
+        s_copy = s.copy()
+        lead_name, lead_title = _resolve_shift_governing_lead(s_copy, esc_lookup, esc_fallback)
+        s_copy["governed_sdm"] = lead_name
+        s_copy["governing_title"] = lead_title
+        shifts_with_sdm.append(s_copy)
+
+    date_day_map: dict[str, str] = {}
+    for p in all_ps:
+        date_day_map[p["shift_date"]] = p["day_name"]
+    for s in all_shifts:
+        date_day_map[s["shift_date"]] = s["day_name"]
+
+    ps_dates = sorted(list(set(p["shift_date"] for p in all_ps)))
+    all_unique_dates = sorted(list(set(date_day_map.keys())))
+    day_options = ["All Days"] + [f"{date_day_map.get(d, 'Day')} ({d})" for d in all_unique_dates]
+
+    ref_date = "2026-09-14"
+    mon_ps = [p for p in all_ps if p["shift_date"] == ref_date]
+    working_count = sum(1 for p in mon_ps if p.get("is_working") == 1)
+    total_ps = len(mon_ps) if mon_ps else 31
+    wo_count = sum(1 for p in mon_ps if "wo" in (p.get("shift_window") or "").lower() or "comp" in (p.get("shift_window") or "").lower())
+    hol_count = sum(1 for p in mon_ps if "holiday" in (p.get("shift_window") or "").lower() or "float" in (p.get("shift_window") or "").lower())
+    states_count = len(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Core Dev")) or 3
+
+    nc_tms = set(
+        s["governed_sdm"] for s in shifts_with_sdm
+        if s["division"] == "Non-Core Dev" and s.get("governed_sdm")
+    )
+    tm_count = len(nc_tms) or 4
+    distinct_ps_engineers = len(set(p["resource_name"] for p in all_ps))
+
+    return {
+        "all_ps": all_ps,
+        "all_shifts": all_shifts,
+        "all_escs": all_escs,
+        "esc_lookup": esc_lookup,
+        "esc_fallback": esc_fallback,
+        "shifts_with_sdm": shifts_with_sdm,
+        "date_day_map": date_day_map,
+        "ps_dates": ps_dates,
+        "all_unique_dates": all_unique_dates,
+        "day_options": day_options,
+        "mon_ps": mon_ps,
+        "working_count": working_count,
+        "total_ps": total_ps,
+        "wo_count": wo_count,
+        "hol_count": hol_count,
+        "states_count": states_count,
+        "nc_tms": nc_tms,
+        "tm_count": tm_count,
+        "distinct_ps_engineers": distinct_ps_engineers,
+    }
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def _load_roster_meta(db_path: str) -> dict | None:
     conn = get_connection(db_path)
     try:
@@ -251,41 +323,9 @@ def _load_roster_meta(db_path: str) -> dict | None:
         conn.close()
 
 
-@st.cache_data(ttl=120, show_spinner=False)
-def _load_ps(db_path: str, roster_id: int) -> list[dict]:
-    conn = get_connection(db_path)
-    try:
-        rows = get_on_call_production_support(conn, roster_id)
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
-
-
-@st.cache_data(ttl=120, show_spinner=False)
-def _load_shifts(db_path: str, roster_id: int) -> list[dict]:
-    conn = get_connection(db_path)
-    try:
-        rows = get_on_call_shifts(conn, roster_id)
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
-
-
-@st.cache_data(ttl=120, show_spinner=False)
-def _load_escs(db_path: str, roster_id: int) -> list[dict]:
-    conn = get_connection(db_path)
-    try:
-        rows = get_on_call_escalations(conn, roster_id)
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
-
-
 def _clear_oncall_cache() -> None:
     _load_roster_meta.clear()
-    _load_ps.clear()
-    _load_shifts.clear()
-    _load_escs.clear()
+    _get_roster_bundle.clear()
 
 
 # --------------------------------------------------------------------------
@@ -341,36 +381,32 @@ def render_on_call_workspace(db_path: str) -> None:
     valid_from = active_roster["valid_from"]
     valid_to = active_roster["valid_to"]
 
-    # 2. Fetch Cached Datasets
-    all_ps = _load_ps(db_path, roster_id)
-    all_shifts = _load_shifts(db_path, roster_id)
-    all_escs = _load_escs(db_path, roster_id)
-
-    # Build Escalation Lookups
-    esc_lookup = {
-        (e["division"], e["domain_state"], e["shift_slot"], e["shift_date"]): e
-        for e in all_escs
-    }
-    esc_fallback = {
-        (e["division"], e["domain_state"]): e
-        for e in all_escs
-    }
+    # 2. Fetch Cached Datasets from High-Performance Bundle
+    bundle = _get_roster_bundle(db_path, roster_id)
+    all_ps = bundle["all_ps"]
+    all_shifts = bundle["all_shifts"]
+    all_escs = bundle["all_escs"]
+    esc_lookup = bundle["esc_lookup"]
+    esc_fallback = bundle["esc_fallback"]
+    shifts_with_sdm = bundle["shifts_with_sdm"]
+    date_day_map = bundle["date_day_map"]
+    ps_dates = bundle["ps_dates"]
+    all_unique_dates = bundle["all_unique_dates"]
+    day_options = bundle["day_options"]
+    mon_ps = bundle["mon_ps"]
+    working_count = bundle["working_count"]
+    total_ps = bundle["total_ps"]
+    wo_count = bundle["wo_count"]
+    hol_count = bundle["hol_count"]
+    states_count = bundle["states_count"]
+    nc_tms = bundle["nc_tms"]
+    tm_count = bundle["tm_count"]
+    distinct_ps_engineers = bundle["distinct_ps_engineers"]
 
     # Resolve Scope Lock state from global app state
     active_scope_state = ss.get("_override_canvas_state") or ss.get("global_state_filter")
     if active_scope_state in ["NH", "ND", "AK"] and ss["oncall_state_filter"] == "All States":
         ss["oncall_state_filter"] = f"{active_scope_state} MMIS"
-
-    # Map dates to day names across both datasets
-    date_day_map: dict[str, str] = {}
-    for p in all_ps:
-        date_day_map[p["shift_date"]] = p["day_name"]
-    for s in all_shifts:
-        date_day_map[s["shift_date"]] = s["day_name"]
-
-    ps_dates = sorted(list(set(p["shift_date"] for p in all_ps)))
-    all_unique_dates = sorted(list(set(date_day_map.keys())))
-    day_options = ["All Days"] + [f"{date_day_map.get(d, 'Day')} ({d})" for d in all_unique_dates]
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_utc = datetime.now(timezone.utc)
@@ -620,11 +656,11 @@ def render_on_call_workspace(db_path: str) -> None:
         with t1:
             if st.button("EST", key="oncall_tz_est_btn", type="primary" if tz_val == "EST" else "secondary", use_container_width=True, help="Eastern Standard Time (UTC-5)"):
                 ss["oncall_tz"] = "EST"
-                st.rerun()
         with t2:
             if st.button("IST", key="oncall_tz_ist_btn", type="primary" if tz_val == "IST" else "secondary", use_container_width=True, help="India Standard Time (UTC+5:30)"):
                 ss["oncall_tz"] = "IST"
-                st.rerun()
+
+    use_ist = (ss["oncall_tz"] == "IST")
 
     with c_slicers_t2:
         day_pick = st.selectbox(
@@ -654,7 +690,8 @@ def render_on_call_workspace(db_path: str) -> None:
                 ):
                     ss["oncall_shift_chip"] = chip_val
                     ss["oncall_shift_page"] = 0
-                    st.rerun()
+
+    cur_shift_chip = ss.get("oncall_shift_chip")
 
     # --------------------------------------------------------------------------
     # 5. Division Navigation Tabs
@@ -679,7 +716,6 @@ def render_on_call_workspace(db_path: str) -> None:
             ):
                 ss["oncall_div"] = d_title
                 ss["oncall_shift_page"] = 0
-                st.rerun()
 
     cur_div = ss["oncall_div"]
 
@@ -691,38 +727,42 @@ def render_on_call_workspace(db_path: str) -> None:
     sdm_slicer = ss.get("oncall_sdm_filter", "All SDMs")
     clean_sdm_name = sdm_slicer.split("(")[0].strip() if sdm_slicer != "All SDMs" else None
 
-    # Tag shifts with their governed lead (SDM for Core/Infra, TM for Non-Core)
-    shifts_with_sdm = []
-    for s in all_shifts:
-        s_copy = s.copy()
-        lead_name, lead_title = _resolve_shift_governing_lead(s, esc_lookup, esc_fallback)
-        s_copy["governed_sdm"] = lead_name
-        s_copy["governing_title"] = lead_title
-        shifts_with_sdm.append(s_copy)
-
     # --------------------------------------------------------------------------
-    # 7. Grafana Stat Ribbon (5 Operational KPI Cards from HTML Inspiration)
+    # 7. Grafana Stat Ribbon (5 Operational KPI Cards with Dynamic 5th Card)
     # --------------------------------------------------------------------------
     active_now_shifts = [
         s for s in shifts_with_sdm
         if s["shift_slot"] == cur_slot and s.get("primary_on_call")
     ]
     distinct_active_now = list(set(s["primary_on_call"] for s in active_now_shifts))
-    distinct_ps_engineers = len(set(p["resource_name"] for p in all_ps))
 
-    ref_date = "2026-09-14"
-    mon_ps = [p for p in all_ps if p["shift_date"] == ref_date]
-    working_count = sum(1 for p in mon_ps if p.get("is_working") == 1)
-    total_ps = len(mon_ps) if mon_ps else 31
-    wo_count = sum(1 for p in mon_ps if "wo" in (p.get("shift_window") or "").lower() or "comp" in (p.get("shift_window") or "").lower())
-    hol_count = sum(1 for p in mon_ps if "holiday" in (p.get("shift_window") or "").lower() or "float" in (p.get("shift_window") or "").lower())
-    states_count = len(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Core Dev")) or 3
-
-    nc_tms = set(
-        s["governed_sdm"] for s in shifts_with_sdm
-        if s["division"] == "Non-Core Dev" and s.get("governed_sdm")
-    )
-    tm_count = len(nc_tms) or 4
+    # Dynamic 5th KPI Card tailored to current division
+    if cur_div == "Non-Core Dev":
+        kpi5_label = "Technical Managers"
+        kpi5_val = f'{tm_count} <span style="font-size:10px;color:#6e7681;font-weight:400;">Active</span>'
+        kpi5_sub = "TM / TL &bull; Non-Core Dev"
+        kpi5_cls = "oc-stat-fill-purple"
+    elif cur_div == "Production Support 24x7":
+        kpi5_label = "Shift Leadership"
+        kpi5_val = '2 <span style="font-size:10px;color:#6e7681;font-weight:400;">Leads</span>'
+        kpi5_sub = "Abhijit V. &bull; Sreekanth V. (TL)"
+        kpi5_cls = "oc-stat-fill-blue"
+    elif cur_div == "Infrastructure Ops":
+        kpi5_label = "Governing SDM"
+        kpi5_val = '<span style="font-size:13.5px;font-weight:800;">Anil Tankala</span>'
+        kpi5_sub = "Infra & Ops Lead SDM"
+        kpi5_cls = "oc-stat-fill-blue"
+    elif cur_div == "State Core Dev":
+        kpi5_label = "Governing SDMs"
+        kpi5_val = '3 <span style="font-size:10px;color:#6e7681;font-weight:400;">Leads</span>'
+        kpi5_sub = "AK &bull; ND &bull; NH State SDMs"
+        kpi5_cls = "oc-stat-fill-green"
+    else:  # Live Ops Radar
+        active_cnt = len(distinct_active_now)
+        kpi5_label = "Active On-Duty"
+        kpi5_val = f'{active_cnt} <span style="font-size:10px;color:#6e7681;font-weight:400;">Shifts</span>'
+        kpi5_sub = f"Slot {cur_slot} &bull; Live Operations"
+        kpi5_cls = "oc-stat-fill-yellow"
 
     kpi_ribbon_html = (
         '<div class="oc-kpi-row">'
@@ -746,10 +786,10 @@ def render_on_call_workspace(db_path: str) -> None:
         f'<div class="oc-stat-val">{states_count}</div>'
         '<span class="oc-stat-sub">AK &bull; ND &bull; NH Core Dev</span>'
         '</div>'
-        '<div class="oc-stat-card oc-stat-fill-purple">'
-        '<span class="oc-stat-label">Technical Managers</span>'
-        f'<div class="oc-stat-val">{tm_count} <span style="font-size:10px;color:#6e7681;font-weight:400;">Active</span></div>'
-        '<span class="oc-stat-sub">TM / TL &bull; Non-Core Dev</span>'
+        f'<div class="oc-stat-card {kpi5_cls}">'
+        f'<span class="oc-stat-label">{kpi5_label}</span>'
+        f'<div class="oc-stat-val">{kpi5_val}</div>'
+        f'<span class="oc-stat-sub">{kpi5_sub}</span>'
         '</div>'
         '</div>'
     )
@@ -780,20 +820,20 @@ def render_on_call_workspace(db_path: str) -> None:
     with master_col:
         # A. MODE 1: PRODUCTION SUPPORT 24x7 (Hierarchical Cross-Tab Matrix)
         if cur_div == "Production Support 24x7":
-            # Quick status toggle & Search Toolbar
-            tb1, tb2, tb3, tb4 = st.columns([1.2, 1.2, 1.2, 2.4])
+            # Quick status toggle, Search & Inspector Toolbar (Unified Single Row)
+            all_ps_names = sorted(list(set(p["resource_name"] for p in all_ps)))
+            safe_idx = all_ps_names.index(cur_selected) if cur_selected in all_ps_names else 0
+
+            tb1, tb2, tb3, tb4, tb5 = st.columns([1.0, 1.1, 1.1, 1.7, 1.8])
             with tb1:
                 if st.button("All Resources", key="oncall_qs_all", type="primary" if quick_status == "All" else "secondary", use_container_width=True):
                     ss["oncall_quick_status"] = "All"
-                    st.rerun()
             with tb2:
                 if st.button("Working Today", key="oncall_qs_working", type="primary" if quick_status == "Working Today" else "secondary", use_container_width=True):
                     ss["oncall_quick_status"] = "Working Today"
-                    st.rerun()
             with tb3:
                 if st.button("Off / Holiday", key="oncall_qs_off", type="primary" if quick_status == "Off / Holiday" else "secondary", use_container_width=True):
                     ss["oncall_quick_status"] = "Off / Holiday"
-                    st.rerun()
             with tb4:
                 search_val = st.text_input(
                     "Search Resource",
@@ -804,6 +844,18 @@ def render_on_call_workspace(db_path: str) -> None:
                 )
                 if search_val != ss["oncall_search"]:
                     ss["oncall_search"] = search_val
+                    st.rerun()
+            with tb5:
+                picked_eng = st.selectbox(
+                    "Inspect Engineer",
+                    all_ps_names,
+                    index=safe_idx,
+                    key="oncall_ps_eng_picker",
+                    label_visibility="collapsed",
+                    help="Inspect Engineer contacts & escalation hierarchy",
+                )
+                if picked_eng != cur_selected:
+                    ss["oncall_selected_eng"] = picked_eng
                     st.rerun()
 
             ps_df = pd.DataFrame(all_ps)
@@ -870,7 +922,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 "Production Support 24x7 Resource Matrix (7-Day Cross-Tab)",
                 color="#f59e0b",
                 count=f"{filtered_eng_count} of {distinct_ps_engineers} Engineers",
-                info="Select an engineer below to inspect full 3-tier escalation hierarchy and contact lineage.",
+                info="Live 24x7 rotation across 31 engineers. Use toolbar to filter by shift or inspect an engineer.",
             ), unsafe_allow_html=True)
 
             # Build Header with TODAY indicator
@@ -900,16 +952,16 @@ def render_on_call_workspace(db_path: str) -> None:
                 is_active_eng = (cur_selected == r_name)
 
                 td_cells = []
-                working_count = 0
+                w_count = 0
                 for d in pivot_dates:
                     win_val = row_data.get(d)
                     if pd.isna(win_val) or not win_val:
                         win_val = "Week Off"
                     chip = _compact_shift_chip(str(win_val))
-                    cell_cls = ' class="today-col-glow"' if (d == today_str or d == ref_date) else ''
+                    cell_cls = ' class="today-col-glow"' if (d == today_str) else ''
                     td_cells.append(f"<td style='padding:3px 4px;text-align:center;'{cell_cls}>{chip}</td>")
                     if win_val and not any(k in str(win_val).lower() for k in ["wo", "off", "holiday", "leave"]):
-                        working_count += 1
+                        w_count += 1
 
                 row_bg = (
                     "rgba(56, 189, 248, 0.09)" if is_active_eng
@@ -926,41 +978,49 @@ def render_on_call_workspace(db_path: str) -> None:
                     f"<td style='padding:4px 8px;color:var(--ink);font-weight:700;font-size:10.5px;white-space:nowrap;display:flex;align-items:center;gap:6px;'>"
                     f"{avatar}<span>{escape(r_name)}</span></td>"
                     f"{''.join(td_cells)}"
-                    f"<td style='padding:4px 6px;text-align:center;font-family:var(--mono);font-weight:700;color:#10b981;'>{working_count}d</td>"
+                    f"<td style='padding:4px 6px;text-align:center;font-family:var(--mono);font-weight:700;color:#10b981;'>{w_count}d</td>"
                     f"</tr>"
                 )
+
+            # Daily Headcount Summary Footer
+            foot_cells = []
+            for d in pivot_dates:
+                d_rows = [r.get(d) for _, r in pivoted.iterrows()]
+                m_c = sum(1 for v in d_rows if v and ("6:30" in str(v) or "morning" in str(v).lower()))
+                e_c = sum(1 for v in d_rows if v and ("14:30" in str(v) or "evening" in str(v).lower()))
+                n_c = sum(1 for v in d_rows if v and ("22:30" in str(v) or "night" in str(v).lower()))
+                h_c = sum(1 for v in d_rows if v and any(k in str(v).lower() for k in ["holiday", "float"]))
+                cell_cls = ' class="today-col-glow"' if (d == today_str) else ''
+                foot_cells.append(
+                    f"<td style='padding:3px 2px;text-align:center;font-size:8px;line-height:1.2;'{cell_cls}>"
+                    f"<b style='color:#73bf69;'>{m_c}M</b> <b style='color:#8fb8f8;'>{e_c}E</b><br/>"
+                    f"<b style='color:#d6a8ef;'>{n_c}N</b> <span style='color:#ff9830;'>{h_c}H</span>"
+                    f"</td>"
+                )
+            foot_html = (
+                "<tfoot>"
+                "<tr style='background:#141619;border-top:2px solid #2c3235;font-size:8.5px;color:var(--slate);'>"
+                "<td style='padding:4px 8px;font-weight:800;color:var(--ink);text-transform:uppercase;'>Daily Coverage</td>"
+                f"{''.join(foot_cells)}"
+                f"<td style='padding:4px 6px;text-align:center;font-family:var(--mono);font-weight:800;color:#10b981;'>{filtered_eng_count}</td>"
+                "</tr>"
+                "</tfoot>"
+            )
 
             empty_notice = (
                 "<tr><td colspan='100' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>"
                 "No engineers match the selected filters. Click ✕ in the top right to reset filters.</td></tr>"
             )
             table_crosstab_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 350px);overflow-y:auto;overflow-x:hidden;'>"
+                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 325px);overflow-y:auto;overflow-x:hidden;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10px;min-width:780px;'>"
                 f"{head_html}"
                 f"<tbody>{''.join(body_rows) if body_rows else empty_notice}</tbody>"
+                f"{foot_html if body_rows else ''}"
                 "</table>"
                 "</div>"
             )
             st.markdown(table_crosstab_html, unsafe_allow_html=True)
-
-            eng_list = pivoted["resource_name"].tolist() if not pivoted.empty else []
-            if eng_list:
-                sel_col1, sel_col2 = st.columns([1.5, 2.5])
-                with sel_col1:
-                    st.markdown("<div style='font-size:10px;font-weight:700;color:var(--slate);line-height:28px;'>Pin Engineer to Inspector:</div>", unsafe_allow_html=True)
-                with sel_col2:
-                    safe_idx = eng_list.index(cur_selected) if cur_selected in eng_list else 0
-                    picked_eng = st.selectbox(
-                        "Inspect Engineer",
-                        eng_list,
-                        index=safe_idx,
-                        key="oncall_eng_picker",
-                        label_visibility="collapsed",
-                    )
-                    if picked_eng != cur_selected:
-                        ss["oncall_selected_eng"] = picked_eng
-                        st.rerun()
 
         # B. MODE 2: LIVE OPS RADAR & DOMAIN SHIFTS (Infra / Core Dev / Non-Core Dev)
         else:
@@ -1008,10 +1068,13 @@ def render_on_call_workspace(db_path: str) -> None:
                     if _matches_domain_slot(cur_shift_chip, s.get("shift_slot", 0))
                 ]
 
-            # Multi-control horizontal strip: Domain Filter + Search box + Clock in the SAME line
+            # Multi-control horizontal strip: Domain Filter + Search box + Inspect Engineer + Clock in the SAME line
+            all_shift_primaries = sorted(list(set(s["primary_on_call"] for s in filtered_shifts if s.get("primary_on_call"))))
+            safe_shift_idx = all_shift_primaries.index(cur_selected) if cur_selected in all_shift_primaries else 0
+
             if cur_div == "Non-Core Dev":
                 nc_domains = ["All Domains"] + sorted(list(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Non-Core Dev")))
-                fc1, fc2, fc3 = st.columns([1.6, 2.8, 1.1])
+                fc1, fc2, fc3, fc4 = st.columns([1.3, 1.8, 1.8, 0.9])
                 with fc1:
                     picked_nc_dom = st.selectbox(
                         "Domain Slicer",
@@ -1029,7 +1092,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     search_shift = st.text_input(
                         "Search Shifts",
                         value=ss["oncall_search"],
-                        placeholder="Search engineer, module, or manager...",
+                        placeholder="Search engineer, module, TM...",
                         key="oncall_shift_search_box",
                         label_visibility="collapsed",
                     )
@@ -1038,6 +1101,18 @@ def render_on_call_workspace(db_path: str) -> None:
                         ss["oncall_shift_page"] = 0
                         st.rerun()
                 with fc3:
+                    p_eng = st.selectbox(
+                        "Inspect Shift Engineer",
+                        all_shift_primaries if all_shift_primaries else [cur_selected or "No Engineers"],
+                        index=safe_shift_idx if all_shift_primaries else 0,
+                        key="oncall_mode2_eng_picker",
+                        label_visibility="collapsed",
+                        help="Inspect engineer escalation path",
+                    )
+                    if p_eng != cur_selected and all_shift_primaries:
+                        ss["oncall_selected_eng"] = p_eng
+                        st.rerun()
+                with fc4:
                     tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
                     st.markdown(
                         f'<div style="font-size:10px;font-weight:600;color:var(--slate);line-height:28px;text-align:right;">'
@@ -1049,7 +1124,7 @@ def render_on_call_workspace(db_path: str) -> None:
 
             elif cur_div == "Infrastructure Ops":
                 infra_domains = ["All Domains"] + sorted(list(set(s["domain_state"] for s in shifts_with_sdm if s["division"] == "Infra Team")))
-                fc1, fc2, fc3 = st.columns([1.6, 2.8, 1.1])
+                fc1, fc2, fc3, fc4 = st.columns([1.3, 1.8, 1.8, 0.9])
                 with fc1:
                     picked_infra_dom = st.selectbox(
                         "Infra Domain",
@@ -1067,7 +1142,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     search_shift = st.text_input(
                         "Search Shifts",
                         value=ss["oncall_search"],
-                        placeholder="Search engineer, domain, or lead...",
+                        placeholder="Search engineer, domain, lead...",
                         key="oncall_shift_search_box",
                         label_visibility="collapsed",
                     )
@@ -1076,6 +1151,18 @@ def render_on_call_workspace(db_path: str) -> None:
                         ss["oncall_shift_page"] = 0
                         st.rerun()
                 with fc3:
+                    p_eng = st.selectbox(
+                        "Inspect Shift Engineer",
+                        all_shift_primaries if all_shift_primaries else [cur_selected or "No Engineers"],
+                        index=safe_shift_idx if all_shift_primaries else 0,
+                        key="oncall_infra_eng_picker",
+                        label_visibility="collapsed",
+                        help="Inspect engineer escalation path",
+                    )
+                    if p_eng != cur_selected and all_shift_primaries:
+                        ss["oncall_selected_eng"] = p_eng
+                        st.rerun()
+                with fc4:
                     tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
                     st.markdown(
                         f'<div style="font-size:10px;font-weight:600;color:var(--slate);line-height:28px;text-align:right;">'
@@ -1086,12 +1173,12 @@ def render_on_call_workspace(db_path: str) -> None:
                     filtered_shifts = [s for s in filtered_shifts if s["domain_state"] == ss["oncall_dom_filter"]]
 
             else:
-                srch1, srch2 = st.columns([3.5, 1.1])
+                srch1, srch2, srch3 = st.columns([2.5, 2.0, 0.9])
                 with srch1:
                     search_shift = st.text_input(
                         "Search Shifts",
                         value=ss["oncall_search"],
-                        placeholder="Search by domain, lead, or on-call engineer...",
+                        placeholder="Search domain, lead, or on-call engineer...",
                         key="oncall_shift_search_box",
                         label_visibility="collapsed",
                     )
@@ -1100,6 +1187,18 @@ def render_on_call_workspace(db_path: str) -> None:
                         ss["oncall_shift_page"] = 0
                         st.rerun()
                 with srch2:
+                    p_eng = st.selectbox(
+                        "Inspect Shift Engineer",
+                        all_shift_primaries if all_shift_primaries else [cur_selected or "No Engineers"],
+                        index=safe_shift_idx if all_shift_primaries else 0,
+                        key="oncall_core_eng_picker",
+                        label_visibility="collapsed",
+                        help="Inspect engineer escalation path",
+                    )
+                    if p_eng != cur_selected and all_shift_primaries:
+                        ss["oncall_selected_eng"] = p_eng
+                        st.rerun()
+                with srch3:
                     tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
                     st.markdown(
                         f'<div style="font-size:10px;font-weight:600;color:var(--slate);line-height:28px;text-align:right;">'
@@ -1225,23 +1324,6 @@ def render_on_call_workspace(db_path: str) -> None:
                         ss["oncall_shift_page"] = page + 1
                         st.rerun()
 
-            all_shift_primaries = sorted(list(set(s["primary_on_call"] for s in filtered_shifts if s.get("primary_on_call"))))
-            if all_shift_primaries:
-                sel_c1, sel_c2 = st.columns([1.5, 2.5])
-                with sel_c1:
-                    st.markdown("<div style='font-size:10px;font-weight:700;color:var(--slate);line-height:28px;'>Inspect Shift Engineer:</div>", unsafe_allow_html=True)
-                with sel_c2:
-                    safe_idx = all_shift_primaries.index(cur_selected) if cur_selected in all_shift_primaries else 0
-                    p_eng = st.selectbox(
-                        "Inspect Engineer",
-                        all_shift_primaries,
-                        index=safe_idx,
-                        key="oncall_shift_eng_picker",
-                        label_visibility="collapsed",
-                    )
-                    if p_eng != cur_selected:
-                        ss["oncall_selected_eng"] = p_eng
-                        st.rerun()
 
     # ==========================================================================
     # DETAIL INSPECTOR PANE (Right Column)
@@ -1278,16 +1360,25 @@ def render_on_call_workspace(db_path: str) -> None:
             info="Contextual identity, active shift windows, and 3-tier escalation authority for on-call personnel.",
         ), unsafe_allow_html=True)
 
-        # 1. Profile Header Card
+        # 1. Profile Header Card & Contextual Duty Badge
         avatar_lg = ui.on_call_avatar(sel_name).replace("width:20px;height:20px;font-size:8.5px;", "width:36px;height:36px;font-size:13px;")
         today_match_ps = [p for p in matching_ps if p.get("shift_date") == today_str]
-        is_working_today = any(p.get("is_working", 1) for p in today_match_ps) if today_match_ps else True
+        win_today = today_match_ps[0].get("shift_window", "") if today_match_ps else ""
+        win_low = win_today.lower()
 
-        duty_badge = (
-            '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.15);font-size:8.5px;font-weight:700;border:1px solid rgba(16,185,129,0.3);">ON DUTY TODAY</span>'
-            if is_working_today
-            else '<span class="pill" style="color:#64748b;background:rgba(100,116,139,0.15);font-size:8.5px;font-weight:700;border:1px solid rgba(100,116,139,0.3);">OFF DUTY TODAY</span>'
-        )
+        if "holiday" in win_low or "float" in win_low:
+            duty_badge = '<span class="pill" style="color:#ff9830;background:rgba(255,152,48,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(255,152,48,0.4);">🎉 FLOATING HOLIDAY</span>'
+        elif "wo" in win_low or "week off" in win_low or "comp" in win_low:
+            duty_badge = '<span class="pill" style="color:#94a3b8;background:rgba(148,163,184,0.12);font-size:8.5px;font-weight:700;border:1px solid rgba(148,163,184,0.3);">SCHEDULED WEEK OFF</span>'
+        elif "leave" in win_low:
+            duty_badge = '<span class="pill" style="color:#ef4444;background:rgba(239,68,68,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(239,68,68,0.4);">ON APPROVED LEAVE</span>'
+        elif any(k in win_low for k in ["6:30", "14:30", "22:30", "morning", "evening", "night"]):
+            duty_badge = '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(16,185,129,0.4);"><span class="pulse-dot"></span>ON DUTY TODAY</span>'
+        elif matching_shifts:
+            is_active_now = any(s.get("shift_date") == today_str and cur_slot in s.get("original_slots", [s.get("shift_slot")]) for s in matching_shifts)
+            duty_badge = '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(16,185,129,0.4);"><span class="pulse-dot"></span>ON DUTY TODAY</span>' if is_active_now else '<span class="pill" style="color:#64748b;background:rgba(100,116,139,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(100,116,139,0.3);">STANDBY / ROTATION</span>'
+        else:
+            duty_badge = '<span class="pill" style="color:#64748b;background:rgba(100,116,139,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(100,116,139,0.3);">OFF DUTY TODAY</span>'
 
         card_profile = (
             '<div style="background:#141619;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:3px;padding:8px 12px;margin-bottom:8px;">'
@@ -1303,25 +1394,54 @@ def render_on_call_workspace(db_path: str) -> None:
         )
         st.markdown(card_profile, unsafe_allow_html=True)
 
-        # 2. Timing and Live Status Card
+        # 2. Timing and Live Status Card (Supports both Domain shifts & Production Support)
+        t_est = "See Master Roster"
+        t_ist = "Rotation Shift Hours"
+        timing_title = "Scheduled Shift Hours"
+
         if matching_shifts:
             ref_shift = matching_shifts[0]
-            t_est = ref_shift["time_est"]
-            t_ist = ref_shift["time_ist"]
-            card_timing = (
-                '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
-                '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;">Scheduled Shift Hours</div>'
-                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
-                '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
-                '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN EST (UTC-5)</div>'
-                f'<div style="font-size:11px;font-family:var(--mono);font-weight:700;color:var(--ink);margin-top:2px;">{escape(t_est)}</div>'
-                '</div>'
-                '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
-                '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN IST (UTC+5:30)</div>'
-                f'<div style="font-size:11px;font-family:var(--mono);font-weight:700;color:#38bdf8;margin-top:2px;">{escape(t_ist)}</div>'
-                '</div></div></div>'
-            )
-            st.markdown(card_timing, unsafe_allow_html=True)
+            t_est = ref_shift.get("time_est", "See Roster")
+            t_ist = ref_shift.get("time_ist", "See Roster")
+            timing_title = f"Scheduled Shift Hours ({ref_shift.get('day_name', 'Day')} {ref_shift.get('shift_date', '')[5:]})"
+        elif matching_ps:
+            ref_ps = today_match_ps[0] if today_match_ps else matching_ps[0]
+            win = ref_ps.get("shift_window", "")
+            win_l = win.lower()
+            timing_title = f"Scheduled Shift Hours ({ref_ps.get('day_name', 'Today')} {ref_ps.get('shift_date', '')[5:]})"
+            if "6:30" in win_l or "morning" in win_l:
+                t_ist = "06:30 AM to 03:30 PM (Morning)"
+                t_est = "09:00 PM to 06:00 AM (Prev Night)"
+            elif "14:30" in win_l or "evening" in win_l:
+                t_ist = "02:30 PM to 11:30 PM (Evening)"
+                t_est = "05:00 AM to 02:00 PM (Morning/Day)"
+            elif "22:30" in win_l or "night" in win_l:
+                t_ist = "10:30 PM to 07:30 AM (Night)"
+                t_est = "01:00 PM to 10:00 PM (Afternoon/Eve)"
+            elif "holiday" in win_l or "float" in win_l:
+                t_ist = "Floating Holiday (On-Call Standby)"
+                t_est = "Fleet Standby / Non-Working"
+            elif "leave" in win_l:
+                t_ist = "Approved Leave (Backfilled)"
+                t_est = "Off Fleet Roster"
+            else:
+                t_ist = "Scheduled Week Off (Rest Day)"
+                t_est = "Off Duty / Standby"
+
+        card_timing = (
+            '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
+            f'<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;">{timing_title}</div>'
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+            '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
+            '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN EST (UTC-5)</div>'
+            f'<div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--ink);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(t_est)}</div>'
+            '</div>'
+            '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
+            '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN IST (UTC+5:30)</div>'
+            f'<div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:#38bdf8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(t_ist)}</div>'
+            '</div></div></div>'
+        )
+        st.markdown(card_timing, unsafe_allow_html=True)
 
         # 3. 3-Tier Escalation Hierarchy Lineage
         t1_name = matching_esc.get("tier1_name") or "Abhijit Vajja / Sreekanth Veluguleti"
@@ -1336,9 +1456,14 @@ def render_on_call_workspace(db_path: str) -> None:
         t2_border = "border-left:3px solid #10b981;background:rgba(16,185,129,0.08);" if is_sdm_focused else "border-left:3px solid #f59e0b;background:#141619;"
         t2_badge = '<span style="font-size:8px;color:#10b981;font-weight:700;">● FILTER FOCUS</span>' if is_sdm_focused else '<span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">SDM Lead</span>'
 
+        # Tier 1 badge label (Correct TL for PS, TM for Non-Core)
+        if cur_div == "Production Support 24x7" or eng_div == "Production Support":
+            t1_badge_label = "Offshore TL"
+        elif cur_div == "Non-Core Dev" or eng_div == "Non-Core Dev":
+            t1_badge_label = "Tech Mgr (TM)"
+        else:
+            t1_badge_label = "Lead TL"
 
-        # Tier 1
-        t1_badge_label = "Tech Mgr (TM)" if ("TM" in t1_title or eng_div == "Non-Core Dev") else "Offshore TL"
         card_esc_t1 = (
             '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #38bdf8;">'
             '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#38bdf8;width:42px;">TIER 1</span>'
@@ -1428,12 +1553,23 @@ def render_on_call_workspace(db_path: str) -> None:
                 unsafe_allow_html=True,
             )
 
-        # 5. Quick Dispatch Actions
+        # 5. Quick Dispatch Actions & 1-Click Clipboard Ready Block
         act_c1, act_c2 = st.columns(2)
         with act_c1:
             if st.button("📧 Dispatch Notice", key=f"oncall_disp_btn_{sel_name}", type="primary", use_container_width=True):
                 st.success(f"✓ Dispatch notice queued to {sel_name} and {t1_name} ({t1_title}).")
         with act_c2:
-            if st.button("📋 Copy Escalation", key=f"oncall_copy_btn_{sel_name}", type="secondary", use_container_width=True):
-                st.info(f"Escalation contacts for {sel_name} ({eng_domain}) copied to buffer.")
+            copy_clicked = st.button("📋 Copy Escalation", key=f"oncall_copy_btn_{sel_name}", type="secondary", use_container_width=True)
+            if copy_clicked:
+                ss["oncall_copy_target"] = sel_name if ss.get("oncall_copy_target") != sel_name else None
+
+        if ss.get("oncall_copy_target") == sel_name:
+            copy_txt = (
+                f"[ON-CALL ESCALATION] — {sel_name} ({eng_div} · {eng_domain})\n"
+                f"• Scheduled Shift: {t_ist}\n"
+                f"• Tier 1 ({t1_badge_label}, ≤15m): {t1_name} ({t1_title})\n"
+                f"• Tier 2 (SDM Lead, ≤30m): {t2_name} ({t2_title})\n"
+                f"• Tier 3 (Executive Escalation): {t3_name} ({t3_title})"
+            )
+            st.code(copy_txt, language="text")
         st.markdown("</div>", unsafe_allow_html=True)

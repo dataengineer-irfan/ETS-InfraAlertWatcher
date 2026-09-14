@@ -30,8 +30,6 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import report  # noqa: E402
 import ui  # noqa: E402
-import importlib
-importlib.reload(ui)
 from db import (  # noqa: E402
     ensure_metric_snapshots,
     get_connection,
@@ -65,9 +63,6 @@ from notifier import (  # noqa: E402
 )
 from ingest_releases import run_release_ingest  # noqa: E402
 from release_plan import render_release_plan_workspace
-import importlib
-import on_call
-importlib.reload(on_call)
 from on_call import render_on_call_workspace
 
 DB_PATH = os.environ.get("EXPIRY_DB_PATH", str(ROOT / "data" / "expiry.db"))
@@ -382,7 +377,9 @@ def render_login_gate(db_path: str) -> None:
         """, unsafe_allow_html=True)
 
 
-ensure_ingested()
+if not st.session_state.get("_ingested_verified", False):
+    ensure_ingested()
+    st.session_state["_ingested_verified"] = True
 
 # Session State Initialization & Authentication Gate
 if "authenticated" not in st.session_state:

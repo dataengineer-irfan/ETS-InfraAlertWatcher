@@ -76,6 +76,17 @@ def verify_on_call():
             page.screenshot(path=shot3)
             print(f"[+] Saved screenshot 3: {shot3}")
 
+        # 4b. Switch to Non-Core Dev Tab
+        nc_btn = page.locator('button:has-text("Non-Core Dev")')
+        if nc_btn.count() > 0:
+            print("Switching to Non-Core Dev division...")
+            nc_btn.first.click()
+            time.sleep(4)
+
+            shot_nc = str(ARTIFACT_DIR / "oncall_hub_noncore_master_detail.png")
+            page.screenshot(path=shot_nc)
+            print(f"[+] Saved screenshot NC: {shot_nc}")
+
         # 5. Test Timezone Toggle to EST
         est_btn = page.locator('button:has-text("EST (UTC-5)")')
         if est_btn.count() > 0:
