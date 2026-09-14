@@ -3285,7 +3285,7 @@ if active_scope_state in ["NH", "ND", "AK"]:
         st.markdown(
             f"<div style='display:inline-flex;align-items:center;gap:8px;padding:3px 10px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:3px;font-size:11px;color:#38bdf8;margin-bottom:6px;'>"
             f"<b>🔒 Scope Locked:</b> <span style='font-family:var(--mono);'>{active_scope_state} MMIS</span>{rel_tag} "
-            f"<span style='color:var(--slate);font-size:10px;'>(Applied across all 5 dashboard views)</span>"
+            f"<span style='color:var(--slate);font-size:10px;'>(Applied across all 6 dashboard views)</span>"
             f"</div>",
             unsafe_allow_html=True
         )
