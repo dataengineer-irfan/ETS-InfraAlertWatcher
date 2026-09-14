@@ -2142,4 +2142,44 @@ def on_call_avatar(name: str) -> str:
     )
 
 
-
+def csv_download_button(
+    df,
+    filename: str,
+    label: str = "📥 Export CSV",
+    key: str | None = None,
+) -> str:
+    """
+    Renders an enterprise client-side CSV download button that bypasses
+    ephemeral server-side /media/ session endpoints.
+    
+    This avoids Streamlit's internal MediaFileManager 404s when running behind
+    reverse proxies (e.g. Render) or across session reruns.
+    """
+    import base64
+    if isinstance(df, (str, bytes)):
+        if isinstance(df, str):
+            csv_bytes = df.encode("utf-8")
+        else:
+            csv_bytes = df
+    elif hasattr(df, "to_csv"):
+        csv_bytes = df.to_csv(index=False).encode("utf-8")
+    else:
+        csv_bytes = str(df).encode("utf-8")
+        
+    b64 = base64.b64encode(csv_bytes).decode("utf-8")
+    href = f"data:text/csv;base64,{b64}"
+    btn_id = f"ets_dl_{key}" if key else f"ets_dl_{abs(hash(filename)) % 100000}"
+    
+    return (
+        f'<a id="{btn_id}" href="{href}" download="{escape(filename)}" style="'
+        f'display:flex;align-items:center;justify-content:center;width:100%;height:38px;'
+        f'box-sizing:border-box;border-radius:4px;background-color:#262730;color:#fafafa;'
+        f'border:1px solid rgba(250,250,250,0.2);font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;'
+        f'font-size:14px;font-weight:500;text-decoration:none;cursor:pointer;padding:0 14px;margin:0;'
+        f'transition:background-color 0.15s ease,border-color 0.15s ease,color 0.15s ease;user-select:none;" '
+        f'onmouseover="this.style.backgroundColor=\'rgba(255,255,255,0.08)\';this.style.borderColor=\'#5794f2\';this.style.color=\'#ffffff\';" '
+        f'onmouseout="this.style.backgroundColor=\'#262730\';this.style.borderColor=\'rgba(250,250,250,0.2)\';this.style.color=\'#fafafa\';" '
+        f'title="Download {escape(filename)}">'
+        f'{escape(label)}'
+        f'</a>'
+    )

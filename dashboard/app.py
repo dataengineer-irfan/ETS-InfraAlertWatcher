@@ -30,6 +30,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import report  # noqa: E402
 import ui  # noqa: E402
+import importlib
+importlib.reload(ui)
 from db import (  # noqa: E402
     ensure_metric_snapshots,
     get_connection,
@@ -134,7 +136,10 @@ if hasattr(st, "html"):
            m.indexOf('ambient-light-sensor') !== -1 ||
            m.indexOf('legacy-image-formats') !== -1 ||
            m.indexOf('oversized-images') !== -1 ||
-           m.indexOf('wake-lock') !== -1;
+           m.indexOf('wake-lock') !== -1 ||
+           m.indexOf('Download Button source error') !== -1 ||
+           m.indexOf('source error - 404') !== -1 ||
+           m.indexOf('/media/') !== -1;
   };
   console.warn = function(...args) {
     if (args.length > 0 && isSuppressed(args[0])) return;
@@ -742,14 +747,15 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         len(selected_entity_ids) > 0
     )
 
-    csv_data = filtered.to_csv(index=False).encode("utf-8")
-    if hasattr(st, "download_button"):
-        f6.download_button(
-            label="📥 Export CSV",
-            data=csv_data,
-            file_name=f"expiry_operations_{date.today().isoformat()}.csv",
-            mime="text/csv",
-            use_container_width=True,
+    with f6:
+        st.markdown(
+            ui.csv_download_button(
+                df=filtered,
+                filename=f"expiry_operations_{date.today().isoformat()}.csv",
+                label="📥 Export CSV",
+                key=f"op_export_csv_{reset_idx}",
+            ),
+            unsafe_allow_html=True,
         )
 
     with f7:
@@ -3091,18 +3097,17 @@ def render_rbac_workspace() -> None:
             search_query = st.text_input("Search Actor / Target / Details", key="rbac_audit_search", placeholder="Filter events...")
         with aud_f3:
             st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-            # CSV Download
             conn_csv = get_connection(DB_PATH)
             df_audit_full = pd.read_sql_query("SELECT timestamp, actor, role, action, target_entity, details, ip_address FROM audit_log ORDER BY id DESC", conn_csv)
             conn_csv.close()
-            csv_data = df_audit_full.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Export Audit CSV",
-                data=csv_data,
-                file_name=f"ets_security_audit_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                key="rbac_audit_download_btn",
-                use_container_width=True,
+            st.markdown(
+                ui.csv_download_button(
+                    df=df_audit_full,
+                    filename=f"ets_security_audit_{date.today().isoformat()}.csv",
+                    label="📥 Export Audit CSV",
+                    key="rbac_audit_csv_btn",
+                ),
+                unsafe_allow_html=True,
             )
 
         filtered_logs = audit_logs
