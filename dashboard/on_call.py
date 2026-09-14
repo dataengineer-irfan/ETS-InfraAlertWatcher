@@ -498,6 +498,12 @@ def render_on_call_workspace(db_path: str) -> None:
     .oc-team-infra { background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8.5px; font-weight: 700; }
     .oc-team-noncore { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8.5px; font-weight: 700; }
     .oc-team-core { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8.5px; font-weight: 700; }
+    .oc-esc-card { background: #181b1f; border: 1px solid #2c3235; border-radius: 3px; padding: 8px 12px; margin-bottom: 7px; }
+    .oc-esc-card:hover { border-color: #38bdf8; }
+    .oc-tier-badge-1 { background: rgba(56,189,248,0.14); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8px; font-weight: 700; }
+    .oc-tier-badge-2 { background: rgba(245,158,11,0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8px; font-weight: 700; }
+    .oc-tier-badge-3 { background: rgba(239,68,68,0.14); color: #f87171; border: 1px solid rgba(239,68,68,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8px; font-weight: 700; }
+    .oc-sla-pill { background: rgba(255,255,255,0.06); color: #94a3b8; border-radius: 2px; padding: 1px 4px; font-size: 8px; font-weight: 600; font-family: var(--mono); }
     thead th { position: sticky; top: 0; background: #141619; z-index: 5; }
     </style>
     """, unsafe_allow_html=True)
@@ -506,7 +512,7 @@ def render_on_call_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 3. Slim Executive Header (Title & Cycle Scope & Action Controls)
     # --------------------------------------------------------------------------
-    c_h_left, c_h_right = st.columns([8.2, 1.8])
+    c_h_left, c_h_right = st.columns([7.4, 2.6])
 
     with c_h_left:
         st_val = ss["oncall_state_filter"]
@@ -753,6 +759,11 @@ def render_on_call_workspace(db_path: str) -> None:
         kpi5_val = '14 <span style="font-size:10px;color:#6e7681;font-weight:400;">Domains</span>'
         kpi5_sub = "Infra &bull; Core &bull; Non-Core"
         kpi5_cls = "oc-stat-fill-purple"
+    elif cur_div == "State Escalation Matrix":
+        kpi5_label = "SLA Targets"
+        kpi5_val = '<span style="font-size:12px;font-weight:800;">T1 &lt;15m &bull; T2 &lt;30m</span>'
+        kpi5_sub = "Executive Incident Lineage"
+        kpi5_cls = "oc-stat-fill-red"
     elif cur_div == "Non-Core Dev":
         kpi5_label = "Technical Managers"
         kpi5_val = f'{tm_count} <span style="font-size:10px;color:#6e7681;font-weight:400;">Active</span>'
@@ -823,16 +834,7 @@ def render_on_call_workspace(db_path: str) -> None:
         [s["secondary_on_call"] for s in shifts_with_sdm if s.get("secondary_on_call") and s.get("secondary_on_call") not in ["—", "None", ""]]
     )))
 
-    if not ss.get("oncall_selected_eng") or ss["oncall_selected_eng"] not in all_available_engineers:
-        if distinct_active_now:
-            ss["oncall_selected_eng"] = distinct_active_now[0]
-        elif all_available_engineers:
-            ss["oncall_selected_eng"] = all_available_engineers[0]
-
-    cur_selected = ss.get("oncall_selected_eng")
-    safe_eng_idx = all_available_engineers.index(cur_selected) if cur_selected in all_available_engineers else 0
-
-    c_nav, c_tools = st.columns([3.5, 2.5])
+    c_nav, c_tools = st.columns([4.4, 1.6])
 
     with c_nav:
         div_names = [
@@ -842,14 +844,16 @@ def render_on_call_workspace(db_path: str) -> None:
             "Infrastructure Ops",
             "State Core Dev",
             "Non-Core Dev",
+            "State Escalation Matrix",
         ]
         div_short_labels = [
             "🧩 Today",
             "⚡ Live Ops",
-            "🏢 Prod Support",
-            "⚙️ Infra Ops",
+            "🏢 Support",
+            "⚙️ Infra",
             "🏛️ Core Dev",
             "📦 Non-Core",
+            "🚨 Escalation",
         ]
         d_cols = st.columns(len(div_names))
         for idx, d_title in enumerate(div_names):
@@ -869,12 +873,12 @@ def render_on_call_workspace(db_path: str) -> None:
     cur_div = ss["oncall_div"]
 
     with c_tools:
-        s1, s2, s3 = st.columns([1.5, 1.5, 0.7])
+        s1, s2 = st.columns([1.5, 0.5])
         with s1:
             search_val = st.text_input(
                 "Search",
                 value=ss["oncall_search"],
-                placeholder="🔍 Search engineer, domain...",
+                placeholder="🔍 Search engineer, domain, lead...",
                 key="oncall_global_search_input",
                 label_visibility="collapsed",
             )
@@ -883,18 +887,6 @@ def render_on_call_workspace(db_path: str) -> None:
                 ss["oncall_shift_page"] = 0
                 st.rerun()
         with s2:
-            picked_eng = st.selectbox(
-                "Inspect Person",
-                all_available_engineers,
-                index=safe_eng_idx,
-                key="oncall_unified_eng_picker",
-                label_visibility="collapsed",
-                help="Select engineer to inspect in the Detail Inspector panel",
-            )
-            if picked_eng != ss.get("oncall_selected_eng"):
-                ss["oncall_selected_eng"] = picked_eng
-                st.rerun()
-        with s3:
             tz_label = "IST" if use_ist else "EST"
             st.markdown(
                 f'<div style="font-size:10px;font-weight:700;color:var(--slate);line-height:28px;text-align:right;">'
@@ -905,14 +897,112 @@ def render_on_call_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 8. Master-Detail Command Workspace (58% Master / 42% Detail Inspector)
     # --------------------------------------------------------------------------
-    master_col, detail_col = st.columns([3.5, 2.5])
-
     target_day = None
     if ss["oncall_day_filter"] != "All Days":
         target_day = ss["oncall_day_filter"].split("(")[-1].replace(")", "").strip()
 
     quick_status = ss.get("oncall_quick_status", "All")
+
+    # Compute Today's Module shifts
+    mod_date = target_day if target_day else "2026-09-14"
+    mod_shifts = [s for s in shifts_with_sdm if s["shift_date"] == mod_date]
+
+    if cur_shift_chip:
+        mod_shifts = [s for s in mod_shifts if _matches_domain_slot(cur_shift_chip, s.get("shift_slot", 0))]
+    elif loc_slicer == "🌏 Offshore (IST)":
+        mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [1, 2]]
+    elif loc_slicer == "🏛️ Onshore (EST)":
+        mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [3, 4]]
+    else:
+        mod_shifts_curr = [s for s in mod_shifts if s.get("shift_slot") == cur_slot]
+        if mod_shifts_curr:
+            mod_shifts = mod_shifts_curr
+        else:
+            mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [1, 3]]
+
+    if state_slicer != "All States":
+        st_code = state_slicer.split()[0].upper()
+        mod_shifts = [
+            s for s in mod_shifts
+            if st_code in s["domain_state"].upper() or s["division"] in ["Infra Team", "Non-Core Dev"]
+        ]
+
+    if clean_sdm_name:
+        mod_shifts = [
+            s for s in mod_shifts
+            if clean_sdm_name.lower() in s.get("governed_sdm", "").lower()
+        ]
+
+    if ss["oncall_search"].strip():
+        q_term = ss["oncall_search"].strip().lower()
+        mod_shifts = [
+            s for s in mod_shifts
+            if q_term in s["domain_state"].lower()
+            or q_term in (s.get("primary_on_call") or "").lower()
+            or q_term in (s.get("secondary_on_call") or "").lower()
+            or q_term in s.get("governed_sdm", "").lower()
+            or q_term in s["division"].lower()
+        ]
+
+    div_order = {"Infra Team": 0, "Non-Core Dev": 1, "Core Dev": 2}
+    mod_shifts.sort(key=lambda m: (div_order.get(m["division"], 3), m["domain_state"]))
+
+    # Dynamic Contextual Scoping for Detail Inspector
+    if cur_div == "Module On-Call — Today":
+        scoped_engineers = sorted(list(set(
+            [m.get("primary_on_call") for m in mod_shifts if m.get("primary_on_call")] +
+            [m.get("secondary_on_call") for m in mod_shifts if m.get("secondary_on_call") and m.get("secondary_on_call") not in ["—", "None", "", None]]
+        )))
+    elif cur_div == "Production Support 24x7":
+        if ss["oncall_search"].strip():
+            q_term = ss["oncall_search"].strip().lower()
+            scoped_engineers = sorted(list(set([p["resource_name"] for p in all_ps if p.get("resource_name") and q_term in p["resource_name"].lower()])))
+        else:
+            scoped_engineers = sorted(list(set([p["resource_name"] for p in all_ps if p.get("resource_name")])))
+    elif cur_div == "Non-Core Dev":
+        nc_shifts_base = [s for s in shifts_with_sdm if s["division"] == "Non-Core Dev"]
+        if ss.get("oncall_dom_filter", "All Domains") != "All Domains":
+            nc_shifts_base = [s for s in nc_shifts_base if s["domain_state"] == ss["oncall_dom_filter"]]
+        scoped_engineers = sorted(list(set(
+            [s["primary_on_call"] for s in nc_shifts_base if s.get("primary_on_call")] +
+            [s["secondary_on_call"] for s in nc_shifts_base if s.get("secondary_on_call") and s.get("secondary_on_call") not in ["—", "None", "", None]]
+        )))
+    elif cur_div == "Infrastructure Ops":
+        inf_shifts_base = [s for s in shifts_with_sdm if s["division"] == "Infra Team"]
+        if ss.get("oncall_dom_filter", "All Domains") != "All Domains":
+            inf_shifts_base = [s for s in inf_shifts_base if s["domain_state"] == ss["oncall_dom_filter"]]
+        scoped_engineers = sorted(list(set(
+            [s["primary_on_call"] for s in inf_shifts_base if s.get("primary_on_call")] +
+            [s["secondary_on_call"] for s in inf_shifts_base if s.get("secondary_on_call") and s.get("secondary_on_call") not in ["—", "None", "", None]]
+        )))
+    elif cur_div == "State Core Dev":
+        core_shifts_base = [s for s in shifts_with_sdm if s["division"] == "Core Dev"]
+        scoped_engineers = sorted(list(set(
+            [s["primary_on_call"] for s in core_shifts_base if s.get("primary_on_call")] +
+            [s["secondary_on_call"] for s in core_shifts_base if s.get("secondary_on_call") and s.get("secondary_on_call") not in ["—", "None", "", None]]
+        )))
+    elif cur_div == "Live Ops Radar":
+        scoped_engineers = sorted(list(set(distinct_active_now)))
+    elif cur_div == "State Escalation Matrix":
+        scoped_engineers = [
+            "Kavita Doraisamy", "Kishore Kanuparthi", "Kishore Nagarajan", "Ravi M Shankar",
+            "Sreekanth Veluguleti", "Ajit Gandhi", "Anil Kumar Khamari", "Thirupathi Katakam",
+            "Anand", "Sunil P", "Dipak/Rama", "Madhav",
+            "Anil Tankala", "Irfan", "Bichitra Sahoo"
+        ]
+    else:
+        scoped_engineers = all_available_engineers
+
+    if not scoped_engineers:
+        scoped_engineers = all_available_engineers
+
+    # Auto-synchronize selection to active scope
+    if ss.get("oncall_selected_eng") not in scoped_engineers:
+        ss["oncall_selected_eng"] = scoped_engineers[0]
+
     cur_selected = ss.get("oncall_selected_eng")
+
+    master_col, detail_col = st.columns([3.5, 2.5])
 
     # ==========================================================================
     # MASTER PANE (Left Column)
@@ -920,49 +1010,6 @@ def render_on_call_workspace(db_path: str) -> None:
     with master_col:
         # A. MODE 1: MODULE ON-CALL — TODAY (Dedicated Real-Time Module Matrix)
         if cur_div == "Module On-Call — Today":
-            mod_date = target_day if target_day else "2026-09-14"
-            mod_shifts = [s for s in shifts_with_sdm if s["shift_date"] == mod_date]
-
-            # Slot filter: active slot cur_slot unless chip filtered
-            if cur_shift_chip:
-                mod_shifts = [s for s in mod_shifts if _matches_domain_slot(cur_shift_chip, s.get("shift_slot", 0))]
-            elif loc_slicer == "🌏 Offshore (IST)":
-                mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [1, 2]]
-            elif loc_slicer == "🏛️ Onshore (EST)":
-                mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [3, 4]]
-            else:
-                mod_shifts_curr = [s for s in mod_shifts if s.get("shift_slot") == cur_slot]
-                if mod_shifts_curr:
-                    mod_shifts = mod_shifts_curr
-                else:
-                    mod_shifts = [s for s in mod_shifts if s.get("shift_slot") in [1, 3]]
-
-            # State Slicer filter
-            if state_slicer != "All States":
-                st_code = state_slicer.split()[0].upper()
-                mod_shifts = [
-                    s for s in mod_shifts
-                    if st_code in s["domain_state"].upper() or s["division"] in ["Infra Team", "Non-Core Dev"]
-                ]
-
-            # SDM Slicer filter
-            if clean_sdm_name:
-                mod_shifts = [
-                    s for s in mod_shifts
-                    if clean_sdm_name.lower() in s.get("governed_sdm", "").lower()
-                ]
-
-            # Search filter
-            if ss["oncall_search"].strip():
-                q_term = ss["oncall_search"].strip().lower()
-                mod_shifts = [
-                    s for s in mod_shifts
-                    if q_term in s["domain_state"].lower()
-                    or q_term in (s.get("primary_on_call") or "").lower()
-                    or q_term in (s.get("secondary_on_call") or "").lower()
-                    or q_term in s.get("governed_sdm", "").lower()
-                    or q_term in s["division"].lower()
-                ]
 
             # Sort modules: Infra Ops first, then Non-Core, then Core Dev
             div_order = {"Infra Team": 0, "Non-Core Dev": 1, "Core Dev": 2}
@@ -1211,7 +1258,175 @@ def render_on_call_workspace(db_path: str) -> None:
             )
             st.markdown(table_crosstab_html, unsafe_allow_html=True)
 
-        # C. MODE 3: LIVE OPS RADAR & DIVISION SHIFTS (Infra / Core Dev / Non-Core Dev)
+        # C. MODE 3: STATE MMIS INCIDENT ESCALATION MATRIX
+        elif cur_div == "State Escalation Matrix":
+            st.markdown(
+                '<div style="font-size:12px;font-weight:800;color:var(--ink);line-height:28px;display:flex;align-items:center;gap:8px;">'
+                '🚨 State MMIS Incident Escalation Matrix &bull; <span style="font-size:9.5px;color:#f43f5e;font-weight:700;">ACTIVE ROTATION</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+            state_esc_configs = [
+                {
+                    "state": "AK MMIS",
+                    "title": "🏛️ Alaska MMIS (AK DEV)",
+                    "code": "AK",
+                    "offshore": {
+                        "t1": ("Kavita Doraisamy", "Technical Lead (Offshore TL)", "< 15 Mins"),
+                        "t2": ("Kishore Nagarajan", "Service Delivery Manager (SDM)", "< 30 Mins"),
+                        "t3": ("Radhakanta Samantara", "Project Director (Executive)", "Immediate"),
+                    },
+                    "onshore": {
+                        "t1": ("Kishore Kanuparthi", "Technical Lead (Onshore TL)", "< 15 Mins"),
+                        "t2": ("Ravi M Shankar", "Service Delivery Manager (SDM)", "< 30 Mins"),
+                        "t3": ("Abhilash Pulikkathodi", "Project Director (Executive)", "Immediate"),
+                    }
+                },
+                {
+                    "state": "ND MMIS",
+                    "title": "🏛️ North Dakota MMIS (ND DEV)",
+                    "code": "ND",
+                    "offshore": {
+                        "t1": ("Sreekanth Veluguleti", "Technical Lead (Offshore TL)", "< 15 Mins"),
+                        "t2": ("Anil Kumar Khamari", "Service Delivery Manager (SDM)", "< 30 Mins"),
+                        "t3": ("Radhakanta Samantara", "Project Director (Executive)", "Immediate"),
+                    },
+                    "onshore": {
+                        "t1": ("Ajit Gandhi", "Technical Lead (Onshore TL)", "< 15 Mins"),
+                        "t2": ("Thirupathi Katakam", "Service Delivery Manager (SDM)", "< 30 Mins"),
+                        "t3": ("Abhilash Pulikkathodi", "Project Director (Executive)", "Immediate"),
+                    }
+                },
+                {
+                    "state": "NH MMIS",
+                    "title": "🏛️ New Hampshire MMIS (NH DEV)",
+                    "code": "NH",
+                    "offshore": {
+                        "t1": ("Anand", "Technical Lead (Offshore TL)", "< 15 Mins"),
+                        "t2": ("Dipak/Rama", "Service Delivery Manager (SDM)", "< 30 Mins"),
+                        "t3": ("Radhakanta Samantara", "Project Director (Executive)", "Immediate"),
+                    },
+                    "onshore": {
+                        "t1": ("Sunil P", "Technical Lead (Onshore TL)", "< 15 Mins"),
+                        "t2": ("Madhav", "Service Delivery Manager (SDM)", "< 30 Mins"),
+                        "t3": ("Abhilash Pulikkathodi", "Project Director (Executive)", "Immediate"),
+                    }
+                },
+            ]
+
+            # Filter by State Slicer if selected
+            if state_slicer != "All States":
+                st_prefix = state_slicer.split()[0].upper()
+                state_esc_configs = [c for c in state_esc_configs if c["code"] in st_prefix]
+
+            # Text search filter
+            if ss["oncall_search"].strip():
+                q_term = ss["oncall_search"].strip().lower()
+                state_esc_configs = [
+                    c for c in state_esc_configs
+                    if q_term in c["title"].lower()
+                    or q_term in c["offshore"]["t1"][0].lower()
+                    or q_term in c["offshore"]["t2"][0].lower()
+                    or q_term in c["onshore"]["t1"][0].lower()
+                    or q_term in c["onshore"]["t2"][0].lower()
+                ]
+
+            esc_cards_html = []
+            for cfg in state_esc_configs:
+                off = cfg["offshore"]
+                on = cfg["onshore"]
+                card_html = (
+                    '<div class="oc-esc-card">'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #22252b;padding-bottom:5px;margin-bottom:6px;">'
+                    f'<div style="font-size:11.5px;font-weight:800;color:#f8fafc;display:flex;align-items:center;gap:6px;">'
+                    f'<span>{escape(cfg["title"])}</span>'
+                    '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.12);font-size:8px;border:1px solid rgba(16,185,129,0.3);">ACTIVE CHAIN</span>'
+                    '</div>'
+                    '<div style="font-size:8.5px;color:var(--slate);">SLA Response: Tier 1 &lt;15m &bull; Tier 2 &lt;30m</div>'
+                    '</div>'
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+                    '<!-- Offshore IST -->'
+                    '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 8px;">'
+                    '<div style="font-size:9px;font-weight:700;color:#38bdf8;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;">'
+                    '<span>🌏 OFFSHORE SHIFTS (IST / UTC+5:30)</span>'
+                    '<span class="oc-sla-pill">Slot 1 &amp; 2</span>'
+                    '</div>'
+                    '<div style="margin-bottom:4px;">'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;"><span class="oc-tier-badge-1">TIER 1 (TL)</span><span class="oc-sla-pill">&lt; 15m</span></div>'
+                    f'<div style="font-size:10.5px;font-weight:700;color:#f8fafc;margin-top:1px;">{escape(off["t1"][0])}</div>'
+                    f'<div style="font-size:8px;color:var(--slate);">{escape(off["t1"][1])}</div>'
+                    '</div>'
+                    '<div style="margin-bottom:4px;">'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;"><span class="oc-tier-badge-2">TIER 2 (SDM)</span><span class="oc-sla-pill">&lt; 30m</span></div>'
+                    f'<div style="font-size:10.5px;font-weight:700;color:#fbbf24;margin-top:1px;">{escape(off["t2"][0])}</div>'
+                    f'<div style="font-size:8px;color:var(--slate);">{escape(off["t2"][1])}</div>'
+                    '</div>'
+                    '<div>'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;"><span class="oc-tier-badge-3">TIER 3 (DIR)</span><span class="oc-sla-pill">Executive</span></div>'
+                    f'<div style="font-size:10.5px;font-weight:700;color:#f87171;margin-top:1px;">{escape(off["t3"][0])}</div>'
+                    f'<div style="font-size:8px;color:var(--slate);">{escape(off["t3"][1])}</div>'
+                    '</div>'
+                    '</div>'
+                    '<!-- Onshore EST -->'
+                    '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 8px;">'
+                    '<div style="font-size:9px;font-weight:700;color:#10b981;margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;">'
+                    '<span>🏛️ ONSHORE SHIFTS (EST / UTC-5)</span>'
+                    '<span class="oc-sla-pill">Slot 3 &amp; 4</span>'
+                    '</div>'
+                    '<div style="margin-bottom:4px;">'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;"><span class="oc-tier-badge-1">TIER 1 (TL)</span><span class="oc-sla-pill">&lt; 15m</span></div>'
+                    f'<div style="font-size:10.5px;font-weight:700;color:#f8fafc;margin-top:1px;">{escape(on["t1"][0])}</div>'
+                    f'<div style="font-size:8px;color:var(--slate);">{escape(on["t1"][1])}</div>'
+                    '</div>'
+                    '<div style="margin-bottom:4px;">'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;"><span class="oc-tier-badge-2">TIER 2 (SDM)</span><span class="oc-sla-pill">&lt; 30m</span></div>'
+                    f'<div style="font-size:10.5px;font-weight:700;color:#fbbf24;margin-top:1px;">{escape(on["t2"][0])}</div>'
+                    f'<div style="font-size:8px;color:var(--slate);">{escape(on["t2"][1])}</div>'
+                    '</div>'
+                    '<div>'
+                    '<div style="display:flex;align-items:center;justify-content:space-between;"><span class="oc-tier-badge-3">TIER 3 (DIR)</span><span class="oc-sla-pill">Executive</span></div>'
+                    f'<div style="font-size:10.5px;font-weight:700;color:#f87171;margin-top:1px;">{escape(on["t3"][0])}</div>'
+                    f'<div style="font-size:8px;color:var(--slate);">{escape(on["t3"][1])}</div>'
+                    '</div>'
+                    '</div>'
+                    '</div>'
+                    '</div>'
+                )
+                esc_cards_html.append(card_html)
+
+            infra_nc_summary_html = (
+                '<div class="oc-esc-card">'
+                '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #22252b;padding-bottom:5px;margin-bottom:6px;">'
+                '<div style="font-size:11px;font-weight:800;color:#f8fafc;">⚙️ Infrastructure &amp; Non-Core Enterprise Escalations</div>'
+                '<div style="font-size:8.5px;color:var(--slate);">Domain Technical Managers &amp; Operations Leads</div>'
+                '</div>'
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+                '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 8px;">'
+                '<div style="font-size:9px;font-weight:700;color:#38bdf8;margin-bottom:3px;">INFRASTRUCTURE OPS</div>'
+                '<div style="font-size:9.5px;color:#f8fafc;margin-top:2px;">• <b>Tier 1:</b> Abhijit Vajja (Offshore Lead)</div>'
+                '<div style="font-size:9.5px;color:#fbbf24;margin-top:2px;">• <b>Tier 2 (SDM):</b> Anil Tankala (Lead SDM)</div>'
+                '<div style="font-size:9.5px;color:#f87171;margin-top:2px;">• <b>Tier 3 (PD):</b> Nagarajan Kochunni / Satish Kondamuri</div>'
+                '</div>'
+                '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 8px;">'
+                '<div style="font-size:9px;font-weight:700;color:#c084fc;margin-bottom:3px;">NON-CORE DEV (COGNOS, INFORMATICA, EDI)</div>'
+                '<div style="font-size:9.5px;color:#f8fafc;margin-top:2px;">• <b>Tier 1 (TM):</b> Irfan (Cognos) / Mahesh / Kishore N / Bichitra S.</div>'
+                '<div style="font-size:9.5px;color:#fbbf24;margin-top:2px;">• <b>Tier 2 (SDM):</b> State Specific SDM (Governing MMIS)</div>'
+                '<div style="font-size:9.5px;color:#f87171;margin-top:2px;">• <b>Tier 3 (PD):</b> Radhakanta Samantara / Abhilash Pulikkathodi</div>'
+                '</div>'
+                '</div>'
+                '</div>'
+            )
+
+            container_esc_html = (
+                f"<div style='max-height:calc(100vh - 240px);overflow-y:auto;padding-right:4px;'>"
+                f"{''.join(esc_cards_html)}"
+                f"{infra_nc_summary_html if state_slicer == 'All States' else ''}"
+                f"</div>"
+            )
+            st.markdown(container_esc_html, unsafe_allow_html=True)
+
+        # D. MODE 4: LIVE OPS RADAR & DIVISION SHIFTS (Infra / Core Dev / Non-Core Dev)
         else:
             filtered_shifts = shifts_with_sdm.copy()
 
@@ -1432,7 +1647,31 @@ def render_on_call_workspace(db_path: str) -> None:
     # DETAIL INSPECTOR PANE (Right Column)
     # ==========================================================================
     with detail_col:
-        sel_name = ss.get("oncall_selected_eng") or (distinct_active_now[0] if distinct_active_now else "Operations Lead")
+        st.markdown('<div style="max-height:calc(100vh - 240px);overflow-y:auto;padding-right:4px;">', unsafe_allow_html=True)
+
+        insp_col_left, insp_col_right = st.columns([1.3, 2.7])
+        with insp_col_left:
+            st.markdown(
+                '<div style="font-size:11px;font-weight:800;color:#38bdf8;line-height:28px;text-transform:uppercase;letter-spacing:0.02em;">'
+                '🔍 Personnel'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        with insp_col_right:
+            insp_picker_key = f"oncall_insp_picker_{cur_div}"
+            if insp_picker_key not in ss or ss[insp_picker_key] not in scoped_engineers:
+                ss[insp_picker_key] = scoped_engineers[0]
+            picked_eng = st.selectbox(
+                "Inspect Person",
+                scoped_engineers,
+                index=scoped_engineers.index(ss[insp_picker_key]),
+                key=insp_picker_key,
+                label_visibility="collapsed",
+                help=f"Select personnel scoped to {cur_div}",
+            )
+            ss["oncall_selected_eng"] = picked_eng
+
+        sel_name = picked_eng
 
         matching_shifts = [s for s in shifts_with_sdm if s.get("primary_on_call") == sel_name or s.get("secondary_on_call") == sel_name]
         matching_ps = [p for p in all_ps if p.get("resource_name") == sel_name]
@@ -1446,6 +1685,15 @@ def render_on_call_workspace(db_path: str) -> None:
             k_exact = (ref_s["division"], ref_s["domain_state"], ref_s["shift_slot"], ref_s["shift_date"])
             matching_esc = esc_lookup.get(k_exact) or esc_fallback.get((ref_s["division"], ref_s["domain_state"]))
 
+        # Check if sel_name is an SDM or TL in all_escs
+        if not matching_esc:
+            for esc in all_escs:
+                if sel_name in [esc.get("tier1_name"), esc.get("tier2_name"), esc.get("tier3_name")]:
+                    matching_esc = esc
+                    eng_div = esc["division"]
+                    eng_domain = esc["domain_state"]
+                    break
+
         if not matching_esc:
             matching_esc = {
                 "tier1_name": "Abhijit Vajja / Sreekanth Veluguleti",
@@ -1455,13 +1703,6 @@ def render_on_call_workspace(db_path: str) -> None:
                 "tier3_name": "Nagarajan Kochunni / Radhakanta Samantara",
                 "tier3_title": "Project Director (PD)",
             }
-
-        st.markdown('<div style="max-height:calc(100vh - 240px);overflow-y:auto;padding-right:4px;">', unsafe_allow_html=True)
-        st.markdown(ui.panel_header(
-            "On-Call Personnel & Escalation Inspector",
-            color="#38bdf8",
-            info="Contextual identity, active shift windows, and 3-tier escalation authority for on-call personnel.",
-        ), unsafe_allow_html=True)
 
         # 1. Profile Header Card & Contextual Duty Badge
         avatar_lg = ui.on_call_avatar(sel_name).replace("width:20px;height:20px;font-size:8.5px;", "width:36px;height:36px;font-size:13px;")
