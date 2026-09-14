@@ -3300,6 +3300,9 @@ if active_scope_state in ["NH", "ND", "AK"]:
             reset_idx = st.session_state.get("op_reset_idx", 0)
             st.session_state[f"op_state_{reset_idx}"] = "All States"
             st.session_state["sl_state_clean"] = "All States"
+            st.session_state["oncall_state_filter"] = "All States"
+            if "oncall_state_pick" in st.session_state:
+                st.session_state["oncall_state_pick"] = "All States"
             if "rp_target_rel_picker" in st.session_state:
                 del st.session_state["rp_target_rel_picker"]
             st.rerun()

@@ -405,8 +405,10 @@ def render_on_call_workspace(db_path: str) -> None:
 
     # Resolve Scope Lock state from global app state
     active_scope_state = ss.get("_override_canvas_state") or ss.get("global_state_filter")
-    if active_scope_state in ["NH", "ND", "AK"] and ss["oncall_state_filter"] == "All States":
-        ss["oncall_state_filter"] = f"{active_scope_state} MMIS"
+    if active_scope_state in ["NH", "ND", "AK"]:
+        locked_state = f"{active_scope_state} MMIS"
+        ss["oncall_state_filter"] = locked_state
+        ss["oncall_state_pick"] = locked_state
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_utc = datetime.now(timezone.utc)
@@ -527,30 +529,52 @@ def render_on_call_workspace(db_path: str) -> None:
 
     with c_hdr2:
         # State Slicer (NH, ND, AK)
-        picked_state = st.selectbox(
-            "State Slicer",
-            _STATE_OPTIONS,
-            index=_STATE_OPTIONS.index(ss["oncall_state_filter"]) if ss["oncall_state_filter"] in _STATE_OPTIONS else 0,
-            key="oncall_state_pick",
-            label_visibility="collapsed",
-            help="Filter by MMIS State Scope (NH, ND, AK)",
-        )
-        if picked_state != ss["oncall_state_filter"]:
-            ss["oncall_state_filter"] = picked_state
-            ss["oncall_shift_page"] = 0
-            st.rerun()
+        if active_scope_state in ["NH", "ND", "AK"]:
+            locked_st = f"{active_scope_state} MMIS"
+            st.selectbox(
+                "State Slicer",
+                [locked_st],
+                index=0,
+                key="oncall_state_pick",
+                disabled=True,
+                label_visibility="collapsed",
+                help=f"Scope locked to {locked_st} via Global Filter",
+            )
+            ss["oncall_state_filter"] = locked_st
+        else:
+            cur_st = ss.get("oncall_state_filter", "All States")
+            if cur_st not in _STATE_OPTIONS:
+                cur_st = "All States"
+                ss["oncall_state_filter"] = "All States"
+            st_idx = _STATE_OPTIONS.index(cur_st)
+            picked_state = st.selectbox(
+                "State Slicer",
+                _STATE_OPTIONS,
+                index=st_idx,
+                key="oncall_state_pick",
+                label_visibility="collapsed",
+                help="Filter by MMIS State Scope (NH, ND, AK)",
+            )
+            if picked_state != ss.get("oncall_state_filter"):
+                ss["oncall_state_filter"] = picked_state
+                ss["oncall_shift_page"] = 0
 
     with c_hdr3:
         # Location Slicer (Offshore vs Onshore)
+        cur_loc = ss.get("oncall_location_filter", "All Locations")
+        if cur_loc not in _LOCATION_OPTIONS:
+            cur_loc = "All Locations"
+            ss["oncall_location_filter"] = "All Locations"
+        loc_idx = _LOCATION_OPTIONS.index(cur_loc)
         picked_loc = st.selectbox(
             "Location Slicer",
             _LOCATION_OPTIONS,
-            index=_LOCATION_OPTIONS.index(ss["oncall_location_filter"]) if ss["oncall_location_filter"] in _LOCATION_OPTIONS else 0,
+            index=loc_idx,
             key="oncall_location_pick",
             label_visibility="collapsed",
             help="Filter by Location: Offshore (IST) vs Onshore (EST)",
         )
-        if picked_loc != ss["oncall_location_filter"]:
+        if picked_loc != ss.get("oncall_location_filter"):
             ss["oncall_location_filter"] = picked_loc
             # Auto-align timezone clock
             if "Offshore" in picked_loc:
@@ -558,22 +582,25 @@ def render_on_call_workspace(db_path: str) -> None:
             elif "Onshore" in picked_loc:
                 ss["oncall_tz"] = "EST"
             ss["oncall_shift_page"] = 0
-            st.rerun()
 
     with c_hdr4:
         # SDM Slicer (Service Delivery Managers)
+        cur_sdm = ss.get("oncall_sdm_filter", "All SDMs")
+        if cur_sdm not in _SDM_OPTIONS:
+            cur_sdm = "All SDMs"
+            ss["oncall_sdm_filter"] = "All SDMs"
+        sdm_idx = _SDM_OPTIONS.index(cur_sdm)
         picked_sdm = st.selectbox(
             "SDM Slicer",
             _SDM_OPTIONS,
-            index=_SDM_OPTIONS.index(ss["oncall_sdm_filter"]) if ss["oncall_sdm_filter"] in _SDM_OPTIONS else 0,
+            index=sdm_idx,
             key="oncall_sdm_pick",
             label_visibility="collapsed",
             help="Filter by Service Delivery Manager (SDM Lead)",
         )
-        if picked_sdm != ss["oncall_sdm_filter"]:
+        if picked_sdm != ss.get("oncall_sdm_filter"):
             ss["oncall_sdm_filter"] = picked_sdm
             ss["oncall_shift_page"] = 0
-            st.rerun()
 
     with c_hdr5:
         # Quick Action Buttons
@@ -600,10 +627,15 @@ def render_on_call_workspace(db_path: str) -> None:
                     st.warning("No files found in _Input.")
         with act3:
             if st.button("✕", key="oncall_clear_filters_btn", type="secondary", use_container_width=True, help="Reset all filters"):
-                ss["oncall_state_filter"] = "All States"
+                def_st = f"{active_scope_state} MMIS" if active_scope_state in ["NH", "ND", "AK"] else "All States"
+                ss["oncall_state_filter"] = def_st
+                ss["oncall_state_pick"] = def_st
                 ss["oncall_location_filter"] = "All Locations"
+                ss["oncall_location_pick"] = "All Locations"
                 ss["oncall_sdm_filter"] = "All SDMs"
+                ss["oncall_sdm_pick"] = "All SDMs"
                 ss["oncall_day_filter"] = "All Days"
+                ss["oncall_day_pick"] = "All Days"
                 ss["oncall_shift_chip"] = None
                 ss["oncall_quick_status"] = "All"
                 ss["oncall_search"] = ""
@@ -671,10 +703,9 @@ def render_on_call_workspace(db_path: str) -> None:
             label_visibility="collapsed",
             help="Filter roster to a specific day",
         )
-        if day_pick != ss["oncall_day_filter"]:
+        if day_pick != ss.get("oncall_day_filter"):
             ss["oncall_day_filter"] = day_pick
             ss["oncall_shift_page"] = 0
-            st.rerun()
 
     with c_slicers_t3:
         cur_shift_chip = ss.get("oncall_shift_chip")
@@ -856,7 +887,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 )
                 if picked_eng != cur_selected:
                     ss["oncall_selected_eng"] = picked_eng
-                    st.rerun()
+                    cur_selected = picked_eng
 
             ps_df = pd.DataFrame(all_ps)
 
@@ -1111,7 +1142,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     )
                     if p_eng != cur_selected and all_shift_primaries:
                         ss["oncall_selected_eng"] = p_eng
-                        st.rerun()
+                        cur_selected = p_eng
                 with fc4:
                     tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
                     st.markdown(
@@ -1161,7 +1192,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     )
                     if p_eng != cur_selected and all_shift_primaries:
                         ss["oncall_selected_eng"] = p_eng
-                        st.rerun()
+                        cur_selected = p_eng
                 with fc4:
                     tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
                     st.markdown(
@@ -1197,7 +1228,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     )
                     if p_eng != cur_selected and all_shift_primaries:
                         ss["oncall_selected_eng"] = p_eng
-                        st.rerun()
+                        cur_selected = p_eng
                 with srch3:
                     tz_label = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
                     st.markdown(
