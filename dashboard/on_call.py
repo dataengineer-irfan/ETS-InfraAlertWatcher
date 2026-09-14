@@ -11,7 +11,14 @@ Follows Enterprise Design Standards:
   - Cognos hierarchical crosstab with conditional color variables
   - Dynamic EST <-> IST timezone conversion toggle
   - High-performance caching (@st.cache_data ttl=120)
-  - Comprehensive filtering: Day, Shift Type, Status, Scope Lock, and Search
+  - Multi-Dimensional Slicers:
+      * State Slicer: All States, NH MMIS, ND MMIS, AK MMIS
+      * Location Slicer: All Locations, Offshore (IST), Onshore (EST)
+      * SDM Lead Slicer: Anil Tankala, Kishore Nagarajan, Ravi M Shankar,
+                         Thirupathi Katakam, Anil Kumar Khamari, Madhav, Dipak/Rama
+      * Day Slicer & Shift-Type Quick Chips
+      * Quick Status: All Resources, Working Today, Off / Holiday
+      * Full-text search across domains and resources
   - Horizontal scrollable cross-tab preserving all 7 days (including FRI)
   - Shift pagination and synchronized engineer inspection
 """
@@ -36,6 +43,19 @@ from db import (
 from ingest_roster import ingest_roster_file
 
 ROOT = Path(__file__).resolve().parent.parent
+
+_STATE_OPTIONS = ["All States", "NH MMIS", "ND MMIS", "AK MMIS"]
+_LOCATION_OPTIONS = ["All Locations", "🌏 Offshore (IST)", "🏛️ Onshore (EST)"]
+_SDM_OPTIONS = [
+    "All SDMs",
+    "Anil Tankala (Infra / Ops)",
+    "Kishore Nagarajan (AK / Non-Core)",
+    "Ravi M Shankar (AK Onshore)",
+    "Thirupathi Katakam (ND Onshore)",
+    "Anil Kumar Khamari (ND Offshore)",
+    "Madhav (NH Onshore)",
+    "Dipak/Rama (NH Offshore)",
+]
 
 _SHIFT_CHIPS = [
     ("All Shifts", None),
@@ -92,8 +112,35 @@ def _matches_domain_slot(chip_key: str | None, slot_num: int) -> bool:
     return True
 
 
+def _resolve_shift_sdm(s: dict, esc_lookup: dict, esc_fallback: dict) -> str:
+    div = s.get("division", "")
+    dom = s.get("domain_state", "")
+    slot = s.get("shift_slot", 1)
+    sdate = s.get("shift_date", "")
+
+    if div == "Infra Team":
+        return "Anil Tankala"
+
+    k_exact = (div, dom, slot, sdate)
+    e = esc_lookup.get(k_exact) or esc_fallback.get((div, dom))
+    if e and e.get("tier2_name"):
+        sdm_name = e["tier2_name"].strip()
+        if sdm_name != "State Specific SDM":
+            return sdm_name
+
+    # State specific mapping for Non-Core Dev
+    if "NH" in dom.upper():
+        return "Madhav" if slot in [3, 4] else "Dipak/Rama"
+    elif "ND" in dom.upper():
+        return "Thirupathi Katakam" if slot in [3, 4] else "Anil Kumar Khamari"
+    elif "AK" in dom.upper():
+        return "Ravi M Shankar" if slot in [3, 4] else "Kishore Nagarajan"
+
+    return "Kishore Nagarajan" if slot in [1, 2] else "Anil Tankala"
+
+
 # --------------------------------------------------------------------------
-# Caching Data Loaders (120s TTL) — Resolves Performance Overhead
+# Caching Data Loaders (120s TTL)
 # --------------------------------------------------------------------------
 @st.cache_data(ttl=120, show_spinner=False)
 def _load_roster_meta(db_path: str) -> dict | None:
@@ -152,6 +199,9 @@ def render_on_call_workspace(db_path: str) -> None:
     # 0. Session State Initialization
     ss.setdefault("oncall_div", "Live Ops Radar")
     ss.setdefault("oncall_tz", "IST")
+    ss.setdefault("oncall_state_filter", "All States")
+    ss.setdefault("oncall_location_filter", "All Locations")
+    ss.setdefault("oncall_sdm_filter", "All SDMs")
     ss.setdefault("oncall_day_filter", "All Days")
     ss.setdefault("oncall_shift_chip", None)
     ss.setdefault("oncall_quick_status", "All")
@@ -197,10 +247,20 @@ def render_on_call_workspace(db_path: str) -> None:
     all_shifts = _load_shifts(db_path, roster_id)
     all_escs = _load_escs(db_path, roster_id)
 
+    # Build Escalation Lookups
+    esc_lookup = {
+        (e["division"], e["domain_state"], e["shift_slot"], e["shift_date"]): e
+        for e in all_escs
+    }
+    esc_fallback = {
+        (e["division"], e["domain_state"]): e
+        for e in all_escs
+    }
+
     # Resolve Scope Lock state from global app state
     active_scope_state = ss.get("_override_canvas_state") or ss.get("global_state_filter")
-    if active_scope_state not in ["NH", "ND", "AK"]:
-        active_scope_state = None
+    if active_scope_state in ["NH", "ND", "AK"] and ss["oncall_state_filter"] == "All States":
+        ss["oncall_state_filter"] = f"{active_scope_state} MMIS"
 
     # Map dates to day names across both datasets
     date_day_map: dict[str, str] = {}
@@ -219,64 +279,91 @@ def render_on_call_workspace(db_path: str) -> None:
     use_ist = (ss["oncall_tz"] == "IST")
 
     # --------------------------------------------------------------------------
-    # 3. Top Executive Slicer Command Bar (Power BI Filter Ribbon)
+    # 3. Top Executive Slicer Command Bar (Power BI / Cognos Multi-Dimensional Strip)
     # --------------------------------------------------------------------------
-    c_hdr1, c_hdr2, c_hdr3, c_hdr4 = st.columns([3.2, 1.1, 1.4, 0.9])
+    c_hdr1, c_hdr2, c_hdr3, c_hdr4, c_hdr5 = st.columns([2.7, 1.1, 1.1, 1.4, 0.7])
 
     with c_hdr1:
-        scope_pill = (
+        st_val = ss["oncall_state_filter"]
+        state_badge = (
             f'<span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.12);'
             f'font-size:8.5px;font-weight:700;border:1px solid rgba(56,189,248,0.3);margin-left:4px;">'
-            f'LOCKED: {escape(active_scope_state)} MMIS</span>'
-        ) if active_scope_state else ""
+            f'{escape(st_val)}</span>'
+        ) if st_val != "All States" else ""
 
         hdr_box = (
             '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 3px 0;border-left:3px solid var(--accent);padding-left:8px;">'
             '<div>'
-            '<div style="font-size:14px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;line-height:1.1;display:flex;align-items:center;gap:6px;">'
-            '<span>24/7 On-Call Operations Command Hub</span>'
+            '<div style="font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;line-height:1.1;display:flex;align-items:center;gap:6px;">'
+            '<span>24/7 On-Call Command Hub</span>'
             '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.12);font-size:8.5px;font-weight:700;border:1px solid rgba(16,185,129,0.3);">ACTIVE ROSTER</span>'
-            f'{scope_pill}'
+            f'{state_badge}'
             '</div>'
             f'<div style="font-size:9.5px;color:var(--slate);margin-top:1px;">'
-            f'Coverage Cycle: <b style="color:#f8fafc;font-family:var(--mono);">{escape(valid_from)} &rarr; {escape(valid_to)}</b> &bull; Source: <code style="color:#38bdf8;font-size:9px;">{escape(active_roster.get("source_file", "Excel Roster"))}</code>'
+            f'Cycle: <b style="color:#f8fafc;font-family:var(--mono);">{escape(valid_from)} &rarr; {escape(valid_to)}</b> &bull; <code style="color:#38bdf8;font-size:9px;">{escape(active_roster.get("source_file", "Excel Roster"))}</code>'
             '</div></div></div>'
         )
         st.markdown(hdr_box, unsafe_allow_html=True)
 
     with c_hdr2:
-        tz_val = ss["oncall_tz"]
-        t1, t2 = st.columns(2)
-        with t1:
-            if st.button("EST", key="oncall_tz_est_btn", type="primary" if tz_val == "EST" else "secondary", use_container_width=True, help="Eastern Standard Time (UTC-5)"):
-                ss["oncall_tz"] = "EST"
-                st.rerun()
-        with t2:
-            if st.button("IST", key="oncall_tz_ist_btn", type="primary" if tz_val == "IST" else "secondary", use_container_width=True, help="India Standard Time (UTC+5:30)"):
-                ss["oncall_tz"] = "IST"
-                st.rerun()
+        # State Slicer (NH, ND, AK)
+        picked_state = st.selectbox(
+            "State Slicer",
+            _STATE_OPTIONS,
+            index=_STATE_OPTIONS.index(ss["oncall_state_filter"]) if ss["oncall_state_filter"] in _STATE_OPTIONS else 0,
+            key="oncall_state_pick",
+            label_visibility="collapsed",
+            help="Filter by MMIS State Scope (NH, ND, AK)",
+        )
+        if picked_state != ss["oncall_state_filter"]:
+            ss["oncall_state_filter"] = picked_state
+            ss["oncall_shift_page"] = 0
+            st.rerun()
 
     with c_hdr3:
-        day_pick = st.selectbox(
-            "Filter Day",
-            day_options,
-            index=day_options.index(ss["oncall_day_filter"]) if ss["oncall_day_filter"] in day_options else 0,
-            key="oncall_day_pick",
+        # Location Slicer (Offshore vs Onshore)
+        picked_loc = st.selectbox(
+            "Location Slicer",
+            _LOCATION_OPTIONS,
+            index=_LOCATION_OPTIONS.index(ss["oncall_location_filter"]) if ss["oncall_location_filter"] in _LOCATION_OPTIONS else 0,
+            key="oncall_location_pick",
             label_visibility="collapsed",
+            help="Filter by Location: Offshore (IST) vs Onshore (EST)",
         )
-        if day_pick != ss["oncall_day_filter"]:
-            ss["oncall_day_filter"] = day_pick
+        if picked_loc != ss["oncall_location_filter"]:
+            ss["oncall_location_filter"] = picked_loc
+            # Auto-align timezone clock
+            if "Offshore" in picked_loc:
+                ss["oncall_tz"] = "IST"
+            elif "Onshore" in picked_loc:
+                ss["oncall_tz"] = "EST"
             ss["oncall_shift_page"] = 0
             st.rerun()
 
     with c_hdr4:
+        # SDM Slicer (Service Delivery Managers)
+        picked_sdm = st.selectbox(
+            "SDM Slicer",
+            _SDM_OPTIONS,
+            index=_SDM_OPTIONS.index(ss["oncall_sdm_filter"]) if ss["oncall_sdm_filter"] in _SDM_OPTIONS else 0,
+            key="oncall_sdm_pick",
+            label_visibility="collapsed",
+            help="Filter by Service Delivery Manager (SDM Lead)",
+        )
+        if picked_sdm != ss["oncall_sdm_filter"]:
+            ss["oncall_sdm_filter"] = picked_sdm
+            ss["oncall_shift_page"] = 0
+            st.rerun()
+
+    with c_hdr5:
+        # Quick Action Buttons
         act1, act2, act3 = st.columns(3)
         with act1:
-            if st.button("📤", key="oncall_toggle_upload_btn", type="secondary", use_container_width=True, help="Upload new weekly Excel roster"):
+            if st.button("📤", key="oncall_toggle_upload_btn", type="secondary", use_container_width=True, help="Upload weekly Excel"):
                 ss["oncall_show_upload"] = not ss.get("oncall_show_upload", False)
                 st.rerun()
         with act2:
-            if st.button("🔄", key="oncall_sync_disk_btn", type="secondary", use_container_width=True, help="Scan _Input directory and sync latest Excel"):
+            if st.button("🔄", key="oncall_sync_disk_btn", type="secondary", use_container_width=True, help="Sync latest from _Input"):
                 input_dir = ROOT / "_Input"
                 target_files = sorted(
                     [f for f in input_dir.glob("*.xlsx") if "on call" in f.name.lower() or "roster" in f.name.lower()],
@@ -292,7 +379,10 @@ def render_on_call_workspace(db_path: str) -> None:
                 else:
                     st.warning("No files found in _Input.")
         with act3:
-            if st.button("✕", key="oncall_clear_filters_btn", type="secondary", use_container_width=True, help="Clear all filters"):
+            if st.button("✕", key="oncall_clear_filters_btn", type="secondary", use_container_width=True, help="Reset all filters"):
+                ss["oncall_state_filter"] = "All States"
+                ss["oncall_location_filter"] = "All Locations"
+                ss["oncall_sdm_filter"] = "All SDMs"
                 ss["oncall_day_filter"] = "All Days"
                 ss["oncall_shift_chip"] = None
                 ss["oncall_quick_status"] = "All"
@@ -335,22 +425,51 @@ def render_on_call_workspace(db_path: str) -> None:
                 st.markdown(notice_box, unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # 4. Shift-Type Quick Filter Ribbon (Cognos / Power BI Standard Chips)
+    # 4. Temporal Slicers Ribbon (Timezone Clock, Day Slicer & Shift Type Chips)
     # --------------------------------------------------------------------------
-    cur_shift_chip = ss.get("oncall_shift_chip")
-    chip_cols = st.columns(len(_SHIFT_CHIPS))
-    for idx, (chip_label, chip_val) in enumerate(_SHIFT_CHIPS):
-        is_sel = (cur_shift_chip == chip_val)
-        with chip_cols[idx]:
-            if st.button(
-                chip_label,
-                key=f"oncall_chip_btn_{idx}",
-                type="primary" if is_sel else "secondary",
-                use_container_width=True,
-            ):
-                ss["oncall_shift_chip"] = chip_val
-                ss["oncall_shift_page"] = 0
+    c_slicers_t1, c_slicers_t2, c_slicers_t3 = st.columns([1.1, 1.4, 4.5])
+
+    with c_slicers_t1:
+        tz_val = ss["oncall_tz"]
+        t1, t2 = st.columns(2)
+        with t1:
+            if st.button("EST", key="oncall_tz_est_btn", type="primary" if tz_val == "EST" else "secondary", use_container_width=True, help="Eastern Standard Time (UTC-5)"):
+                ss["oncall_tz"] = "EST"
                 st.rerun()
+        with t2:
+            if st.button("IST", key="oncall_tz_ist_btn", type="primary" if tz_val == "IST" else "secondary", use_container_width=True, help="India Standard Time (UTC+5:30)"):
+                ss["oncall_tz"] = "IST"
+                st.rerun()
+
+    with c_slicers_t2:
+        day_pick = st.selectbox(
+            "Filter Day",
+            day_options,
+            index=day_options.index(ss["oncall_day_filter"]) if ss["oncall_day_filter"] in day_options else 0,
+            key="oncall_day_pick",
+            label_visibility="collapsed",
+            help="Filter roster to a specific day",
+        )
+        if day_pick != ss["oncall_day_filter"]:
+            ss["oncall_day_filter"] = day_pick
+            ss["oncall_shift_page"] = 0
+            st.rerun()
+
+    with c_slicers_t3:
+        cur_shift_chip = ss.get("oncall_shift_chip")
+        chip_cols = st.columns(len(_SHIFT_CHIPS))
+        for idx, (chip_label, chip_val) in enumerate(_SHIFT_CHIPS):
+            is_sel = (cur_shift_chip == chip_val)
+            with chip_cols[idx]:
+                if st.button(
+                    chip_label,
+                    key=f"oncall_chip_btn_{idx}",
+                    type="primary" if is_sel else "secondary",
+                    use_container_width=True,
+                ):
+                    ss["oncall_shift_chip"] = chip_val
+                    ss["oncall_shift_page"] = 0
+                    st.rerun()
 
     # --------------------------------------------------------------------------
     # 5. Division Navigation Tabs
@@ -380,10 +499,25 @@ def render_on_call_workspace(db_path: str) -> None:
     cur_div = ss["oncall_div"]
 
     # --------------------------------------------------------------------------
-    # 6. Grafana Stat Ribbon (4 Metric Cards with Glowing Top Borders)
+    # 6. Slicer Value Extraction & Multi-Dimensional Pre-Filtering
+    # --------------------------------------------------------------------------
+    state_slicer = ss.get("oncall_state_filter", "All States")
+    loc_slicer = ss.get("oncall_location_filter", "All Locations")
+    sdm_slicer = ss.get("oncall_sdm_filter", "All SDMs")
+    clean_sdm_name = sdm_slicer.split("(")[0].strip() if sdm_slicer != "All SDMs" else None
+
+    # Tag shifts with their governed SDM
+    shifts_with_sdm = []
+    for s in all_shifts:
+        s_copy = s.copy()
+        s_copy["governed_sdm"] = _resolve_shift_sdm(s, esc_lookup, esc_fallback)
+        shifts_with_sdm.append(s_copy)
+
+    # --------------------------------------------------------------------------
+    # 7. Grafana Stat Ribbon (4 Metric Cards with Glowing Top Borders)
     # --------------------------------------------------------------------------
     active_now_shifts = [
-        s for s in all_shifts
+        s for s in shifts_with_sdm
         if s["shift_slot"] == cur_slot and s.get("primary_on_call")
     ]
     distinct_active_now = list(set(s["primary_on_call"] for s in active_now_shifts))
@@ -408,7 +542,7 @@ def render_on_call_workspace(db_path: str) -> None:
     with k2:
         st.markdown(ui.grafana_stat_card(
             label="Weekly Shift Coverage",
-            value=f"{len(all_shifts)} Slots",
+            value=f"{len(shifts_with_sdm)} Slots",
             color="#10b981",
             subtext="28 Slots / Domain &bull; 7 Days",
             badge="100% HEALTH",
@@ -443,7 +577,7 @@ def render_on_call_workspace(db_path: str) -> None:
         ), unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # 7. Master-Detail Command Workspace (58% Master / 42% Detail Inspector)
+    # 8. Master-Detail Command Workspace (58% Master / 42% Detail Inspector)
     # --------------------------------------------------------------------------
     master_col, detail_col = st.columns([3.5, 2.5])
 
@@ -500,7 +634,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 q_term = ss["oncall_search"].strip().lower()
                 ps_df = ps_df[ps_df["resource_name"].str.lower().str.contains(q_term, na=False)]
 
-            # 2. Shift-Type Filter (applied intelligently to PS shift_window column)
+            # 2. Shift-Type Filter (applied to PS shift_window column)
             if cur_shift_chip:
                 if target_day:
                     matching_names = [
@@ -524,11 +658,26 @@ def render_on_call_workspace(db_path: str) -> None:
                 off_names = ps_df[(ps_df["shift_date"] == ref_day) & (ps_df["is_working"] == 0)]["resource_name"].unique()
                 ps_df = ps_df[ps_df["resource_name"].isin(off_names)]
 
-            # 4. Scope Lock Filter
-            if active_scope_state:
-                scope_match = ps_df[ps_df["resource_name"].str.upper().str.contains(active_scope_state, na=False)]
-                if not scope_match.empty and len(scope_match["resource_name"].unique()) < len(ps_df["resource_name"].unique()):
-                    ps_df = scope_match
+            # 4. State Slicer on Production Support
+            if state_slicer != "All States":
+                st_code = state_slicer.split()[0]
+                state_matches = ps_df[ps_df["resource_name"].str.upper().str.contains(st_code, na=False)]
+                if not state_matches.empty:
+                    ps_df = state_matches
+
+            # 5. SDM Slicer on Production Support
+            # Anil Tankala & Kishore Nagarajan govern Production Support
+            if clean_sdm_name and clean_sdm_name not in ["Anil Tankala", "Kishore Nagarajan"]:
+                # When state-specific SDMs are selected, display state-aligned resources
+                if clean_sdm_name in ["Ravi M Shankar", "Kishore Nagarajan"]:
+                    st_m = ps_df[ps_df["resource_name"].str.upper().str.contains("AK", na=False)]
+                    if not st_m.empty: ps_df = st_m
+                elif clean_sdm_name in ["Thirupathi Katakam", "Anil Kumar Khamari"]:
+                    st_m = ps_df[ps_df["resource_name"].str.upper().str.contains("ND", na=False)]
+                    if not st_m.empty: ps_df = st_m
+                elif clean_sdm_name in ["Madhav", "Dipak/Rama"]:
+                    st_m = ps_df[ps_df["resource_name"].str.upper().str.contains("NH", na=False)]
+                    if not st_m.empty: ps_df = st_m
 
             # Pivot cross-tab across all 7 days (SAT to FRI guaranteed)
             pivot_dates = ps_dates if ps_dates else all_unique_dates
@@ -569,7 +718,6 @@ def render_on_call_workspace(db_path: str) -> None:
             for _, row_data in pivoted.iterrows():
                 r_name = row_data["resource_name"]
                 is_active_eng = (cur_selected == r_name)
-                scope_match_eng = active_scope_state and (active_scope_state in r_name.upper())
 
                 td_cells = []
                 working_count = 0
@@ -585,13 +733,11 @@ def render_on_call_workspace(db_path: str) -> None:
 
                 row_bg = (
                     "rgba(56, 189, 248, 0.09)" if is_active_eng
-                    else ("rgba(245, 158, 11, 0.05)" if scope_match_eng
-                          else ("#181b1f" if len(body_rows) % 2 == 0 else "#141619"))
+                    else ("#181b1f" if len(body_rows) % 2 == 0 else "#141619")
                 )
                 border_style = (
                     "border-left:3px solid var(--accent);" if is_active_eng
-                    else ("border-left:3px solid #f59e0b;" if scope_match_eng
-                          else "border-left:3px solid transparent;")
+                    else "border-left:3px solid transparent;"
                 )
                 avatar = ui.on_call_avatar(r_name)
 
@@ -638,7 +784,7 @@ def render_on_call_workspace(db_path: str) -> None:
 
         # B. MODE 2: LIVE OPS RADAR & DOMAIN SHIFTS (Infra / Core Dev / Non-Core Dev)
         else:
-            filtered_shifts = all_shifts.copy()
+            filtered_shifts = shifts_with_sdm.copy()
 
             # 1. Division filter
             if cur_div == "Live Ops Radar":
@@ -650,30 +796,45 @@ def render_on_call_workspace(db_path: str) -> None:
             elif cur_div == "Non-Core Dev":
                 filtered_shifts = [s for s in filtered_shifts if s["division"] == "Non-Core Dev"]
 
-            # 2. Scope Lock filter
-            if active_scope_state:
-                scope_shifts = [s for s in filtered_shifts if active_scope_state.upper() in s["domain_state"].upper()]
-                if scope_shifts:
-                    filtered_shifts = scope_shifts
+            # 2. State Slicer
+            if state_slicer != "All States":
+                st_code = state_slicer.split()[0].upper()
+                filtered_shifts = [
+                    s for s in filtered_shifts
+                    if st_code in s["domain_state"].upper() or s["division"] == "Infra Team"
+                ]
 
-            # 3. Day filter
+            # 3. Location Slicer (Offshore = Slots 1 & 2 / Onshore = Slots 3 & 4)
+            if loc_slicer == "🌏 Offshore (IST)":
+                filtered_shifts = [s for s in filtered_shifts if s["shift_slot"] in [1, 2]]
+            elif loc_slicer == "🏛️ Onshore (EST)":
+                filtered_shifts = [s for s in filtered_shifts if s["shift_slot"] in [3, 4]]
+
+            # 4. SDM Slicer
+            if clean_sdm_name:
+                filtered_shifts = [
+                    s for s in filtered_shifts
+                    if clean_sdm_name.lower() in s.get("governed_sdm", "").lower()
+                ]
+
+            # 5. Day filter
             if target_day:
                 filtered_shifts = [s for s in filtered_shifts if s["shift_date"] == target_day]
 
-            # 4. Shift-Type Filter (applied to shift slot)
+            # 6. Shift-Type Filter (applied to shift slot)
             if cur_shift_chip:
                 filtered_shifts = [
                     s for s in filtered_shifts
                     if _matches_domain_slot(cur_shift_chip, s.get("shift_slot", 0))
                 ]
 
-            # Search bar across domain and resource
+            # Search bar across domain, SDM, and resource
             srch1, srch2 = st.columns([3, 1])
             with srch1:
                 search_shift = st.text_input(
                     "Search Shifts",
                     value=ss["oncall_search"],
-                    placeholder="Search by domain, primary, or secondary engineer...",
+                    placeholder="Search by domain, SDM lead, or on-call engineer...",
                     key="oncall_shift_search_box",
                     label_visibility="collapsed",
                 )
@@ -696,6 +857,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     if q_term in s["domain_state"].lower()
                     or q_term in (s.get("primary_on_call") or "").lower()
                     or q_term in (s.get("secondary_on_call") or "").lower()
+                    or q_term in s.get("governed_sdm", "").lower()
                 ]
 
             total_shift_rows = len(filtered_shifts)
@@ -719,11 +881,12 @@ def render_on_call_workspace(db_path: str) -> None:
             for idx, s in enumerate(page_slice):
                 p_name = s.get("primary_on_call") or "Unassigned"
                 s_name = s.get("secondary_on_call") or "—"
+                sdm_lead = s.get("governed_sdm") or "Lead SDM"
                 time_disp = s["time_ist"] if use_ist else s["time_est"]
                 is_active_now = (s["shift_slot"] == cur_slot)
 
                 is_sel = (cur_selected == p_name)
-                scope_hl = active_scope_state and (active_scope_state.upper() in s["domain_state"].upper())
+                scope_hl = (state_slicer != "All States") and (state_slicer.split()[0].upper() in s["domain_state"].upper())
 
                 row_bg = (
                     "rgba(56, 189, 248, 0.09)" if is_sel
@@ -752,7 +915,7 @@ def render_on_call_workspace(db_path: str) -> None:
                     f"<td style='padding:5px 8px;color:var(--slate);font-size:10px;'>{escape(s['day_name'][:3])} <span style='color:var(--mute);'>{escape(s['shift_date'][5:])}</span></td>"
                     f"<td style='padding:5px 8px;font-family:var(--mono);font-size:9.5px;color:var(--ink);'>{escape(time_disp)}</td>"
                     f"<td style='padding:5px 8px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;'>{p_avatar}<span>{escape(p_name)}</span></td>"
-                    f"<td style='padding:5px 8px;color:var(--slate);font-size:10px;'>{escape(s_name)}</td>"
+                    f"<td style='padding:5px 8px;color:var(--slate);font-size:10px;'><b style='color:#f59e0b;'>{escape(sdm_lead)}</b></td>"
                     f"<td style='padding:5px 8px;'>{active_badge}</td>"
                     f"</tr>"
                 )
@@ -770,7 +933,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 "<th style='padding:5px 8px;text-align:left;'>Day</th>"
                 f"<th style='padding:5px 8px;text-align:left;'>{tz_hdr}</th>"
                 "<th style='padding:5px 8px;text-align:left;'>Primary On-Call</th>"
-                "<th style='padding:5px 8px;text-align:left;'>Secondary</th>"
+                "<th style='padding:5px 8px;text-align:left;'>Governing SDM</th>"
                 "<th style='padding:5px 8px;text-align:left;'>Status</th>"
                 "</tr>"
                 "</thead>"
@@ -823,7 +986,7 @@ def render_on_call_workspace(db_path: str) -> None:
     with detail_col:
         sel_name = ss.get("oncall_selected_eng") or (distinct_active_now[0] if distinct_active_now else "Operations Lead")
 
-        matching_shifts = [s for s in all_shifts if s.get("primary_on_call") == sel_name or s.get("secondary_on_call") == sel_name]
+        matching_shifts = [s for s in shifts_with_sdm if s.get("primary_on_call") == sel_name or s.get("secondary_on_call") == sel_name]
         matching_ps = [p for p in all_ps if p.get("resource_name") == sel_name]
 
         eng_div = matching_shifts[0]["division"] if matching_shifts else ("Production Support" if matching_ps else "Enterprise Operations")
@@ -832,10 +995,8 @@ def render_on_call_workspace(db_path: str) -> None:
         matching_esc = None
         if matching_shifts:
             ref_s = matching_shifts[0]
-            for e in all_escs:
-                if e["division"] == ref_s["division"] and (e["domain_state"] == ref_s["domain_state"] or e["domain_state"] == "All Infrastructure"):
-                    matching_esc = e
-                    break
+            k_exact = (ref_s["division"], ref_s["domain_state"], ref_s["shift_slot"], ref_s["shift_date"])
+            matching_esc = esc_lookup.get(k_exact) or esc_fallback.get((ref_s["division"], ref_s["domain_state"]))
 
         if not matching_esc:
             matching_esc = {
@@ -906,6 +1067,11 @@ def render_on_call_workspace(db_path: str) -> None:
         t3_name = matching_esc.get("tier3_name") or "Nagarajan Kochunni / Radhakanta Samantara"
         t3_title = matching_esc.get("tier3_title") or "Project Director (PD)"
 
+        # Check if currently filtered SDM matches Tier 2
+        is_sdm_focused = clean_sdm_name and clean_sdm_name.lower() in t2_name.lower()
+        t2_border = "border-left:3px solid #10b981;background:rgba(16,185,129,0.08);" if is_sdm_focused else "border-left:3px solid #f59e0b;background:#141619;"
+        t2_badge = '<span style="font-size:8px;color:#10b981;font-weight:700;">● FILTER FOCUS</span>' if is_sdm_focused else '<span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">SDM Lead</span>'
+
         card_esc = (
             '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
             '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">'
@@ -920,13 +1086,13 @@ def render_on_call_workspace(db_path: str) -> None:
             f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t1_name)}</div>'
             f'<div style="font-size:8.5px;color:var(--slate);">{escape(t1_title)} &bull; SLA: &le;15 mins</div>'
             '</div><span style="font-size:8.5px;color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:1px 4px;border-radius:2px;">Offshore TL</span></div>'
-            # Tier 2
-            '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #f59e0b;">'
+            # Tier 2 (SDM)
+            f'<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:3px;{t2_border}">'
             '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#f59e0b;width:42px;">TIER 2</span>'
             '<div style="min-width:0;flex:1;">'
             f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t2_name)}</div>'
             f'<div style="font-size:8.5px;color:var(--slate);">{escape(t2_title)} &bull; SLA: &le;30 mins</div>'
-            '</div><span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">SDM Lead</span></div>'
+            f'</div>{t2_badge}</div>'
             # Tier 3
             '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #ef4444;">'
             '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#ef4444;width:42px;">TIER 3</span>'
