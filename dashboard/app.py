@@ -14,6 +14,7 @@ Views:
 
 from __future__ import annotations
 
+from html import escape
 import json
 import os
 import sys
@@ -570,14 +571,47 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     tree_open = st.session_state.setdefault("op_tree_open", set())
     selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
-    # 1. Top Slicer Command Bar (7 columns with inline Export CSV & Reset Scope)
-    f1, f2, f3, f4, f5, f6, f7 = st.columns([1.4, 0.8, 0.85, 1.0, 0.8, 0.65, 0.65])
-    q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
-    state_opts = ["All States"] + STATES
     active_scope = st.session_state.get("_override_canvas_state")
     op_st_key = f"op_state_{reset_idx}"
     if active_scope and active_scope in STATES and op_st_key not in st.session_state:
         st.session_state[op_st_key] = active_scope
+
+    # Universal Executive Header
+    h_col1, h_col2 = st.columns([7.2, 2.8])
+    with h_col1:
+        st.markdown(ui.render_universal_header(
+            title="Portfolio Operations Hub",
+            subtitle="Cross-Tab Multi-Team Expiry & Asset Inventory",
+            badge_text="LIVE INVENTORY",
+            badge_color="#10b981",
+            state_scope=active_scope if active_scope in STATES else None,
+        ), unsafe_allow_html=True)
+    with h_col2:
+        btn_c1, btn_c2 = st.columns([1.2, 0.8])
+        with btn_c1:
+            st.markdown(
+                ui.csv_download_button(
+                    df=df,
+                    filename=f"expiry_operations_{date.today().isoformat()}.csv",
+                    label="📥 Export CSV",
+                    key=f"op_export_csv_{reset_idx}",
+                ),
+                unsafe_allow_html=True,
+            )
+        with btn_c2:
+            if st.button("↺ Reset", key="op_sc_reset", use_container_width=True, type="secondary"):
+                st.session_state["op_reset_idx"] = reset_idx + 1
+                st.session_state["op_kpi_filter"] = "All"
+                st.session_state["op_cell_filter"] = None
+                st.session_state["op_tree_open"] = set()
+                st.session_state["op_selected_entity_ids"] = set()
+                st.session_state["op_batch_page_no"] = 0
+                rerun()
+
+    # 1. Top Slicer Command Bar (5 clean columns)
+    f1, f2, f3, f4, f5 = st.columns([1.8, 0.9, 0.9, 1.1, 0.9])
+    q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
+    state_opts = ["All States"] + STATES
     state_filter = f2.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
     team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
     comp_filter = f4.selectbox(
@@ -629,30 +663,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         len(tree_open) > 0 or
         len(selected_entity_ids) > 0
     )
-
-    with f6:
-        st.markdown(
-            ui.csv_download_button(
-                df=filtered,
-                filename=f"expiry_operations_{date.today().isoformat()}.csv",
-                label="📥 Export CSV",
-                key=f"op_export_csv_{reset_idx}",
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with f7:
-        if is_scoped:
-            if st.button("↺ Reset", key="op_sc_reset", use_container_width=True, type="primary"):
-                st.session_state["op_reset_idx"] = reset_idx + 1
-                st.session_state["op_kpi_filter"] = "All"
-                st.session_state["op_cell_filter"] = None
-                st.session_state["op_tree_open"] = set()
-                st.session_state["op_selected_entity_ids"] = set()
-                st.session_state["op_batch_page_no"] = 0
-                rerun()
-        else:
-            st.button("↺ Reset", key="op_sc_reset_dis", use_container_width=True, disabled=True)
 
     # 2. Scope Ribbon (Ultra-thin 18px single-line telemetry)
     scope_parts = []
@@ -1792,29 +1802,35 @@ def render_governance_center() -> None:
     if gov_team_filter != "All":
         scope_name += f" - {gov_team_filter}"
 
-    s_c1, s_c2, s_c3, s_c4 = st.columns([2.6, 0.8, 0.8, 0.8])
-    with s_c1:
-        st.markdown(f"""
-        <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
-          <div style="display:flex;align-items:center;gap:8px;flex:1;">
-            <span class="scope-label">GOVERNANCE SCOPE</span>
-            <span class="scope-val">{scope_name}</span>
-            <span class="scope-muted">({len(scoped_records)} of {len(records)} total managed assets)</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div class="live-dot"></div>
-            <span class="scope-muted" style="font-variant-numeric:tabular-nums;font-size:11px;">Live Data Sync · 08:00 UTC</span>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with s_c2:
-        if st.button("↺ Reset Scope", key="gov_reset_scope", use_container_width=True):
+    h_col1, h_col2 = st.columns([7.2, 2.8])
+    with h_col1:
+        st.markdown(ui.render_universal_header(
+            title="Governance & Alerts Center",
+            subtitle="Automated Policy Enforcement, Cadence Audits & Multi-Team Alerts",
+            badge_text="POLICY GOVERNANCE",
+            badge_color="#8b5cf6",
+            state_scope=active_scope if active_scope in STATES else (gov_state_filter if gov_state_filter != "All" else None),
+        ), unsafe_allow_html=True)
+    with h_col2:
+        if st.button("↺ Reset Scope", key="gov_reset_scope", use_container_width=True, type="secondary"):
             st.session_state["gov_drill_scope"] = "all"
             st.session_state["gov_team_filter"] = "All"
             st.session_state["gov_state_filter"] = "All"
             rerun()
 
-    st.markdown("<div style='margin-top:4px;'></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;">
+        <span class="scope-label">GOVERNANCE SCOPE</span>
+        <span class="scope-val">{scope_name}</span>
+        <span class="scope-muted">({len(scoped_records)} of {len(records)} total managed assets)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="live-dot"></div>
+        <span class="scope-muted" style="font-variant-numeric:tabular-nums;font-size:11px;">Live Data Sync · 08:00 UTC</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # 2. Level 1: Authoritative Action Directive (Concise, High Impact)
     st.markdown(f"""
@@ -2775,6 +2791,25 @@ def render_rbac_workspace() -> None:
     audit_count = sum(1 for u in users if u["role"] == "Auditor")
     viewer_count = sum(1 for u in users if u["role"] == "Viewer")
     total_audit_events = len(audit_logs)
+    active_u = st.session_state.get("active_user", "admin")
+    u_role = st.session_state.get("user_role", "Viewer")
+    h_col1, h_col2 = st.columns([7.2, 2.8])
+    with h_col1:
+        st.markdown(ui.render_universal_header(
+            title="Access Control & Security Audit",
+            subtitle="Role-Based Access Control (RBAC), Entitlements & Immutable Ledger",
+            badge_text="ZERO-TRUST RBAC",
+            badge_color="#ec4899",
+            state_scope=st.session_state.get("assigned_state"),
+        ), unsafe_allow_html=True)
+    with h_col2:
+        st.markdown(
+            f'<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;height:38px;">'
+            f'<span style="font-size:9.5px;color:var(--mute);">Active Session:</span>'
+            f'<span style="font-size:10px;font-weight:700;color:#f8fafc;background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:2px;border:1px solid var(--rule);">{escape(active_u)} ({escape(u_role)})</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
     # 1. Grafana Metric Ribbon (4 Stat Panels)
     rc1, rc2, rc3, rc4 = st.columns(4)

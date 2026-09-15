@@ -434,12 +434,14 @@ def render_on_call_workspace(db_path: str) -> None:
     .oc-stat-card {
         background: #181b1f;
         border: 1px solid #2c3235;
-        border-radius: 3px;
-        padding: 5px 8px 6px 8px;
+        border-radius: 2px;
+        padding: 6px 10px 5px 10px;
         display: flex;
         flex-direction: column;
-        justify-content: flex-start;
-        min-height: 56px;
+        justify-content: space-between;
+        height: 70px;
+        min-height: 70px;
+        max-height: 70px;
         box-sizing: border-box;
     }
     .oc-stat-fill-green {
@@ -463,23 +465,24 @@ def render_on_call_workspace(db_path: str) -> None:
         border-top: 2px solid #b877d7;
     }
     .oc-stat-label {
-        font-size: 9px;
-        color: #9fa7b3;
+        font-size: 9.5px;
+        color: var(--slate, #9fa7b3);
         text-transform: uppercase;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: .02em;
     }
     .oc-stat-val {
-        font-size: 17px;
-        font-weight: 800;
+        font-size: 20px;
+        font-weight: 700;
         margin-top: 1px;
-        line-height: 1;
+        line-height: 1.1;
         color: #fff;
-        font-family: var(--mono, monospace);
+        font-family: var(--ui);
+        font-variant-numeric: tabular-nums;
     }
     .oc-stat-sub {
-        font-size: 8.5px;
-        color: #8b949e;
+        font-size: 9px;
+        color: var(--mute, #8b949e);
         margin-top: 2px;
         line-height: 1.2;
         white-space: nowrap;
@@ -512,29 +515,17 @@ def render_on_call_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 3. Slim Executive Header (Title & Cycle Scope & Action Controls)
     # --------------------------------------------------------------------------
-    c_h_left, c_h_right = st.columns([7.4, 2.6])
+    c_h_left, c_h_right = st.columns([7.2, 2.8])
 
     with c_h_left:
         st_val = ss["oncall_state_filter"]
-        state_badge = (
-            f'<span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.12);'
-            f'font-size:8.5px;font-weight:700;border:1px solid rgba(56,189,248,0.3);margin-left:4px;">'
-            f'{escape(st_val)}</span>'
-        ) if st_val != "All States" else ""
-
-        hdr_box = (
-            '<div style="display:flex;align-items:center;gap:8px;padding:2px 0 2px 0;border-left:3px solid var(--accent);padding-left:10px;margin-left:2px;">'
-            '<div>'
-            '<div style="font-size:13px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;line-height:1.1;display:flex;align-items:center;gap:6px;">'
-            '<span>24/7 On-Call Command Hub</span>'
-            '<span class="pill" style="color:#10b981;background:rgba(16,185,129,0.12);font-size:8.5px;font-weight:700;border:1px solid rgba(16,185,129,0.3);">ACTIVE ROSTER</span>'
-            f'{state_badge}'
-            '</div>'
-            f'<div style="font-size:9.5px;color:var(--slate);margin-top:1px;">'
-            f'Cycle: <b style="color:#f8fafc;font-family:var(--mono);">{escape(valid_from)} &rarr; {escape(valid_to)}</b> &bull; <span style="color:#10b981;font-weight:600;">ACTIVE ROTATION</span>'
-            '</div></div></div>'
-        )
-        st.markdown(hdr_box, unsafe_allow_html=True)
+        st.markdown(ui.render_universal_header(
+            title="24/7 On-Call Command Hub",
+            subtitle=f"Cycle: {valid_from} → {valid_to} • Active Shift Rotation",
+            badge_text="ACTIVE ROSTER",
+            badge_color="#10b981",
+            state_scope=st_val if st_val != "All States" else None,
+        ), unsafe_allow_html=True)
 
     with c_h_right:
         act1, act2, act3 = st.columns(3)

@@ -240,20 +240,15 @@ def render_release_plan_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 2. Header & State Selection (Compact Single-Row Header)
     # --------------------------------------------------------------------------
-    h_col1, h_col2 = st.columns([3.2, 1.8])
+    h_col1, h_col2 = st.columns([7.0, 3.0])
     with h_col1:
-        render_html("""
-        <div style="display:flex;align-items:center;gap:8px;padding:2px 0 4px 0;border-left:3px solid var(--accent);padding-left:8px;">
-          <div>
-            <div style="font-size:15px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;line-height:1.1;">
-              Release Schedule
-            </div>
-            <div style="font-size:10px;color:var(--slate);margin-top:1px;">
-              Enterprise Milestones &amp; Pipeline Health
-            </div>
-          </div>
-        </div>
-        """)
+        st.markdown(ui.render_universal_header(
+            title="Schedule Release Plan",
+            subtitle="Enterprise Milestones & Pipeline Health",
+            badge_text="ENTERPRISE PIPELINE",
+            badge_color="#38bdf8",
+            state_scope=active_scope if active_scope != "All" else None,
+        ), unsafe_allow_html=True)
 
     with h_col2:
         if is_enterprise_admin:

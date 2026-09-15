@@ -1034,26 +1034,41 @@ li[role="option"]:hover, li[aria-selected="true"] {{
   margin-bottom: 6px;
 }}
 .stat-panel {{
-  padding: 6px 10px;
-  min-height: 64px;
+  padding: 6px 10px 5px 10px;
+  height: 70px;
+  min-height: 70px;
+  max-height: 70px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   border-radius: 2px;
   border: 1px solid var(--rule);
   box-shadow: none !important;
+  box-sizing: border-box;
 }}
 .stat-fill-red {{
-  background: linear-gradient(180deg, rgba(242,73,92,0.20), rgba(242,73,92,0.05)) !important;
+  background: linear-gradient(180deg, rgba(242,73,92,0.18), rgba(242,73,92,0.03)) !important;
+  border-top: 2px solid #ef4444 !important;
 }}
 .stat-fill-yellow {{
-  background: linear-gradient(180deg, rgba(255,152,48,0.18), rgba(255,152,48,0.04)) !important;
+  background: linear-gradient(180deg, rgba(255,152,48,0.16), rgba(255,152,48,0.03)) !important;
+  border-top: 2px solid #f59e0b !important;
 }}
 .stat-fill-green {{
-  background: linear-gradient(180deg, rgba(115,191,105,0.14), rgba(115,191,105,0.03)) !important;
+  background: linear-gradient(180deg, rgba(115,191,105,0.14), rgba(115,191,105,0.02)) !important;
+  border-top: 2px solid #10b981 !important;
 }}
 .stat-fill-neutral {{
   background: var(--card) !important;
+  border-top: 2px solid #38bdf8 !important;
+}}
+div[data-testid="stColumn"]:has(.stat-panel) .stButton > button {{
+  min-height: 20px !important;
+  height: 20px !important;
+  font-size: 9.5px !important;
+  padding: 1px 6px !important;
+  margin-top: 2px !important;
+  line-height: 1 !important;
 }}
 .stat-label {{
   font-size: 10px;
@@ -1856,6 +1871,57 @@ def compliance_donut(pct: float, color: str, size: int = 28) -> str:
         f'<text x="{cx}" y="{cx + 2.8}" text-anchor="middle" font-family="var(--mono)" '
         f'font-size="{fsize}" font-weight="700" fill="{color}">{pct:.0f}%</text>'
         f'</svg>'
+    )
+
+
+def render_universal_header(
+    title: str,
+    subtitle: str,
+    badge_text: str = "LIVE PLATFORM",
+    badge_color: str = "#10b981",
+    state_scope: str | None = None,
+    right_badge: str | None = None,
+) -> str:
+    """
+    Universal 42px Executive Command Bar across all dashboard views.
+    Ensures identical 0-jump header height, visual weight, typography, and status hierarchy.
+    """
+    state_pill = ""
+    if state_scope and state_scope not in ("All", "All States", "None"):
+        s_lbl = str(state_scope).strip()
+        state_pill = (
+            f'<span style="display:inline-flex;align-items:center;padding:1.5px 6px;'
+            f'background:rgba(56,189,248,0.12);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);'
+            f'border-radius:2px;font-size:8.5px;font-weight:700;font-family:var(--mono);margin-left:4px;">'
+            f'{escape(s_lbl)}</span>'
+        )
+
+    badge_html = ""
+    if badge_text:
+        badge_html = (
+            f'<span style="display:inline-flex;align-items:center;padding:1.5px 6px;'
+            f'background:{badge_color}22;color:{badge_color};border:1px solid {badge_color}55;'
+            f'border-radius:2px;font-size:8.5px;font-weight:700;letter-spacing:0.04em;">'
+            f'{escape(badge_text)}</span>'
+        )
+
+    right_meta = ""
+    if right_badge:
+        right_meta = f'<div style="font-size:9.5px;color:var(--mute);margin-left:auto;font-family:var(--mono);">{escape(right_badge)}</div>'
+
+    return (
+        f'<div style="display:flex;align-items:center;justify-content:space-between;'
+        f'padding:2px 0 3px 0;border-left:3px solid var(--accent);padding-left:10px;margin-bottom:4px;height:38px;box-sizing:border-box;">'
+        f'<div>'
+        f'<div style="display:flex;align-items:center;gap:6px;line-height:1.2;">'
+        f'<span style="font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:0.02em;text-transform:uppercase;">{escape(title)}</span>'
+        f'{badge_html}'
+        f'{state_pill}'
+        f'</div>'
+        f'<div style="font-size:9.5px;color:var(--slate);margin-top:1px;line-height:1.2;">{escape(subtitle)}</div>'
+        f'</div>'
+        f'{right_meta}'
+        f'</div>'
     )
 
 
