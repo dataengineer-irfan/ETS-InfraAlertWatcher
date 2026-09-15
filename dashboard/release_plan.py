@@ -27,11 +27,16 @@ def get_cached_release_schedules(db_path: str, state: str | None = None) -> list
 
 
 import ui
+from pathlib import Path
+import streamlit.components.v1 as components
 from db import (
     get_connection,
     get_release_schedules,
     get_release_milestones,
 )
+
+ROADMAP_COMP_DIR = Path(__file__).resolve().parent / "components" / "roadmap_matrix"
+roadmap_matrix_clicker = components.declare_component("roadmap_matrix_clicker", path=str(ROADMAP_COMP_DIR))
 
 
 def render_html(html_str: str) -> None:
@@ -238,7 +243,13 @@ def render_release_plan_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 2. Header & State Selection (Compact Single-Row Header)
     # --------------------------------------------------------------------------
-    h_col1, h_col2 = st.columns([7.0, 3.0])
+    has_active_filter = bool(active_scope or st.session_state.get("global_release_selection"))
+    if has_active_filter and is_enterprise_admin:
+        h_col1, h_col_reset, h_col2 = st.columns([6.8, 1.2, 2.0])
+    else:
+        h_col1, h_col2 = st.columns([7.8, 2.2])
+        h_col_reset = None
+
     with h_col1:
         st.markdown(ui.render_universal_header(
             title="Schedule Release Plan",
@@ -247,6 +258,19 @@ def render_release_plan_workspace(db_path: str) -> None:
             badge_color="#38bdf8",
             state_scope=active_scope if active_scope != "All" else None,
         ), unsafe_allow_html=True)
+
+    if h_col_reset is not None:
+        with h_col_reset:
+            if st.button("↺ Reset Scope", key="btn_rp_reset_scope", use_container_width=True, help="Reset to All States"):
+                st.session_state["_override_canvas_state"] = None
+                st.session_state["global_release_selection"] = None
+                st.session_state["gov_state_filter"] = "All"
+                reset_idx = st.session_state.get("op_reset_idx", 0)
+                st.session_state[f"op_state_{reset_idx}"] = "All States"
+                st.session_state["sl_state_clean"] = "All States"
+                if "rp_target_rel_picker" in st.session_state:
+                    del st.session_state["rp_target_rel_picker"]
+                st.rerun()
 
     with h_col2:
         if is_enterprise_admin:
@@ -812,9 +836,9 @@ def render_release_plan_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 9. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~370px, Fills Canvas)
     # --------------------------------------------------------------------------
-    rf_col1, rf_col2, rf_col3 = st.columns([3.8, 3.8, 2.4])
+    rf_col1, rf_col2 = st.columns([5.5, 4.5])
     with rf_col1:
-        st.markdown("<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;padding-top:2px;'>📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;padding-top:2px;'>📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix <span style='font-size:9px;color:#6e7681;font-weight:400;text-transform:none;'>· Click any Release to filter flight deck</span></div>", unsafe_allow_html=True)
     with rf_col2:
         roadmap_filter = st.radio(
             "Roadmap Filter",
@@ -823,27 +847,8 @@ def render_release_plan_workspace(db_path: str) -> None:
             horizontal=True,
             label_visibility="collapsed"
         )
-    with rf_col3:
-        clean_opts = {r["release_id"]: (r["release_id"].split(".", 1)[1] if "." in r["release_id"] else r["release_id"]) for r in all_releases}
-        if "rp_matrix_quick_jump" not in st.session_state or st.session_state.get("rp_matrix_quick_jump") not in all_rel_ids or st.session_state.get("rp_matrix_quick_jump") != chosen_rel:
-            st.session_state["rp_matrix_quick_jump"] = chosen_rel
 
-        def _on_quick_pick_change():
-            q_val = st.session_state.get("rp_matrix_quick_jump")
-            if q_val:
-                st.session_state["rp_target_rel_picker"] = q_val
-                _on_release_filter_change()
-
-        st.selectbox(
-            "Quick Focus Release",
-            all_rel_ids,
-            format_func=lambda rid: f"🎯 Focus: {clean_opts.get(rid, rid)}",
-            key="rp_matrix_quick_jump",
-            on_change=_on_quick_pick_change,
-            label_visibility="collapsed"
-        )
-
-    roadmap_rows = []
+    roadmap_data = []
     for r in all_releases:
         st_code = r.get("state", "NH")
         raw_r_id = r.get("release_id", "")
@@ -877,74 +882,28 @@ def render_release_plan_workspace(db_path: str) -> None:
         else:
             status = '<span style="font-size:8.5px;font-weight:700;padding:1.5px 5px;border-radius:2px;background:rgba(255,152,48,0.16);color:#ff9830;">SCHEDULED</span>'
 
-        is_selected_row = (raw_r_id == chosen_rel)
-        if is_selected_row:
-            row_style = "background:rgba(56,189,248,0.12);border-left:3px solid #38bdf8;border-bottom:1px solid #2c3235;"
-            target_icon = '<span style="color:#38bdf8;font-size:9.5px;margin-right:3px;">🎯</span>'
-        else:
-            row_style = "border-bottom:1px solid #22252b;"
-            target_icon = ''
+        roadmap_data.append({
+            "id": raw_r_id,
+            "state": st_code,
+            "clean_id": clean_r_id,
+            "dev_window": _fmt_range_clean(d_s, d_e),
+            "sit": _fmt_date_clean(m_r['sit_end']),
+            "reg": _fmt_date_clean(reg_d),
+            "uat": _fmt_date_clean(m_r['uat_end']),
+            "prod": _fmt_date_clean(p_d),
+            "prod_env": prod_env,
+            "status_badge": status,
+        })
 
-        roadmap_rows.append(
-            f"<tr style='{row_style}'>"
-            f"<td style='padding:3px 5px;'><span style='font-weight:700;color:#9fa7b3;'>{st_code}</span></td>"
-            f"<td style='padding:3px 5px;'>{target_icon}<b style='color:#38bdf8;font-family:var(--mono);'>{clean_r_id}</b></td>"
-            f"<td style='padding:3px 5px;font-family:var(--mono);color:#d8d9da;'>{_fmt_range_clean(d_s, d_e)}</td>"
-            f"<td style='padding:3px 5px;font-family:var(--mono);'>{_fmt_date_clean(m_r['sit_end'])}</td>"
-            f"<td style='padding:3px 5px;font-family:var(--mono);color:#8fb8f8;font-weight:600;'>{_fmt_date_clean(reg_d)}</td>"
-            f"<td style='padding:3px 5px;font-family:var(--mono);'>{_fmt_date_clean(m_r['uat_end'])}</td>"
-            f"<td style='padding:3px 5px;font-family:var(--mono);font-weight:700;color:#d8d9da;'>{_fmt_date_clean(p_d)}</td>"
-            f"<td style='padding:3px 5px;font-size:9px;color:#8fb8f8;'>{prod_env}</td>"
-            f"<td style='padding:3px 5px;text-align:right;'>{status}</td>"
-            f"</tr>"
-        )
-
-    empty_roadmap_notice = "<tr><td colspan='9' style='text-align:center;padding:20px;color:#6e7681;'>No releases match the selected roadmap filter.</td></tr>"
-    st.markdown(f'''
-    <style>
-    .story-card-link:hover div {{
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 12px rgba(56, 189, 248, 0.28) !important;
-    }}
-    .rel-link:hover {{
-        color: #7dd3fc !important;
-        text-decoration: underline !important;
-    }}
-    div[data-testid="stColumn"] button[kind="primary"],
-    div[data-testid="stColumn"] button[kind="secondary"] {{
-        height: 22px !important;
-        min-height: 22px !important;
-        padding: 0 6px !important;
-        font-size: 10px !important;
-        font-weight: 700 !important;
-        font-family: var(--mono) !important;
-        margin-top: 2px !important;
-        border-radius: 2px !important;
-    }}
-    table.tblx tbody tr:hover {{
-        background: rgba(56, 189, 248, 0.06) !important;
-    }}
-    </style>
-    <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:calc(100vh - 460px);min-height:180px;overflow-y:auto;box-sizing:border-box;">
-        <table class="tblx" style="width:100%;border-collapse:collapse;font-size:10px;">
-            <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
-                <tr>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">State</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">Release</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">DEV Window</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">SIT Gate</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#8fb8f8;font-weight:700;text-transform:uppercase;">Regression</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">UAT Gate</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">PROD Cutover</th>
-                    <th style="padding:4px 5px;text-align:left;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">Production Env</th>
-                    <th style="padding:4px 5px;text-align:right;font-size:9px;color:#6e7681;font-weight:600;text-transform:uppercase;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(roadmap_rows) if roadmap_rows else empty_roadmap_notice}
-            </tbody>
-        </table>
-    </div>
-    ''', unsafe_allow_html=True)
+    clicked_rel = roadmap_matrix_clicker(
+        rows=roadmap_data,
+        chosen=chosen_rel,
+        key="roadmap_matrix_comp",
+        default=None
+    )
+    if clicked_rel and clicked_rel != chosen_rel:
+        st.session_state["rp_target_rel_picker"] = clicked_rel
+        _on_release_filter_change()
+        st.rerun()
 
 

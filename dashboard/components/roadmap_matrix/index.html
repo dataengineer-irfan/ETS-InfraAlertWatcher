@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {
+    margin: 0;
+    padding: 0;
+    background: #181b1f;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #d8d9da;
+    overflow-x: hidden;
+    overflow-y: auto;
+    font-size: 10px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+}
+thead th {
+    position: sticky;
+    top: 0;
+    background: #141619;
+    border-bottom: 1px solid #2c3235;
+    z-index: 2;
+    padding: 4px 6px;
+    text-align: left;
+    font-size: 9px;
+    color: #6e7681;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+tbody tr {
+    border-bottom: 1px solid #22252b;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+tbody tr:hover {
+    background: rgba(56, 189, 248, 0.08) !important;
+}
+tbody tr.active-row {
+    background: rgba(56, 189, 248, 0.14) !important;
+    border-left: 3px solid #38bdf8 !important;
+}
+td {
+    padding: 3px 6px;
+    vertical-align: middle;
+}
+.mono {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+.rel-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1.5px 5px;
+    border-radius: 2px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    color: #38bdf8;
+    transition: all 0.15s ease;
+}
+.active-row .rel-badge {
+    background: rgba(56, 189, 248, 0.25) !important;
+    border: 1px solid #38bdf8 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.35) !important;
+}
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+::-webkit-scrollbar-thumb {
+    background: #2c3235;
+    border-radius: 2px;
+}
+</style>
+</head>
+<body>
+<div id="table-wrap"></div>
+
+<script>
+function sendValue(val) {
+    window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setComponentValue",
+        value: val
+    }, "*");
+}
+
+function setHeight(h) {
+    window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        height: h
+    }, "*");
+}
+
+function init() {
+    window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:componentReady",
+        apiVersion: 1
+    }, "*");
+    setHeight(220);
+}
+
+document.getElementById("table-wrap").addEventListener("click", function(e) {
+    const row = e.target.closest("tr[data-rel-id]");
+    if (row) {
+        const relId = row.getAttribute("data-rel-id");
+        if (relId) {
+            sendValue(relId);
+        }
+    }
+});
+
+window.addEventListener("message", function(event) {
+    if (!event.data) return;
+    if (event.data.type === "streamlit:render") {
+        const args = event.data.args || {};
+        const rows = args.rows || [];
+        const chosen = args.chosen || "";
+
+        if (rows.length === 0) {
+            document.getElementById("table-wrap").innerHTML = '<div style="text-align:center;padding:24px;color:#6e7681;">No releases match the selected roadmap filter.</div>';
+            setHeight(220);
+            return;
+        }
+
+        let html = '<table><thead><tr>' +
+            '<th>State</th>' +
+            '<th>Release (Click to Filter)</th>' +
+            '<th>DEV Window</th>' +
+            '<th>SIT Gate</th>' +
+            '<th style="color:#8fb8f8;font-weight:700;">Regression</th>' +
+            '<th>UAT Gate</th>' +
+            '<th>PROD Cutover</th>' +
+            '<th>Production Env</th>' +
+            '<th style="text-align:right;">Status</th>' +
+            '</tr></thead><tbody>';
+
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const isSel = (r.id === chosen);
+            const activeCls = isSel ? ' class="active-row"' : '';
+            const targetIcon = isSel ? '<span style="color:#38bdf8;font-size:9.5px;margin-right:3px;">🎯</span>' : '';
+            const safeId = (r.id || '').replace(/"/g, '&quot;');
+
+            html += '<tr' + activeCls + ' data-rel-id="' + safeId + '">' +
+                '<td><span style="font-weight:700;color:#9fa7b3;">' + (r.state || '') + '</span></td>' +
+                '<td><span class="rel-badge">' + targetIcon + (r.clean_id || '') + '</span></td>' +
+                '<td class="mono" style="color:#d8d9da;">' + (r.dev_window || '') + '</td>' +
+                '<td class="mono">' + (r.sit || '') + '</td>' +
+                '<td class="mono" style="color:#8fb8f8;font-weight:600;">' + (r.reg || '') + '</td>' +
+                '<td class="mono">' + (r.uat || '') + '</td>' +
+                '<td class="mono" style="font-weight:700;color:#d8d9da;">' + (r.prod || '') + '</td>' +
+                '<td style="font-size:9px;color:#8fb8f8;">' + (r.prod_env || '') + '</td>' +
+                '<td style="text-align:right;">' + (r.status_badge || '') + '</td>' +
+                '</tr>';
+        }
+
+        html += '</tbody></table>';
+        document.getElementById("table-wrap").innerHTML = html;
+        setHeight(220);
+    }
+});
+
+init();
+window.addEventListener("load", init);
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

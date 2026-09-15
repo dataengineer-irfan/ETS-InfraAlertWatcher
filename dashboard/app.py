@@ -3261,36 +3261,7 @@ global_sel = st.session_state.get("global_release_selection")
 if active_scope_state in ["NH", "ND", "AK"]:
     records = records[records["state"] == active_scope_state]
 
-# Prominent Scope Indicator & Global Reset Bar
-if active_scope_state in ["NH", "ND", "AK"]:
-    clean_g_sel = global_sel
-    if global_sel and global_sel.startswith(f"{active_scope_state}."):
-        clean_g_sel = global_sel[len(active_scope_state)+1:]
-    rel_tag = f" &bull; Release <b>{clean_g_sel}</b>" if clean_g_sel else ""
-    c_banner1, c_banner2 = st.columns([5.5, 0.9])
-    with c_banner1:
-        st.markdown(
-            f"<div style='display:inline-flex;align-items:center;gap:8px;padding:2px 8px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:2px;font-size:10px;color:#38bdf8;margin-bottom:2px;'>"
-            f"<b>🔒 Scope Locked:</b> <span style='font-family:var(--mono);'>{active_scope_state} MMIS</span>{rel_tag} "
-            f"<span style='color:var(--slate);font-size:9.5px;'>(Applied across all 6 views)</span>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-    with c_banner2:
-        if st.button("✕ Reset Scope", key="btn_reset_global_scope", use_container_width=True):
-            st.session_state["_override_canvas_state"] = None
-            st.session_state["global_release_selection"] = None
-            st.session_state["global_state_filter"] = None
-            st.session_state["gov_state_filter"] = "All"
-            reset_idx = st.session_state.get("op_reset_idx", 0)
-            st.session_state[f"op_state_{reset_idx}"] = "All States"
-            st.session_state["sl_state_clean"] = "All States"
-            st.session_state["oncall_state_filter"] = "All States"
-            if "oncall_state_pick" in st.session_state:
-                st.session_state["oncall_state_pick"] = "All States"
-            if "rp_target_rel_picker" in st.session_state:
-                del st.session_state["rp_target_rel_picker"]
-            st.rerun()
+
 
 tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac, tab_oncall = st.tabs([
     "Schedule Release Plan",
