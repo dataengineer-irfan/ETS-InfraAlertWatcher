@@ -234,8 +234,6 @@ def render_release_plan_workspace(db_path: str) -> None:
                 st.session_state["gov_state_filter"] = st_code
                 reset_idx = st.session_state.get("op_reset_idx", 0)
                 st.session_state[f"op_state_{reset_idx}"] = st_code
-                st_map = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
-                st.session_state["sl_state_clean"] = st_map.get(st_code, "All States")
 
     # --------------------------------------------------------------------------
     # 2. Header & State Selection (Compact Single-Row Header)
@@ -512,6 +510,17 @@ def render_release_plan_workspace(db_path: str) -> None:
     release_dict = {r["release_id"]: r for r in all_releases}
     all_rel_ids = list(release_dict.keys())
 
+    qp_target = st.query_params.get("target_rel")
+    if qp_target and qp_target in all_rel_ids:
+        st.session_state["rp_target_rel_picker"] = qp_target
+        st.session_state["global_release_selection"] = qp_target
+        st_code = qp_target.split(".")[0] if "." in qp_target else None
+        if st_code in ["NH", "ND", "AK"]:
+            st.session_state["_override_canvas_state"] = st_code
+            st.session_state["gov_state_filter"] = st_code
+            reset_idx = st.session_state.get("op_reset_idx", 0)
+            st.session_state[f"op_state_{reset_idx}"] = st_code
+
     cur_sel = st.session_state.get("global_release_selection")
     if "rp_target_rel_picker" not in st.session_state or st.session_state["rp_target_rel_picker"] not in all_rel_ids:
         if cur_sel and cur_sel in all_rel_ids:
@@ -532,7 +541,7 @@ def render_release_plan_workspace(db_path: str) -> None:
     def _render_story_card(title: str, rel_data: dict | None, accent_color: str, icon: str):
         if not rel_data:
             return f'''
-            <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid #2c3235;border-radius:2px;padding:8px 12px;min-height:102px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-top:3px solid #2c3235;border-radius:2px;padding:8px 12px;min-height:86px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">
               <div style="text-align:center;color:#6e7681;font-size:11px;">
                 <div style="font-size:16px;">{icon}</div>
                 <div style="margin-top:3px;">No {title} Found</div>
@@ -595,8 +604,8 @@ def render_release_plan_workspace(db_path: str) -> None:
         s_uat = _fmt_md(uat_f)
         s_prd = _fmt_md(pd_date)
 
-        return f'''
-        <div style="background:#181b1f;{active_border}{card_opacity}border-radius:2px;padding:6px 10px;min-height:86px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+        card_html = f'''
+        <div class="story-deck" style="background:#181b1f;{active_border}{card_opacity}border-radius:2px;padding:4px 8px;min-height:72px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
               <span style="font-size:13px;font-weight:700;color:#d8d9da;font-family:var(--mono);">{st_c}.{c_rid}</span>
@@ -637,30 +646,59 @@ def render_release_plan_workspace(db_path: str) -> None:
           </div>
         </div>
         '''
+        return card_html
 
     with story_c1:
         render_html(_render_story_card("Previous Release", prev_r, "#73bf69", "📁"))
+        if prev_r:
+            prev_rid = prev_r.get("release_id", "")
+            st_c = prev_r.get("state", "")
+            c_rid = prev_rid[len(st_c)+1:] if prev_rid.startswith(f"{st_c}.") else prev_rid
+            is_chosen = (prev_rid == chosen_rel)
+            btn_txt = f"✓ Focus: {c_rid}" if is_chosen else f"📁 Focus {c_rid}"
+            if st.button(btn_txt, key=f"btn_card_{prev_rid}", type="primary" if is_chosen else "secondary", use_container_width=True):
+                st.session_state["rp_target_rel_picker"] = prev_rid
+                _on_release_filter_change()
+                st.rerun()
 
     with story_c2:
         render_html(_render_story_card("Current Release", curr_r, "#5794f2", "🎯"))
+        if curr_r:
+            curr_rid = curr_r.get("release_id", "")
+            st_c = curr_r.get("state", "")
+            c_rid = curr_rid[len(st_c)+1:] if curr_rid.startswith(f"{st_c}.") else curr_rid
+            is_chosen = (curr_rid == chosen_rel)
+            btn_txt = f"✓ Focus: {c_rid}" if is_chosen else f"🎯 Focus {c_rid}"
+            if st.button(btn_txt, key=f"btn_card_{curr_rid}", type="primary" if is_chosen else "secondary", use_container_width=True):
+                st.session_state["rp_target_rel_picker"] = curr_rid
+                _on_release_filter_change()
+                st.rerun()
 
     with story_c3:
         render_html(_render_story_card("Upcoming Release", next_r, "#ff9830", "🚀"))
+        if next_r:
+            next_rid = next_r.get("release_id", "")
+            st_c = next_r.get("state", "")
+            c_rid = next_rid[len(st_c)+1:] if next_rid.startswith(f"{st_c}.") else next_rid
+            is_chosen = (next_rid == chosen_rel)
+            btn_txt = f"✓ Focus: {c_rid}" if is_chosen else f"🚀 Focus {c_rid}"
+            if st.button(btn_txt, key=f"btn_card_{next_rid}", type="primary" if is_chosen else "secondary", use_container_width=True):
+                st.session_state["rp_target_rel_picker"] = next_rid
+                _on_release_filter_change()
+                st.rerun()
 
     # --------------------------------------------------------------------------
-    # 8. TARGET RELEASE FLIGHT DECK (Upper Workspace ~145px)
+    # 8. TARGET RELEASE FLIGHT DECK (Upper Workspace ~124px)
     # --------------------------------------------------------------------------
-    d_hdr1, d_hdr2 = st.columns([6.8, 3.2])
-    with d_hdr1:
-        st.markdown("<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;padding-top:1px;'>🎯 Target Release Deep-Dive &amp; Milestone Ledger</div>", unsafe_allow_html=True)
-    with d_hdr2:
-        st.selectbox(
-            "Select Target Release",
-            all_rel_ids,
-            key="rp_target_rel_picker",
-            on_change=_on_release_filter_change,
-            label_visibility="collapsed"
-        )
+    st_c_tag = rel_data.get('state', '')
+    clean_tag = chosen_rel[len(st_c_tag)+1:] if st_c_tag and chosen_rel.startswith(f"{st_c_tag}.") else chosen_rel
+    st.markdown(
+        f"<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;padding:0 1px;'>"
+        f"<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;'>🎯 Target Release Deep-Dive &amp; Milestone Ledger</div>"
+        f"<div style='font-size:9.5px;color:#9fa7b3;'>Target: <span style='color:#38bdf8;font-family:var(--mono);font-weight:700;background:rgba(56,189,248,0.12);padding:1px 6px;border-radius:2px;border:1px solid rgba(56,189,248,0.3);'>🎯 {clean_tag}</span></div>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
 
     d_c1, d_c2 = st.columns([1.0, 2.0], gap="small")
     with d_c1:
@@ -711,7 +749,7 @@ def render_release_plan_workspace(db_path: str) -> None:
             <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:4px 8px;height:124px;overflow-y:auto;box-sizing:border-box;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
                     <div style="font-size:9.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.03em;">Milestone Execution Ledger (5-Phase Pipeline)</div>
-                    <div style="font-size:9px;color:#9fa7b3;font-family:var(--mono);">Target: {rid}</div>
+                    <div style="font-size:9px;color:#6e7681;font-family:var(--mono);">Standard Gate Policy</div>
                 </div>
                 <table class="tblx" style="width:100%;font-size:9.5px;line-height:1.22;">
                     <thead>
@@ -774,7 +812,7 @@ def render_release_plan_workspace(db_path: str) -> None:
     # --------------------------------------------------------------------------
     # 9. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~370px, Fills Canvas)
     # --------------------------------------------------------------------------
-    rf_col1, rf_col2 = st.columns([5.5, 4.5])
+    rf_col1, rf_col2, rf_col3 = st.columns([3.8, 3.8, 2.4])
     with rf_col1:
         st.markdown("<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;padding-top:2px;'>📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix</div>", unsafe_allow_html=True)
     with rf_col2:
@@ -783,6 +821,25 @@ def render_release_plan_workspace(db_path: str) -> None:
             ["All Releases", "Active & In-Flight", "Upcoming", "Deployed"],
             key="rp_roadmap_filter_tab",
             horizontal=True,
+            label_visibility="collapsed"
+        )
+    with rf_col3:
+        clean_opts = {r["release_id"]: (r["release_id"].split(".", 1)[1] if "." in r["release_id"] else r["release_id"]) for r in all_releases}
+        if "rp_matrix_quick_jump" not in st.session_state or st.session_state.get("rp_matrix_quick_jump") not in all_rel_ids or st.session_state.get("rp_matrix_quick_jump") != chosen_rel:
+            st.session_state["rp_matrix_quick_jump"] = chosen_rel
+
+        def _on_quick_pick_change():
+            q_val = st.session_state.get("rp_matrix_quick_jump")
+            if q_val:
+                st.session_state["rp_target_rel_picker"] = q_val
+                _on_release_filter_change()
+
+        st.selectbox(
+            "Quick Focus Release",
+            all_rel_ids,
+            format_func=lambda rid: f"🎯 Focus: {clean_opts.get(rid, rid)}",
+            key="rp_matrix_quick_jump",
+            on_change=_on_quick_pick_change,
             label_visibility="collapsed"
         )
 
@@ -831,7 +888,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         roadmap_rows.append(
             f"<tr style='{row_style}'>"
             f"<td style='padding:3px 5px;'><span style='font-weight:700;color:#9fa7b3;'>{st_code}</span></td>"
-            f"<td style='padding:3px 5px;'>{target_icon}<b>{clean_r_id}</b></td>"
+            f"<td style='padding:3px 5px;'>{target_icon}<b style='color:#38bdf8;font-family:var(--mono);'>{clean_r_id}</b></td>"
             f"<td style='padding:3px 5px;font-family:var(--mono);color:#d8d9da;'>{_fmt_range_clean(d_s, d_e)}</td>"
             f"<td style='padding:3px 5px;font-family:var(--mono);'>{_fmt_date_clean(m_r['sit_end'])}</td>"
             f"<td style='padding:3px 5px;font-family:var(--mono);color:#8fb8f8;font-weight:600;'>{_fmt_date_clean(reg_d)}</td>"
@@ -844,7 +901,31 @@ def render_release_plan_workspace(db_path: str) -> None:
 
     empty_roadmap_notice = "<tr><td colspan='9' style='text-align:center;padding:20px;color:#6e7681;'>No releases match the selected roadmap filter.</td></tr>"
     st.markdown(f'''
-    <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:calc(100vh - 465px);min-height:180px;overflow-y:auto;box-sizing:border-box;">
+    <style>
+    .story-card-link:hover div {{
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.28) !important;
+    }}
+    .rel-link:hover {{
+        color: #7dd3fc !important;
+        text-decoration: underline !important;
+    }}
+    div[data-testid="stColumn"] button[kind="primary"],
+    div[data-testid="stColumn"] button[kind="secondary"] {{
+        height: 22px !important;
+        min-height: 22px !important;
+        padding: 0 6px !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        font-family: var(--mono) !important;
+        margin-top: 2px !important;
+        border-radius: 2px !important;
+    }}
+    table.tblx tbody tr:hover {{
+        background: rgba(56, 189, 248, 0.06) !important;
+    }}
+    </style>
+    <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:calc(100vh - 460px);min-height:180px;overflow-y:auto;box-sizing:border-box;">
         <table class="tblx" style="width:100%;border-collapse:collapse;font-size:10px;">
             <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
                 <tr>
