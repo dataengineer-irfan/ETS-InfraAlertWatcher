@@ -3263,18 +3263,21 @@ if active_scope_state in ["NH", "ND", "AK"]:
 
 # Prominent Scope Indicator & Global Reset Bar
 if active_scope_state in ["NH", "ND", "AK"]:
-    rel_tag = f" &bull; Release <b>{global_sel}</b>" if global_sel else ""
-    c_banner1, c_banner2 = st.columns([5.2, 1.0])
+    clean_g_sel = global_sel
+    if global_sel and global_sel.startswith(f"{active_scope_state}."):
+        clean_g_sel = global_sel[len(active_scope_state)+1:]
+    rel_tag = f" &bull; Release <b>{clean_g_sel}</b>" if clean_g_sel else ""
+    c_banner1, c_banner2 = st.columns([5.5, 0.9])
     with c_banner1:
         st.markdown(
-            f"<div style='display:inline-flex;align-items:center;gap:8px;padding:3px 10px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:3px;font-size:11px;color:#38bdf8;margin-bottom:6px;'>"
+            f"<div style='display:inline-flex;align-items:center;gap:8px;padding:2px 8px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:2px;font-size:10px;color:#38bdf8;margin-bottom:2px;'>"
             f"<b>🔒 Scope Locked:</b> <span style='font-family:var(--mono);'>{active_scope_state} MMIS</span>{rel_tag} "
-            f"<span style='color:var(--slate);font-size:10px;'>(Applied across all 6 dashboard views)</span>"
+            f"<span style='color:var(--slate);font-size:9.5px;'>(Applied across all 6 views)</span>"
             f"</div>",
             unsafe_allow_html=True
         )
     with c_banner2:
-        if st.button("✕ Reset Scope", key="btn_reset_global_scope"):
+        if st.button("✕ Reset Scope", key="btn_reset_global_scope", use_container_width=True):
             st.session_state["_override_canvas_state"] = None
             st.session_state["global_release_selection"] = None
             st.session_state["global_state_filter"] = None
