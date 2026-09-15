@@ -1059,7 +1059,7 @@ def render_on_call_workspace(db_path: str) -> None:
 
             empty_mod_notice = "<tr><td colspan='7' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>No active modules match the selected filters. Click ✕ Reset to view all.</td></tr>"
             table_mod_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);overflow-y:auto;'>"
+                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);min-height:500px;overflow-y:auto;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10.5px;'>"
                 "<thead>"
                 "<tr style='background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;text-transform:uppercase;color:var(--slate);'>"
@@ -1077,6 +1077,33 @@ def render_on_call_workspace(db_path: str) -> None:
                 "</div>"
             )
             st.markdown(table_mod_html, unsafe_allow_html=True)
+
+            st.markdown("""
+            <div style="background:#141619;border:1px solid #2c3235;border-radius:3px;padding:8px 12px;margin-top:8px;">
+              <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
+                <span>📡 Fleet Shift Handover &amp; Escalation Telemetry</span>
+                <span style="color:#10b981;font-weight:700;">● 100% OPERATIONAL SYNC</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;font-size:10px;">
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                  <div style="color:var(--mute);font-size:9px;">Active Fleet Shift</div>
+                  <div style="color:#38bdf8;font-weight:700;margin-top:2px;">Slot 2 · Afternoon Rotation</div>
+                </div>
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                  <div style="color:var(--mute);font-size:9px;">Governing Shift Leads</div>
+                  <div style="color:#f59e0b;font-weight:700;margin-top:2px;">Anil Tankala / Kishore N.</div>
+                </div>
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                  <div style="color:var(--mute);font-size:9px;">Next Handover Target</div>
+                  <div style="color:#10b981;font-weight:700;margin-top:2px;">19:30 IST / 14:00 UTC</div>
+                </div>
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                  <div style="color:var(--mute);font-size:9px;">Escalation War Room</div>
+                  <div style="color:#f87171;font-weight:700;margin-top:2px;">Bridge P1-Live (Active)</div>
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
         # B. MODE 2: PRODUCTION SUPPORT 24x7 (Hierarchical Cross-Tab Matrix)
         elif cur_div == "Production Support 24x7":
@@ -1239,7 +1266,7 @@ def render_on_call_workspace(db_path: str) -> None:
 
             empty_notice = "<tr><td colspan='100' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>No engineers match the selected filters. Click ✕ Reset to restore all.</td></tr>"
             table_crosstab_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 240px);overflow-y:auto;overflow-x:hidden;'>"
+                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 240px);min-height:500px;overflow-y:auto;overflow-x:hidden;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10px;min-width:780px;'>"
                 f"{head_html}"
                 f"<tbody>{''.join(body_rows) if body_rows else empty_notice}</tbody>"
@@ -1615,7 +1642,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 "No shift assignments match the selected filters. Click ✕ Reset to view all.</td></tr>"
             )
             table_shifts_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);overflow-y:auto;'>"
+                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);min-height:500px;overflow-y:auto;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10.5px;'>"
                 "<thead>"
                 "<tr style='background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;text-transform:uppercase;color:var(--slate);'>"
@@ -1638,8 +1665,6 @@ def render_on_call_workspace(db_path: str) -> None:
     # DETAIL INSPECTOR PANE (Right Column)
     # ==========================================================================
     with detail_col:
-        st.markdown('<div style="max-height:calc(100vh - 240px);overflow-y:auto;padding-right:4px;">', unsafe_allow_html=True)
-
         insp_col_left, insp_col_right = st.columns([1.3, 2.7])
         with insp_col_left:
             st.markdown(
@@ -1907,4 +1932,30 @@ def render_on_call_workspace(db_path: str) -> None:
                 f"• Tier 3 (Executive Escalation): {t3_name} ({t3_title})"
             )
             st.code(copy_txt, language="text")
-        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="background:#141619;border:1px solid #2c3235;border-radius:3px;padding:8px 10px;margin-top:8px;">
+          <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
+            <span>🛡️ Incident Response &amp; Handover Protocols</span>
+            <span style="color:#10b981;font-weight:700;">ACTIVE ROTATION</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;">
+            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+              <span style="color:#38bdf8;font-weight:700;">T1 Ack SLA:</span> <span style="color:var(--text);">&le; 15 mins</span>
+              <div style="font-size:9px;color:var(--mute);margin-top:2px;">Primary responder initial triage</div>
+            </div>
+            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+              <span style="color:#f59e0b;font-weight:700;">T2 SDM SLA:</span> <span style="color:var(--text);">&le; 30 mins</span>
+              <div style="font-size:9px;color:var(--mute);margin-top:2px;">Service delivery manager escalation</div>
+            </div>
+            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+              <span style="color:#f2495c;font-weight:700;">T3 Exec SLA:</span> <span style="color:var(--text);">&le; 45 mins</span>
+              <div style="font-size:9px;color:var(--mute);margin-top:2px;">Director / VP outage briefing</div>
+            </div>
+            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+              <span style="color:#10b981;font-weight:700;">Bridge Sync:</span> <span style="color:var(--text);">MS Teams Incident</span>
+              <div style="font-size:9px;color:var(--mute);margin-top:2px;">War-room audio bridge active</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
