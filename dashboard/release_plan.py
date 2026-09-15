@@ -396,9 +396,12 @@ def render_release_plan_workspace(db_path: str) -> None:
         for a in deduped[:4]:
             border_c = "#f2495c" if a["chip_cls"] == "firing" else "#ff9830"
             bg_c = "rgba(242, 73, 92, 0.12)" if a["chip_cls"] == "firing" else "rgba(255, 152, 48, 0.12)"
+            st_c = a.get('state', '')
+            rid = a.get('release_id', '')
+            c_rid = rid[len(st_c)+1:] if rid.startswith(f"{st_c}.") else rid
             chips_html.append(
                 f"<span style='background:{bg_c};border:1px solid {border_c};border-radius:2px;padding:2px 8px;font-size:10px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;'>"
-                f"<b style='color:var(--ink);'>{a['state']}.{a['release_id']}</b>"
+                f"<b style='color:var(--ink);'>{st_c}.{c_rid}</b>"
                 f"<span style='color:{border_c};font-weight:700;'>{a['label']}</span>"
                 f"</span>"
             )
@@ -407,19 +410,24 @@ def render_release_plan_workspace(db_path: str) -> None:
         dot_color = "#f2495c" if n_firing else "#ff9830"
 
         render_html(f"""
-        <div style="display:flex;align-items:center;gap:8px;padding:2px 8px;background:rgba(255,255,255,0.02);border:1px solid #22252b;border-radius:2px;margin-top:2px;margin-bottom:4px;overflow-x:auto;">
-          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-            <span style="width:7px;height:7px;border-radius:50%;background:{dot_color};box-shadow:0 0 5px {dot_color};"></span>
-            <span style="font-size:10px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:0.04em;">Gate Alerts:</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 10px;background:#141619;border:1px solid #22252b;border-radius:2px;margin-top:2px;margin-bottom:4px;box-sizing:border-box;">
+          <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;">
+            <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+              <span style="width:7px;height:7px;border-radius:50%;background:{dot_color};box-shadow:0 0 6px {dot_color};display:inline-block;"></span>
+              <span style="font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">Active Gate Alerts:</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
+              {''.join(chips_html)}
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
-            {''.join(chips_html)}
+          <div style="font-size:9px;color:var(--mute);flex-shrink:0;letter-spacing:0.02em;margin-left:12px;">
+            Gate Horizon: &le; 7d to Cutoff
           </div>
         </div>
         """)
 
     # --------------------------------------------------------------------------
-    # 5b. Milestone Extraction Helper (DEV, SIT, REGRESSION, UAT, PROD)
+    # 5b. Milestone Extraction & Formatting Helpers
     # --------------------------------------------------------------------------
     def _extract_milestones(r: dict) -> dict:
         rj = r.get("raw_json")
@@ -468,8 +476,56 @@ def render_release_plan_workspace(db_path: str) -> None:
         parts = dt_str.split("-")
         return f"{parts[1]}-{parts[2]}" if len(parts) == 3 else dt_str
 
+    def _fmt_date_clean(d_str: str | None) -> str:
+        if not d_str or d_str in ("TBD", "None", "", None):
+            return '<span style="color:#6e7681;">—</span>' if d_str in ("None", None) else '<span style="color:#f59e0b;">TBD</span>'
+        try:
+            parts = str(d_str).split("-")
+            if len(parts) == 3:
+                months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                m_idx = int(parts[1])
+                return f"{months[m_idx]} {parts[2]}, {parts[0]}"
+        except Exception:
+            pass
+        return str(d_str)
+
+    def _fmt_range_clean(d_s: str | None, d_e: str | None) -> str:
+        if not d_s or not d_e or d_s == "TBD" or d_e == "TBD":
+            return f"{d_s or 'TBD'} &rarr; {d_e or 'TBD'}"
+        try:
+            p1 = str(d_s).split("-")
+            p2 = str(d_e).split("-")
+            if len(p1) == 3 and len(p2) == 3:
+                months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                m1 = months[int(p1[1])]
+                m2 = months[int(p2[1])]
+                if p1[0] == p2[0]:
+                    return f"{m1} {p1[2]} &rarr; {m2} {p2[2]}, {p1[0]}"
+                return f"{m1} {p1[2]}, {p1[0]} &rarr; {m2} {p2[2]}, {p2[0]}"
+        except Exception:
+            pass
+        return f"{d_s} &rarr; {d_e}"
+
     # --------------------------------------------------------------------------
-    # 6. 3 EXECUTIVE STORYBOARD DECKS (5-Stage Pipeline: DEV, SIT, REGRESS, UAT, PROD)
+    # 6. RESOLVE ACTIVE SELECTION TARGET
+    # --------------------------------------------------------------------------
+    release_dict = {r["release_id"]: r for r in all_releases}
+    all_rel_ids = list(release_dict.keys())
+
+    cur_sel = st.session_state.get("global_release_selection")
+    if "rp_target_rel_picker" not in st.session_state or st.session_state["rp_target_rel_picker"] not in all_rel_ids:
+        if cur_sel and cur_sel in all_rel_ids:
+            st.session_state["rp_target_rel_picker"] = cur_sel
+        elif curr_r and curr_r["release_id"] in all_rel_ids:
+            st.session_state["rp_target_rel_picker"] = curr_r["release_id"]
+        elif all_rel_ids:
+            st.session_state["rp_target_rel_picker"] = all_rel_ids[0]
+
+    chosen_rel = st.session_state.get("rp_target_rel_picker")
+    rel_data = release_dict.get(chosen_rel) or (all_releases[0] if all_releases else {})
+
+    # --------------------------------------------------------------------------
+    # 7. 3 EXECUTIVE STORYBOARD DECKS (5-Stage Pipeline: DEV, SIT, REGRESS, UAT, PROD)
     # --------------------------------------------------------------------------
     story_c1, story_c2, story_c3 = st.columns(3, gap="small")
 
@@ -484,7 +540,9 @@ def render_release_plan_workspace(db_path: str) -> None:
             </div>
             '''
 
-        rid = rel_data.get("release_id", "Unknown")
+        st_c = rel_data.get("state", "Unknown")
+        raw_rid = rel_data.get("release_id", "Unknown")
+        c_rid = raw_rid[len(st_c)+1:] if raw_rid.startswith(f"{st_c}.") else raw_rid
         state_mmis = rel_data.get("state", "Unknown")
         readiness = rel_data.get("readiness_pct", 0)
         m = _extract_milestones(rel_data)
@@ -498,6 +556,7 @@ def render_release_plan_workspace(db_path: str) -> None:
 
         is_deployed = str(pd_date) < now_iso
         is_active_dev = str(dev_s) <= now_iso <= str(dev_f)
+        is_chosen = (raw_rid == chosen_rel)
 
         if is_deployed:
             status_label = "Dev Complete" if "Previous" in title else "Deployed"
@@ -516,7 +575,18 @@ def render_release_plan_workspace(db_path: str) -> None:
             badge_bg = "rgba(255, 152, 48, 0.16)"
             badge_col = "#ff9830"
 
-        active_border = "border:1px solid rgba(87,148,242,0.4);border-top:3px solid #5794f2;" if is_active_dev else f"border:1px solid #2c3235;border-top:3px solid {accent_color};"
+        if is_chosen:
+            active_border = "border:1.5px solid #38bdf8;border-top:3px solid #38bdf8;box-shadow:0 0 14px rgba(56,189,248,0.28);"
+            card_opacity = "opacity:1;"
+            focus_pill = '<span style="font-size:8px;font-weight:800;color:#38bdf8;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.4);padding:1px 5px;border-radius:2px;margin-right:4px;">ACTIVE FOCUS</span>'
+        elif is_active_dev:
+            active_border = "border:1px solid rgba(87,148,242,0.4);border-top:3px solid #5794f2;"
+            card_opacity = "opacity:1;"
+            focus_pill = ""
+        else:
+            active_border = f"border:1px solid #2c3235;border-top:3px solid {accent_color};"
+            card_opacity = "opacity:0.88;"
+            focus_pill = ""
 
         # Format 5 stages: Dev, Sit, Regress, Uat, Prod
         s_dev = _fmt_md(dev_f)
@@ -526,13 +596,16 @@ def render_release_plan_workspace(db_path: str) -> None:
         s_prd = _fmt_md(pd_date)
 
         return f'''
-        <div style="background:#181b1f;{active_border}border-radius:2px;padding:8px 12px;min-height:102px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+        <div style="background:#181b1f;{active_border}{card_opacity}border-radius:2px;padding:8px 12px;min-height:102px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:14px;font-weight:700;color:#d8d9da;font-family:var(--mono);">{rid}</span>
+              <span style="font-size:14px;font-weight:700;color:#d8d9da;font-family:var(--mono);">{st_c}.{c_rid}</span>
               <span style="font-size:9.5px;color:#9fa7b3;margin-left:4px;">{state_mmis} Scope</span>
             </div>
-            <span style="font-size:8.5px;padding:2px 7px;border-radius:2px;font-weight:700;text-transform:uppercase;background:{badge_bg};color:{badge_col};">{status_label}</span>
+            <div style="display:flex;align-items:center;">
+              {focus_pill}
+              <span style="font-size:8.5px;padding:2px 7px;border-radius:2px;font-weight:700;text-transform:uppercase;background:{badge_bg};color:{badge_col};">{status_label}</span>
+            </div>
           </div>
 
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:2px;">
@@ -575,26 +648,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         render_html(_render_story_card("Upcoming Release", next_r, "#ff9830", "🚀"))
 
     # --------------------------------------------------------------------------
-    # 7. MASTER-DETAIL ROADMAP INSPECTOR (Clean Subtabs / Switcher, Zero-Scroll)
-    # --------------------------------------------------------------------------
-    release_dict = {r["release_id"]: r for r in all_releases}
-    all_rel_ids = list(release_dict.keys())
-
-    # Ensure valid target release selected in state
-    cur_sel = st.session_state.get("global_release_selection")
-    if "rp_target_rel_picker" not in st.session_state or st.session_state["rp_target_rel_picker"] not in all_rel_ids:
-        if cur_sel and cur_sel in all_rel_ids:
-            st.session_state["rp_target_rel_picker"] = cur_sel
-        elif curr_r and curr_r["release_id"] in all_rel_ids:
-            st.session_state["rp_target_rel_picker"] = curr_r["release_id"]
-        elif all_rel_ids:
-            st.session_state["rp_target_rel_picker"] = all_rel_ids[0]
-
-    chosen_rel = st.session_state.get("rp_target_rel_picker")
-    rel_data = release_dict.get(chosen_rel) or (all_releases[0] if all_releases else {})
-
-    # --------------------------------------------------------------------------
-    # 7. TARGET RELEASE FLIGHT DECK (Upper Workspace ~185px)
+    # 8. TARGET RELEASE FLIGHT DECK (Upper Workspace ~185px)
     # --------------------------------------------------------------------------
     d_hdr1, d_hdr2 = st.columns([6.5, 3.5])
     with d_hdr1:
@@ -612,6 +666,10 @@ def render_release_plan_workspace(db_path: str) -> None:
     with d_c1:
         if rel_data:
             st_code = rel_data.get('state', 'NH')
+            raw_rid = rel_data.get('release_id', 'Unknown')
+            clean_rid = raw_rid[len(st_code)+1:] if raw_rid.startswith(f"{st_code}.") else raw_rid
+            disp_title = f"{st_code} MMIS &bull; Release {clean_rid}" if clean_rid else raw_rid
+
             prod_env = "PROD / ENV05" if st_code == "NH" else ("PROD / PRM" if st_code == "ND" else "PROD / ENV30")
             is_deployed = str(rel_data.get('prod_deploy_date', 'TBD')) < now_iso
             d_s = rel_data.get('dev_start_date', 'TBD')
@@ -627,16 +685,16 @@ def render_release_plan_workspace(db_path: str) -> None:
                     <span style="font-size:8.5px;font-weight:700;color:{status_color};background:rgba(255,255,255,0.05);border:1px solid {status_color}40;padding:1px 6px;border-radius:2px;">{status_text}</span>
                 </div>
                 <div>
-                    <div style="font-size:15px;font-weight:800;color:#d8d9da;font-family:var(--mono);">{st_code}.{rel_data.get('release_id')}</div>
+                    <div style="font-size:14px;font-weight:800;color:#d8d9da;font-family:var(--mono);">{disp_title}</div>
                     <div style="font-size:10px;color:#9fa7b3;margin-top:2px;line-height:1.35;">
-                        <b>DEV Window:</b> <span style="font-family:var(--mono);color:#d8d9da;">{d_s} &rarr; {d_e}</span><br/>
-                        <b>Target PROD:</b> <span style="color:#8fb8f8;font-weight:700;">{prod_env}</span> ({rel_data.get('prod_deploy_date', 'TBD')})<br/>
+                        <b>DEV Window:</b> <span style="font-family:var(--mono);color:#d8d9da;">{_fmt_range_clean(d_s, d_e)}</span><br/>
+                        <b>Target PROD:</b> <span style="color:#8fb8f8;font-weight:700;">{prod_env}</span> ({_fmt_date_clean(rel_data.get('prod_deploy_date', 'TBD'))})<br/>
                         <b>RM:</b> {rel_data.get('state_rm_name', 'Unassigned')} &bull; <b>Lead:</b> {rel_data.get('tech_lead_name', 'Unassigned')}
                     </div>
                 </div>
                 <div style="font-size:10px;font-family:var(--mono);color:#9fa7b3;display:flex;justify-content:space-between;border-top:1px solid #22252b;padding-top:3px;">
                     <span>Readiness: <b style="color:{status_color};">{rel_data.get('readiness_pct', 0):.0f}%</b></span>
-                    <span style="color:#8fb8f8;font-weight:700;">PROD: {rel_data.get('prod_deploy_date', 'TBD')}</span>
+                    <span style="color:#8fb8f8;font-weight:700;">PROD: {_fmt_date_clean(rel_data.get('prod_deploy_date', 'TBD'))}</span>
                 </div>
             </div>
             ''', unsafe_allow_html=True)
@@ -644,6 +702,8 @@ def render_release_plan_workspace(db_path: str) -> None:
     with d_c2:
         if rel_data:
             st_code = rel_data.get('state', 'NH')
+            raw_rid = rel_data.get('release_id', 'Unknown')
+            clean_rid = raw_rid[len(st_code)+1:] if raw_rid.startswith(f"{st_code}.") else raw_rid
             prod_env_label = "PROD / ENV05" if st_code == "NH" else ("PROD / PRM" if st_code == "ND" else "PROD / ENV30")
             m_curr = _extract_milestones(rel_data)
             
@@ -666,7 +726,7 @@ def render_release_plan_workspace(db_path: str) -> None:
                         <tr>
                             <td style="padding:2px 4px;font-weight:600;">DEV Cycle Window</td>
                             <td style="padding:2px 4px;color:#9fa7b3;">Build-76 / ENV52</td>
-                            <td style="padding:2px 4px;font-family:var(--mono);">{dev_s} &rarr; {dev_e}</td>
+                            <td style="padding:2px 4px;font-family:var(--mono);">{dev_window}</td>
                             <td style="padding:2px 4px;text-align:right;">{d_stat}</td>
                         </tr>
                         <tr>
@@ -697,38 +757,59 @@ def render_release_plan_workspace(db_path: str) -> None:
                 </table>
             </div>
             '''.format(
-                rid=f"{st_code}.{rel_data.get('release_id')}",
-                dev_s=m_curr['dev_start'],
-                dev_e=m_curr['dev_end'],
+                rid=f"{st_code}.{clean_rid}",
+                dev_window=_fmt_range_clean(m_curr['dev_start'], m_curr['dev_end']),
                 d_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['dev_end']) < now_iso else ('<span style="color:#8fb8f8;font-weight:700;">ACTIVE DEV</span>' if str(m_curr['dev_start']) <= now_iso <= str(m_curr['dev_end']) else '<span style="color:#9fa7b3;font-weight:700;">PENDING</span>'),
-                sit=m_curr['sit_end'],
+                sit=_fmt_date_clean(m_curr['sit_end']),
                 s_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['sit_end']) < now_iso else '<span style="color:#9fa7b3;font-weight:700;">PENDING</span>',
-                reg=m_curr['regression_end'],
+                reg=_fmt_date_clean(m_curr['regression_end']),
                 r_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['regression_end']) < now_iso else '<span style="color:#8fb8f8;font-weight:700;">SCHEDULED</span>',
-                uat=m_curr['uat_end'],
+                uat=_fmt_date_clean(m_curr['uat_end']),
                 u_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['uat_end']) < now_iso else '<span style="color:#9fa7b3;font-weight:700;">PENDING</span>',
                 prod_env=prod_env_label,
-                prod=m_curr['prod_date'],
+                prod=_fmt_date_clean(m_curr['prod_date']),
                 p_stat='<span style="color:#73bf69;font-weight:700;">PASSED</span>' if str(m_curr['prod_date']) < now_iso else '<span style="color:#ff9830;font-weight:700;">PENDING</span>'
             ), unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # 8. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~370px, Fills Canvas)
+    # 9. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~370px, Fills Canvas)
     # --------------------------------------------------------------------------
-    st.markdown("<div style='font-size:11px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;margin-top:4px;margin-bottom:2px;'>📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix (Consolidated Fleet)</div>", unsafe_allow_html=True)
+    rf_col1, rf_col2 = st.columns([5.5, 4.5])
+    with rf_col1:
+        st.markdown("<div style='font-size:11px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;padding-top:6px;'>📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix (Consolidated Fleet)</div>", unsafe_allow_html=True)
+    with rf_col2:
+        roadmap_filter = st.radio(
+            "Roadmap Filter",
+            ["All Releases", "Active & In-Flight", "Upcoming", "Deployed"],
+            key="rp_roadmap_filter_tab",
+            horizontal=True,
+            label_visibility="collapsed"
+        )
 
     roadmap_rows = []
     for r in all_releases:
         st_code = r.get("state", "NH")
+        raw_r_id = r.get("release_id", "")
+        clean_r_id = raw_r_id[len(st_code)+1:] if raw_r_id.startswith(f"{st_code}.") else raw_r_id
+
         prod_env = "PROD (ENV05)" if st_code == "NH" else ("PROD (PRM)" if st_code == "ND" else "PROD (ENV30)")
         m_r = _extract_milestones(r)
-        d_s = m_r['dev_start']
-        d_e = m_r['dev_end']
-        p_d = m_r['prod_date']
+        d_s = str(m_r['dev_start'])
+        d_e = str(m_r['dev_end'])
+        p_d = str(m_r['prod_date'])
         reg_d = m_r['regression_end']
-        is_deployed = str(p_d) < now_iso
-        is_in_dev = str(d_s) <= now_iso <= str(d_e)
-        is_today = str(p_d) == now_iso
+        is_deployed = p_d < now_iso
+        is_in_dev = d_s <= now_iso <= d_e
+        is_today = p_d == now_iso
+        is_upcoming = d_s > now_iso
+
+        # Filter check
+        if roadmap_filter == "Active & In-Flight" and not (is_in_dev or (not is_deployed and d_s <= now_iso)):
+            continue
+        elif roadmap_filter == "Upcoming" and not is_upcoming:
+            continue
+        elif roadmap_filter == "Deployed" and not is_deployed:
+            continue
 
         if is_today:
             status = '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;background:rgba(255,152,48,0.16);color:#ff9830;">CUTOVER TODAY</span>'
@@ -739,20 +820,29 @@ def render_release_plan_workspace(db_path: str) -> None:
         else:
             status = '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;background:rgba(255,152,48,0.16);color:#ff9830;">SCHEDULED</span>'
 
+        is_selected_row = (raw_r_id == chosen_rel)
+        if is_selected_row:
+            row_style = "background:rgba(56,189,248,0.12);border-left:3px solid #38bdf8;border-bottom:1px solid #2c3235;"
+            target_icon = '<span style="color:#38bdf8;font-size:10px;margin-right:4px;">🎯</span>'
+        else:
+            row_style = "border-bottom:1px solid #22252b;"
+            target_icon = ''
+
         roadmap_rows.append(
-            f"<tr style='border-bottom:1px solid #22252b;'>"
+            f"<tr style='{row_style}'>"
             f"<td style='padding:4px 6px;'><span style='font-weight:700;color:#9fa7b3;'>{st_code}</span></td>"
-            f"<td style='padding:4px 6px;'><b>{r.get('release_id')}</b></td>"
-            f"<td style='padding:4px 6px;font-family:var(--mono);color:#d8d9da;'>{d_s} &rarr; {d_e}</td>"
-            f"<td style='padding:4px 6px;font-family:var(--mono);'>{m_r['sit_end']}</td>"
-            f"<td style='padding:4px 6px;font-family:var(--mono);color:#8fb8f8;font-weight:600;'>{reg_d}</td>"
-            f"<td style='padding:4px 6px;font-family:var(--mono);'>{m_r['uat_end']}</td>"
-            f"<td style='padding:4px 6px;font-family:var(--mono);font-weight:700;color:#d8d9da;'>{p_d}</td>"
+            f"<td style='padding:4px 6px;'>{target_icon}<b>{clean_r_id}</b></td>"
+            f"<td style='padding:4px 6px;font-family:var(--mono);color:#d8d9da;'>{_fmt_range_clean(d_s, d_e)}</td>"
+            f"<td style='padding:4px 6px;font-family:var(--mono);'>{_fmt_date_clean(m_r['sit_end'])}</td>"
+            f"<td style='padding:4px 6px;font-family:var(--mono);color:#8fb8f8;font-weight:600;'>{_fmt_date_clean(reg_d)}</td>"
+            f"<td style='padding:4px 6px;font-family:var(--mono);'>{_fmt_date_clean(m_r['uat_end'])}</td>"
+            f"<td style='padding:4px 6px;font-family:var(--mono);font-weight:700;color:#d8d9da;'>{_fmt_date_clean(p_d)}</td>"
             f"<td style='padding:4px 6px;font-size:9.5px;color:#8fb8f8;'>{prod_env}</td>"
             f"<td style='padding:4px 6px;text-align:right;'>{status}</td>"
             f"</tr>"
         )
 
+    empty_roadmap_notice = "<tr><td colspan='9' style='text-align:center;padding:24px;color:#6e7681;'>No releases match the selected roadmap filter.</td></tr>"
     st.markdown(f'''
     <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;max-height:calc(100vh - 540px);min-height:240px;overflow-y:auto;box-sizing:border-box;">
         <table class="tblx" style="width:100%;border-collapse:collapse;font-size:10.5px;">
@@ -770,7 +860,7 @@ def render_release_plan_workspace(db_path: str) -> None:
                 </tr>
             </thead>
             <tbody>
-                {''.join(roadmap_rows)}
+                {''.join(roadmap_rows) if roadmap_rows else empty_roadmap_notice}
             </tbody>
         </table>
     </div>
