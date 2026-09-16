@@ -1162,7 +1162,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             elif pg_sort == "State (A-Z)":
                 pg_work = pg_work.sort_values(["state", "days_left"], ascending=[True, True])
 
-            PAGE_SIZE = 14
+            PAGE_SIZE = 25
             n_records = len(pg_work)
             n_pages = max(1, (n_records + PAGE_SIZE - 1) // PAGE_SIZE)
             cur_page = st.session_state.setdefault("op_pg_page_idx", 0)
@@ -1187,37 +1187,37 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     st.session_state["op_pg_page_idx"] = min(n_pages - 1, cur_page + 1)
                     rerun()
 
-            # High-density entity list with zero-scroll budget
-            st.markdown("<div style='border-top:1px solid var(--rule);margin-top:4px;'></div>", unsafe_allow_html=True)
-            page_records = pg_work.iloc[cur_page * PAGE_SIZE : (cur_page + 1) * PAGE_SIZE]
-            for r in page_records.itertuples():
-                is_act = (r.id == selected_id)
-                is_sel = r.id in selected_entity_ids
-                r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-                _sbar = ui.leaf_sparkbar(int(r.days_left))
-                sla_badge_str = ui.sla_badge(r.env_label)
+            # Clean box with borders and internal scroll
+            with st.container(height=415, border=True, key="op_grid_box"):
+                page_records = pg_work.iloc[cur_page * PAGE_SIZE : (cur_page + 1) * PAGE_SIZE]
+                for r in page_records.itertuples():
+                    is_act = (r.id == selected_id)
+                    is_sel = r.id in selected_entity_ids
+                    r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                    _sbar = ui.leaf_sparkbar(int(r.days_left))
+                    sla_badge_str = ui.sla_badge(r.env_label)
 
-                pg_r0, pg_r1, pg_r2 = st.columns([0.5, 2.7, 1.4])
-                with pg_r0:
-                    if st.button("☑" if is_sel else "☐", key=f"pg_ck_{r.id}", use_container_width=True):
-                        if is_sel:
-                            selected_entity_ids.discard(r.id)
-                        else:
-                            selected_entity_ids.add(r.id)
-                        rerun()
-                with pg_r1:
-                    btn_txt = f"#{r.id} {r.schema_name} · {r.state}"
-                    if st.button(btn_txt, key=f"pg_act_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
-                        st.session_state["op_active_id"] = int(r.id)
-                        rerun()
-                with pg_r2:
-                    st.markdown(
-                        f"<div style='text-align:right;padding-top:2px;padding-right:2px;'>"
-                        f"<span style='font-family:var(--mono);font-size:9.5px;font-weight:700;color:{r_meta['color']};'>{r_meta['symbol']} {ui.fmt_days(r.days_left)}</span> {sla_badge_str}"
-                        f"{_sbar}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
+                    pg_r0, pg_r1, pg_r2 = st.columns([0.5, 2.7, 1.4])
+                    with pg_r0:
+                        if st.button("☑" if is_sel else "☐", key=f"pg_ck_{r.id}", use_container_width=True):
+                            if is_sel:
+                                selected_entity_ids.discard(r.id)
+                            else:
+                                selected_entity_ids.add(r.id)
+                            rerun()
+                    with pg_r1:
+                        btn_txt = f"#{r.id} {r.schema_name} · {r.state}"
+                        if st.button(btn_txt, key=f"pg_act_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                            st.session_state["op_active_id"] = int(r.id)
+                            rerun()
+                    with pg_r2:
+                        st.markdown(
+                            f"<div style='text-align:right;padding-top:2px;padding-right:2px;'>"
+                            f"<span style='font-family:var(--mono);font-size:9.5px;font-weight:700;color:{r_meta['color']};'>{r_meta['symbol']} {ui.fmt_days(r.days_left)}</span> {sla_badge_str}"
+                            f"{_sbar}"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
         else:
             # Persistent Interactive Breadcrumb Header & Selection Toolbar
             bc_parts = ["<span style='color:var(--accent);font-weight:700;font-size:10px;'>All</span>"]
@@ -1329,174 +1329,174 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     st.session_state["op_target_tab"] = "batch"
                     rerun()
 
-            # Hierarchical Matrix Tree (Scrollable node list)
+            # Hierarchical Matrix Tree inside a clean, bordered, scrollable box
+            with st.container(height=415, border=True, key="op_tree_box"):
+                for st_val in filtered["state"].unique():
+                    st_sub = filtered[filtered["state"] == st_val]
+                    st_path = str(st_val)
+                    st_is_open = st_path in tree_open
+                    st_worst = ui.worst_band(st_sub["band"].tolist())
+                    st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
+                    st_exp_n = (st_sub["days_left"] < 0).sum()
+                    st_child_ids = set(st_sub["id"].tolist())
+                    st_sym, st_uncheck = tri_state_info(st_child_ids, selected_entity_ids)
 
-            for st_val in filtered["state"].unique():
-                st_sub = filtered[filtered["state"] == st_val]
-                st_path = str(st_val)
-                st_is_open = st_path in tree_open
-                st_worst = ui.worst_band(st_sub["band"].tolist())
-                st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
-                st_exp_n = (st_sub["days_left"] < 0).sum()
-                st_child_ids = set(st_sub["id"].tolist())
-                st_sym, st_uncheck = tri_state_info(st_child_ids, selected_entity_ids)
+                    # Level 1: State Node
+                    s_c0, s_c1, s_c2 = st.columns([0.6, 3.8, 0.6])
+                    with s_c0:
+                        if st.button(st_sym, key=f"sel_st_{st_val}", use_container_width=True):
+                            if st_uncheck:
+                                selected_entity_ids.difference_update(st_child_ids)
+                            else:
+                                selected_entity_ids.update(st_child_ids)
+                            rerun()
+                    with s_c1:
+                        is_st_foc = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+                        st_badge_txt = f"{st_exp_n} Expired" if st_exp_n else st_worst
+                        btn_lbl = f"📍 State {st_val} ({len(st_sub)} items) · {st_meta['symbol']} {st_badge_txt}"
+                        if st.button(btn_lbl, key=f"foc_st_tree_{st_val}", use_container_width=True, type="primary" if is_st_foc else "secondary", help=f"Focus entire workspace on State {st_val}"):
+                            if is_st_foc:
+                                st.session_state["op_cell_filter"] = None
+                            else:
+                                st.session_state["op_cell_filter"] = (st_val, None)
+                                tree_open.clear()
+                                tree_open.add(st_val)
+                            rerun()
 
-                # Level 1: State Node
-                s_c0, s_c1, s_c2 = st.columns([0.6, 3.8, 0.6])
-                with s_c0:
-                    if st.button(st_sym, key=f"sel_st_{st_val}", use_container_width=True):
-                        if st_uncheck:
-                            selected_entity_ids.difference_update(st_child_ids)
-                        else:
-                            selected_entity_ids.update(st_child_ids)
-                        rerun()
-                with s_c1:
-                    is_st_foc = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
-                    st_badge_txt = f"{st_exp_n} Expired" if st_exp_n else st_worst
-                    btn_lbl = f"📍 State {st_val} ({len(st_sub)} items) · {st_meta['symbol']} {st_badge_txt}"
-                    if st.button(btn_lbl, key=f"foc_st_tree_{st_val}", use_container_width=True, type="primary" if is_st_foc else "secondary", help=f"Focus entire workspace on State {st_val}"):
-                        if is_st_foc:
-                            st.session_state["op_cell_filter"] = None
-                        else:
-                            st.session_state["op_cell_filter"] = (st_val, None)
-                            tree_open.clear()
-                            tree_open.add(st_val)
-                        rerun()
+                    with s_c2:
+                        if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
+                            toggle_tree_node(st_path, None)
+                            rerun()
 
-                with s_c2:
-                    if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
-                        toggle_tree_node(st_path, None)
-                        rerun()
+                    if st_is_open:
+                        for tm_val in st_sub["team"].unique():
+                            tm_sub = st_sub[st_sub["team"] == tm_val]
+                            tm_path = f"{st_val}/{tm_val}"
+                            tm_is_open = tm_path in tree_open
+                            tm_worst = ui.worst_band(tm_sub["band"].tolist())
+                            tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
+                            tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#5794f2")
+                            tm_child_ids = set(tm_sub["id"].tolist())
+                            tm_sym, tm_uncheck = tri_state_info(tm_child_ids, selected_entity_ids)
 
-                if st_is_open:
-                    for tm_val in st_sub["team"].unique():
-                        tm_sub = st_sub[st_sub["team"] == tm_val]
-                        tm_path = f"{st_val}/{tm_val}"
-                        tm_is_open = tm_path in tree_open
-                        tm_worst = ui.worst_band(tm_sub["band"].tolist())
-                        tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
-                        tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#5794f2")
-                        tm_child_ids = set(tm_sub["id"].tolist())
-                        tm_sym, tm_uncheck = tri_state_info(tm_child_ids, selected_entity_ids)
+                            # Level 2: Team Node
+                            t_c0, t_c1, t_c2 = st.columns([0.6, 3.8, 0.6])
+                            with t_c0:
+                                if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True):
+                                    if tm_uncheck:
+                                        selected_entity_ids.difference_update(tm_child_ids)
+                                    else:
+                                        selected_entity_ids.update(tm_child_ids)
+                                    rerun()
+                            with t_c1:
+                                st.markdown(f"""
+                                <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:#141619;border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
+                                  <span style="color:{tm_color};font-weight:600;">
+                                    👥 {tm_val} <span style="color:var(--mute);font-weight:400;font-size:9px;">({len(tm_sub)})</span>
+                                  </span>
+                                  <span style="color:{tm_meta['color']};font-weight:600;font-size:9px;">{tm_meta['symbol']} {tm_worst}</span>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            with t_c2:
+                                if st.button("▼" if tm_is_open else "▶", key=f"t_tm_{st_val}_{tm_val}", use_container_width=True):
+                                    toggle_tree_node(tm_path, st_path)
+                                    rerun()
 
-                        # Level 2: Team Node
-                        t_c0, t_c1, t_c2 = st.columns([0.6, 3.8, 0.6])
-                        with t_c0:
-                            if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True):
-                                if tm_uncheck:
-                                    selected_entity_ids.difference_update(tm_child_ids)
-                                else:
-                                    selected_entity_ids.update(tm_child_ids)
-                                rerun()
-                        with t_c1:
-                            st.markdown(f"""
-                            <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:#141619;border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
-                              <span style="color:{tm_color};font-weight:600;">
-                                👥 {tm_val} <span style="color:var(--mute);font-weight:400;font-size:9px;">({len(tm_sub)})</span>
-                              </span>
-                              <span style="color:{tm_meta['color']};font-weight:600;font-size:9px;">{tm_meta['symbol']} {tm_worst}</span>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        with t_c2:
-                            if st.button("▼" if tm_is_open else "▶", key=f"t_tm_{st_val}_{tm_val}", use_container_width=True):
-                                toggle_tree_node(tm_path, st_path)
-                                rerun()
+                            if tm_is_open:
+                                for cp_val in tm_sub["component"].unique():
+                                    cp_sub = tm_sub[tm_sub["component"] == cp_val]
+                                    cp_path = f"{st_val}/{tm_val}/{cp_val}"
+                                    cp_is_open = cp_path in tree_open
+                                    cp_worst = ui.worst_band(cp_sub["band"].tolist())
+                                    cp_meta = ui.BAND_META.get(cp_worst, ui.BAND_META["Healthy"])
+                                    cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
+                                    cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
+                                    cp_child_ids = set(cp_sub["id"].tolist())
+                                    cp_sym, cp_uncheck = tri_state_info(cp_child_ids, selected_entity_ids)
 
-                        if tm_is_open:
-                            for cp_val in tm_sub["component"].unique():
-                                cp_sub = tm_sub[tm_sub["component"] == cp_val]
-                                cp_path = f"{st_val}/{tm_val}/{cp_val}"
-                                cp_is_open = cp_path in tree_open
-                                cp_worst = ui.worst_band(cp_sub["band"].tolist())
-                                cp_meta = ui.BAND_META.get(cp_worst, ui.BAND_META["Healthy"])
-                                cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
-                                cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
-                                cp_child_ids = set(cp_sub["id"].tolist())
-                                cp_sym, cp_uncheck = tri_state_info(cp_child_ids, selected_entity_ids)
+                                    # Level 3: Component Node
+                                    cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
+                                    chip_head = f"{cp_icon} {cp_code}"
+                                    with cp_c0:
+                                        if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
+                                            if cp_uncheck:
+                                                 selected_entity_ids.difference_update(cp_child_ids)
+                                            else:
+                                                 selected_entity_ids.update(cp_child_ids)
+                                            rerun()
+                                    with cp_c1:
+                                        st.markdown(f"""
+                                        <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10px;">
+                                          <span style="color:var(--text);font-weight:500;">{chip_head} <span style="color:var(--mute);font-size:8.5px;">({len(cp_sub)})</span></span>
+                                          <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    with cp_c2:
+                                        if st.button("▼" if cp_is_open else "▶", key=f"t_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
+                                            toggle_tree_node(cp_path, tm_path)
+                                            rerun()
 
-                                # Level 3: Component Node
-                                cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
-                                chip_head = f"{cp_icon} {cp_code}"
-                                with cp_c0:
-                                    if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
-                                        if cp_uncheck:
-                                             selected_entity_ids.difference_update(cp_child_ids)
-                                        else:
-                                             selected_entity_ids.update(cp_child_ids)
-                                        rerun()
-                                with cp_c1:
-                                    st.markdown(f"""
-                                    <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10px;">
-                                      <span style="color:var(--text);font-weight:500;">{chip_head} <span style="color:var(--mute);font-size:8.5px;">({len(cp_sub)})</span></span>
-                                      <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                with cp_c2:
-                                    if st.button("▼" if cp_is_open else "▶", key=f"t_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
-                                        toggle_tree_node(cp_path, tm_path)
-                                        rerun()
+                                    if cp_is_open:
+                                        for ev_val in cp_sub["env_label"].unique():
+                                            ev_sub = cp_sub[cp_sub["env_label"] == ev_val]
+                                            ev_path = f"{st_val}/{tm_val}/{cp_val}/{ev_val}"
+                                            ev_is_open = ev_path in tree_open
+                                            ev_worst = ui.worst_band(ev_sub["band"].tolist())
+                                            ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
+                                            ev_child_ids = set(ev_sub["id"].tolist())
+                                            ev_sym, ev_uncheck = tri_state_info(ev_child_ids, selected_entity_ids)
 
-                                if cp_is_open:
-                                    for ev_val in cp_sub["env_label"].unique():
-                                        ev_sub = cp_sub[cp_sub["env_label"] == ev_val]
-                                        ev_path = f"{st_val}/{tm_val}/{cp_val}/{ev_val}"
-                                        ev_is_open = ev_path in tree_open
-                                        ev_worst = ui.worst_band(ev_sub["band"].tolist())
-                                        ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
-                                        ev_child_ids = set(ev_sub["id"].tolist())
-                                        ev_sym, ev_uncheck = tri_state_info(ev_child_ids, selected_entity_ids)
+                                            # Level 4: Environment Node
+                                            ev_c0, ev_c1, ev_c2 = st.columns([0.6, 3.8, 0.6])
+                                            with ev_c0:
+                                                if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
+                                                    if ev_uncheck:
+                                                        selected_entity_ids.difference_update(ev_child_ids)
+                                                    else:
+                                                        selected_entity_ids.update(ev_child_ids)
+                                                    rerun()
+                                            with ev_c1:
+                                                st.markdown(f"""
+                                                <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;border-radius:2px;padding:2px 4px;font-size:9.5px;color:var(--slate);">
+                                                  <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
+                                                  <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                            with ev_c2:
+                                                if st.button("▼" if ev_is_open else "▶", key=f"t_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
+                                                    toggle_tree_node(ev_path, cp_path)
+                                                    rerun()
 
-                                        # Level 4: Environment Node
-                                        ev_c0, ev_c1, ev_c2 = st.columns([0.6, 3.8, 0.6])
-                                        with ev_c0:
-                                            if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
-                                                if ev_uncheck:
-                                                    selected_entity_ids.difference_update(ev_child_ids)
-                                                else:
-                                                    selected_entity_ids.update(ev_child_ids)
-                                                rerun()
-                                        with ev_c1:
-                                            st.markdown(f"""
-                                            <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;border-radius:2px;padding:2px 4px;font-size:9.5px;color:var(--slate);">
-                                              <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
-                                              <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                        with ev_c2:
-                                            if st.button("▼" if ev_is_open else "▶", key=f"t_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
-                                                toggle_tree_node(ev_path, cp_path)
-                                                rerun()
+                                            if ev_is_open:
+                                                # Level 5: Leaf Entities
+                                                for r in ev_sub.itertuples():
+                                                    r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                                                    is_act = (r.id == selected_id)
+                                                    is_leaf_sel = r.id in selected_entity_ids
 
-                                        if ev_is_open:
-                                            # Level 5: Leaf Entities
-                                            for r in ev_sub.itertuples():
-                                                r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-                                                is_act = (r.id == selected_id)
-                                                is_leaf_sel = r.id in selected_entity_ids
-
-                                                row_c0, row_c1, row_c2 = st.columns([0.6, 3.0, 1.4])
-                                                with row_c0:
-                                                    if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True):
-                                                        if is_leaf_sel:
-                                                            selected_entity_ids.discard(r.id)
-                                                        else:
-                                                            selected_entity_ids.add(r.id)
-                                                        rerun()
-                                                with row_c1:
-                                                    if st.button(r.schema_name, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
-                                                        st.session_state["op_active_id"] = r.id
-                                                        rerun()
-                                                with row_c2:
-                                                    r_c = r_meta["color"]
-                                                    r_s = r_meta["symbol"]
-                                                    _sbar = ui.leaf_sparkbar(int(r.days_left))
-                                                    st.markdown(
-                                                        f"<div style='text-align:right;padding-top:4px;padding-right:4px;'>"
-                                                        f"<div style='font-size:10px;font-weight:600;color:{r_c};white-space:nowrap;font-variant-numeric:tabular-nums;'>{r_s} {ui.fmt_days(r.days_left)}</div>"
-                                                        f"{_sbar}"
-                                                        f"</div>",
-                                                        unsafe_allow_html=True
-                                                    )
+                                                    row_c0, row_c1, row_c2 = st.columns([0.6, 3.0, 1.4])
+                                                    with row_c0:
+                                                        if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True):
+                                                            if is_leaf_sel:
+                                                                selected_entity_ids.discard(r.id)
+                                                            else:
+                                                                selected_entity_ids.add(r.id)
+                                                            rerun()
+                                                    with row_c1:
+                                                        if st.button(r.schema_name, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                                                            st.session_state["op_active_id"] = r.id
+                                                            rerun()
+                                                    with row_c2:
+                                                        r_c = r_meta["color"]
+                                                        r_s = r_meta["symbol"]
+                                                        _sbar = ui.leaf_sparkbar(int(r.days_left))
+                                                        st.markdown(
+                                                            f"<div style='text-align:right;padding-top:4px;padding-right:4px;'>"
+                                                            f"<div style='font-size:10px;font-weight:600;color:{r_c};white-space:nowrap;font-variant-numeric:tabular-nums;'>{r_s} {ui.fmt_days(r.days_left)}</div>"
+                                                            f"{_sbar}"
+                                                            f"</div>",
+                                                            unsafe_allow_html=True
+                                                        )
 
             # Component Severity Distribution Panel (Rule 6: size to content, eliminate empty space)
             dist_source = df[df["id"].isin(selected_entity_ids)] if selected_entity_ids else filtered
@@ -1695,7 +1695,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 "band": rec["band"],
                 "edited_at": str(rec["edited_at"]),
             }
-            with st.expander("Technical Diagnostics & Database Query", expanded=True):
+            with st.expander("Technical Diagnostics & Database Query", expanded=False):
                 if hasattr(st, "code"):
                     st.caption("Technical Diagnostics & Database Query")
                     st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")

@@ -389,6 +389,38 @@ def css() -> str:
 iframe:not([data-testid="stCustomComponentV1"]) {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; }}
 iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100% !important; }}
 
+/* Screen Zero-Scroll Enforcement: Screen/page cannot scroll */
+[data-testid="stMain"] {{
+  overflow-y: hidden !important;
+  overflow-x: hidden !important;
+}}
+
+/* Operations Hub: Left Below Clean Box with Borders and Internal Scroll */
+.st-key-op_grid_box,
+[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-op_grid_box),
+.st-key-op_tree_box,
+[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-op_tree_box) {{
+  border: 1px solid #2c3235 !important;
+  background: #141619 !important;
+  border-radius: 4px !important;
+  padding: 6px 6px !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}}
+
+.st-key-op_grid_box [data-testid="stVerticalBlock"],
+.st-key-op_tree_box [data-testid="stVerticalBlock"] {{
+  gap: 2px !important;
+}}
+
+.st-key-op_grid_box button,
+.st-key-op_tree_box button {{
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 2px 6px !important;
+  font-size: 11px !important;
+}}
+
+
 
 /* WCAG 2.1 AA Color-Blind Redundancy & High-Contrast Progress Textures */
 .bar-hatch-danger {{
