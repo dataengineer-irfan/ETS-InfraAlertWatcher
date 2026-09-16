@@ -28,15 +28,12 @@ def get_cached_release_schedules(db_path: str, state: str | None = None) -> list
 
 import ui
 from pathlib import Path
-import streamlit.components.v1 as components
 from db import (
     get_connection,
     get_release_schedules,
     get_release_milestones,
 )
 
-ROADMAP_COMP_DIR = Path(__file__).resolve().parent / "components" / "roadmap_matrix"
-roadmap_matrix_clicker = components.declare_component("roadmap_matrix_clicker", path=str(ROADMAP_COMP_DIR))
 
 
 def render_html(html_str: str) -> None:
@@ -901,15 +898,55 @@ def render_release_plan_workspace(db_path: str) -> None:
             "status_badge": status,
         })
 
-    clicked_rel = roadmap_matrix_clicker(
-        rows=roadmap_data,
-        chosen=chosen_rel,
-        key="roadmap_matrix_comp",
-        default=None
-    )
-    if clicked_rel and clicked_rel != chosen_rel:
-        st.session_state["rp_target_rel_picker"] = clicked_rel
-        _on_release_filter_change()
-        st.rerun()
+    table_rows = []
+    for r in roadmap_data:
+        is_sel = (r["id"] == chosen_rel)
+        row_bg = "background:rgba(56,189,248,0.14);border-left:3px solid #38bdf8;" if is_sel else "border-bottom:1px solid #22252b;"
+        target_icon = '<span style="color:#38bdf8;font-size:9.5px;margin-right:3px;">🎯</span>' if is_sel else ''
+        badge_bg = "rgba(56,189,248,0.25)" if is_sel else "rgba(56,189,248,0.08)"
+        badge_border = "#38bdf8" if is_sel else "rgba(56,189,248,0.25)"
+        badge_color = "#ffffff" if is_sel else "#38bdf8"
+        badge_shadow = "box-shadow:0 0 8px rgba(56,189,248,0.35);" if is_sel else ""
+
+        table_rows.append(f'''
+        <tr style="{row_bg}">
+            <td style="padding:3.5px 6px;"><span style="font-weight:700;color:#9fa7b3;">{r["state"]}</span></td>
+            <td style="padding:3.5px 6px;">
+                <a href="?target_rel={r['id']}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 5px;border-radius:2px;font-family:var(--mono);font-size:10px;font-weight:700;background:{badge_bg};border:1px solid {badge_border};color:{badge_color};{badge_shadow}">
+                    {target_icon}{r["clean_id"]}
+                </a>
+            </td>
+            <td style="padding:3.5px 6px;font-family:var(--mono);color:#d8d9da;">{r["dev_window"]}</td>
+            <td style="padding:3.5px 6px;font-family:var(--mono);">{r["sit"]}</td>
+            <td style="padding:3.5px 6px;font-family:var(--mono);color:#8fb8f8;font-weight:600;">{r["reg"]}</td>
+            <td style="padding:3.5px 6px;font-family:var(--mono);">{r["uat"]}</td>
+            <td style="padding:3.5px 6px;font-family:var(--mono);font-weight:700;color:#d8d9da;">{r["prod"]}</td>
+            <td style="padding:3.5px 6px;font-size:9px;color:#8fb8f8;">{r["prod_env"]}</td>
+            <td style="padding:3.5px 6px;text-align:right;">{r["status_badge"]}</td>
+        </tr>
+        ''')
+
+    render_html(f'''
+    <div style="background:#181b1f;border:1px solid #2c3235;border-radius:4px;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;height:405px;max-height:410px;">
+        <table style="width:100%;border-collapse:collapse;font-size:10px;color:#d8d9da;">
+            <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
+                <tr style="color:#6e7681;text-transform:uppercase;font-size:9px;font-weight:600;letter-spacing:0.03em;">
+                    <th style="padding:5px 6px;text-align:left;">State</th>
+                    <th style="padding:5px 6px;text-align:left;">Release (Click to Filter)</th>
+                    <th style="padding:5px 6px;text-align:left;">DEV Window</th>
+                    <th style="padding:5px 6px;text-align:left;">SIT Gate</th>
+                    <th style="padding:5px 6px;text-align:left;color:#8fb8f8;font-weight:700;">Regression</th>
+                    <th style="padding:5px 6px;text-align:left;">UAT Gate</th>
+                    <th style="padding:5px 6px;text-align:left;">PROD Cutover</th>
+                    <th style="padding:5px 6px;text-align:left;">Production Env</th>
+                    <th style="padding:5px 6px;text-align:right;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(table_rows)}
+            </tbody>
+        </table>
+    </div>
+    ''')
 
 
