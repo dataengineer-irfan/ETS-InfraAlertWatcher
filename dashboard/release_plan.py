@@ -672,6 +672,23 @@ def render_release_plan_workspace(db_path: str) -> None:
         '''
         return card_html
 
+    st.markdown('''
+    <style>
+    div[class*="st-key-btn_card_"] button {
+        height: 22px !important;
+        min-height: 22px !important;
+        padding: 0 6px !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        font-family: var(--mono) !important;
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+        border-radius: 2px !important;
+        line-height: 20px !important;
+    }
+    </style>
+    ''', unsafe_allow_html=True)
+
     with story_c1:
         render_html(_render_story_card("Previous Release", prev_r, "#73bf69", "📁"))
         if prev_r:
@@ -717,10 +734,12 @@ def render_release_plan_workspace(db_path: str) -> None:
     st_c_tag = rel_data.get('state', '')
     clean_tag = chosen_rel[len(st_c_tag)+1:] if st_c_tag and chosen_rel.startswith(f"{st_c_tag}.") else chosen_rel
     st.markdown(
-        f"<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;padding:0 1px;'>"
-        f"<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;'>🎯 Target Release Deep-Dive &amp; Milestone Ledger</div>"
-        f"<div style='font-size:9.5px;color:#9fa7b3;'>Target: <span style='color:#38bdf8;font-family:var(--mono);font-weight:700;background:rgba(56,189,248,0.12);padding:1px 6px;border-radius:2px;border:1px solid rgba(56,189,248,0.3);'>🎯 {clean_tag}</span></div>"
-        f"</div>",
+        f"""
+    <div style='display:flex;align-items:center;justify-content:space-between;margin:6px 0 4px 0;padding:0 2px;'>
+        <div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;'>🎯 Target Release Deep-Dive &amp; Milestone Ledger</div>
+        <div style='font-size:9.5px;color:#9fa7b3;'>Target: <span style='color:#38bdf8;font-family:var(--mono);font-weight:700;background:rgba(56,189,248,0.12);padding:1px 6px;border-radius:2px;border:1px solid rgba(56,189,248,0.3);'>🎯 {clean_tag}</span></div>
+    </div>
+    """,
         unsafe_allow_html=True
     )
 
@@ -741,7 +760,7 @@ def render_release_plan_workspace(db_path: str) -> None:
             status_text = "DEPLOYED" if is_deployed else ("ACTIVE DEV" if is_in_dev else "SCHEDULED")
 
             st.markdown(f'''
-            <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:2px;padding:6px 10px;height:124px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+            <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:4px;padding:6px 10px;height:124px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div style="font-size:9px;color:#9fa7b3;text-transform:uppercase;font-weight:700;">Selected Target Release</div>
                     <span style="font-size:8px;font-weight:700;color:{status_color};background:rgba(255,255,255,0.05);border:1px solid {status_color}40;padding:1px 5px;border-radius:2px;">{status_text}</span>
@@ -770,7 +789,7 @@ def render_release_plan_workspace(db_path: str) -> None:
             m_curr = _extract_milestones(rel_data)
             
             st.markdown('''
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:4px 8px;height:124px;overflow-y:auto;box-sizing:border-box;">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:4px;padding:4px 8px;height:124px;overflow-y:auto;box-sizing:border-box;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
                     <div style="font-size:9.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.03em;">Milestone Execution Ledger (5-Phase Pipeline)</div>
                     <div style="font-size:9px;color:#6e7681;font-family:var(--mono);">Standard Gate Policy</div>
@@ -834,19 +853,25 @@ def render_release_plan_workspace(db_path: str) -> None:
             ), unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # 9. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~370px, Fills Canvas)
+    # 9. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~230px, Fills Canvas)
     # --------------------------------------------------------------------------
-    rf_col1, rf_col2 = st.columns([5.5, 4.5])
-    with rf_col1:
-        st.markdown("<div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;padding-top:2px;'>📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix <span style='font-size:9px;color:#6e7681;font-weight:400;text-transform:none;'>· Click any Release to filter flight deck</span></div>", unsafe_allow_html=True)
-    with rf_col2:
-        roadmap_filter = st.radio(
-            "Roadmap Filter",
-            ["All Releases", "Active & In-Flight", "Upcoming", "Deployed"],
-            key="rp_roadmap_filter_tab",
-            horizontal=True,
-            label_visibility="collapsed"
-        )
+    total_fleet_count = len(all_releases)
+    active_count = sum(1 for r in all_releases if str(r.get('dev_start_date', '')) <= now_iso <= str(r.get('dev_end_date', '')))
+    deployed_count = sum(1 for r in all_releases if str(r.get('prod_deploy_date', '9999')) < now_iso)
+    scheduled_count = total_fleet_count - active_count - deployed_count
+
+    st.markdown(f'''
+    <div style='display:flex;align-items:center;justify-content:space-between;margin:8px 0 4px 0;padding:0 2px;'>
+        <div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;'>
+            📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix
+            <span style='font-size:9px;color:#6e7681;font-weight:400;text-transform:none;margin-left:6px;'>· Click any Release to filter flight deck</span>
+        </div>
+        <div style='font-size:9.5px;color:#9fa7b3;font-family:var(--mono);'>
+            Fleet Total: <b style='color:#38bdf8;'>{total_fleet_count} Releases</b> 
+            <span style='color:#6e7681;'>({active_count} Active &bull; {scheduled_count} Scheduled &bull; {deployed_count} Deployed)</span>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
 
     roadmap_data = []
     for r in all_releases:
@@ -864,14 +889,6 @@ def render_release_plan_workspace(db_path: str) -> None:
         is_in_dev = d_s <= now_iso <= d_e
         is_today = p_d == now_iso
         is_upcoming = d_s > now_iso
-
-        # Filter check
-        if roadmap_filter == "Active & In-Flight" and not (is_in_dev or (not is_deployed and d_s <= now_iso)):
-            continue
-        elif roadmap_filter == "Upcoming" and not is_upcoming:
-            continue
-        elif roadmap_filter == "Deployed" and not is_deployed:
-            continue
 
         if is_today:
             status = '<span style="font-size:8.5px;font-weight:700;padding:1.5px 5px;border-radius:2px;background:rgba(255,152,48,0.16);color:#ff9830;">CUTOVER TODAY</span>'

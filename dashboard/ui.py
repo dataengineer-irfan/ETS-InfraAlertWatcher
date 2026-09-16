@@ -386,7 +386,9 @@ def css() -> str:
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
 [data-testid="stVerticalBlock"] {{ gap:.5rem; }}
-iframe {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; }}
+iframe:not([data-testid="stCustomComponentV1"]) {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; }}
+iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100% !important; }}
+
 
 /* WCAG 2.1 AA Color-Blind Redundancy & High-Contrast Progress Textures */
 .bar-hatch-danger {{
