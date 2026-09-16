@@ -1188,7 +1188,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
 
             # Clean box with borders and internal scroll
-            with st.container(height=415, border=True, key="op_grid_box"):
+            with st.container(height=340, border=True, key="op_grid_box"):
                 page_records = pg_work.iloc[cur_page * PAGE_SIZE : (cur_page + 1) * PAGE_SIZE]
                 for r in page_records.itertuples():
                     is_act = (r.id == selected_id)
@@ -1197,9 +1197,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     _sbar = ui.leaf_sparkbar(int(r.days_left))
                     sla_badge_str = ui.sla_badge(r.env_label)
 
-                    pg_r0, pg_r1, pg_r2 = st.columns([0.5, 2.7, 1.4])
+                    pg_r0, pg_r1, pg_r2 = st.columns([0.35, 2.85, 1.4])
                     with pg_r0:
-                        if st.button("☑" if is_sel else "☐", key=f"pg_ck_{r.id}", use_container_width=True):
+                        ck_txt = "✓" if is_sel else " "
+                        if st.button(ck_txt, key=f"pg_ck_{r.id}", type="primary" if is_sel else "secondary", use_container_width=True):
                             if is_sel:
                                 selected_entity_ids.discard(r.id)
                             else:
@@ -1253,17 +1254,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
             selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
-            def tri_state_info(child_ids: set, selected_ids: set) -> tuple[str, bool]:
-                """Returns (symbol, should_uncheck) where symbol is '☑', '⊟', or '☐'."""
+            def tri_state_info(child_ids: set, selected_ids: set) -> tuple[str, bool, str]:
+                """Returns (symbol, should_uncheck, btn_type) where symbol is '✓', '−', or ' '."""
                 if not child_ids:
-                    return "☐", False
+                    return " ", False, "secondary"
                 intersect_n = len(child_ids.intersection(selected_ids))
                 if intersect_n == len(child_ids):
-                    return "☑", True
+                    return "✓", True, "primary"
                 elif intersect_n > 0:
-                    return "⊟", True
+                    return "−", True, "primary"
                 else:
-                    return "☐", False
+                    return " ", False, "secondary"
 
             def toggle_tree_node(path: str, parent_prefix: str | None = None) -> None:
                 """Toggle a node with accordion behavior (collapsing sibling nodes at the same level)."""
@@ -1330,7 +1331,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
 
             # Hierarchical Matrix Tree inside a clean, bordered, scrollable box
-            with st.container(height=415, border=True, key="op_tree_box"):
+            with st.container(height=340, border=True, key="op_tree_box"):
                 for st_val in filtered["state"].unique():
                     st_sub = filtered[filtered["state"] == st_val]
                     st_path = str(st_val)
@@ -1339,12 +1340,12 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
                     st_exp_n = (st_sub["days_left"] < 0).sum()
                     st_child_ids = set(st_sub["id"].tolist())
-                    st_sym, st_uncheck = tri_state_info(st_child_ids, selected_entity_ids)
+                    st_sym, st_uncheck, st_type = tri_state_info(st_child_ids, selected_entity_ids)
 
                     # Level 1: State Node
-                    s_c0, s_c1, s_c2 = st.columns([0.6, 3.8, 0.6])
+                    s_c0, s_c1, s_c2 = st.columns([0.35, 4.15, 0.5])
                     with s_c0:
-                        if st.button(st_sym, key=f"sel_st_{st_val}", use_container_width=True):
+                        if st.button(st_sym, key=f"sel_st_{st_val}", type=st_type, use_container_width=True):
                             if st_uncheck:
                                 selected_entity_ids.difference_update(st_child_ids)
                             else:
@@ -1377,12 +1378,12 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
                             tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#5794f2")
                             tm_child_ids = set(tm_sub["id"].tolist())
-                            tm_sym, tm_uncheck = tri_state_info(tm_child_ids, selected_entity_ids)
+                            tm_sym, tm_uncheck, tm_type = tri_state_info(tm_child_ids, selected_entity_ids)
 
                             # Level 2: Team Node
-                            t_c0, t_c1, t_c2 = st.columns([0.6, 3.8, 0.6])
+                            t_c0, t_c1, t_c2 = st.columns([0.35, 4.15, 0.5])
                             with t_c0:
-                                if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", use_container_width=True):
+                                if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", type=tm_type, use_container_width=True):
                                     if tm_uncheck:
                                         selected_entity_ids.difference_update(tm_child_ids)
                                     else:
@@ -1412,13 +1413,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                     cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
                                     cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
                                     cp_child_ids = set(cp_sub["id"].tolist())
-                                    cp_sym, cp_uncheck = tri_state_info(cp_child_ids, selected_entity_ids)
+                                    cp_sym, cp_uncheck, cp_type = tri_state_info(cp_child_ids, selected_entity_ids)
 
                                     # Level 3: Component Node
-                                    cp_c0, cp_c1, cp_c2 = st.columns([0.6, 3.8, 0.6])
+                                    cp_c0, cp_c1, cp_c2 = st.columns([0.35, 4.15, 0.5])
                                     chip_head = f"{cp_icon} {cp_code}"
                                     with cp_c0:
-                                        if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
+                                        if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", type=cp_type, use_container_width=True):
                                             if cp_uncheck:
                                                  selected_entity_ids.difference_update(cp_child_ids)
                                             else:
@@ -1444,12 +1445,12 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                             ev_worst = ui.worst_band(ev_sub["band"].tolist())
                                             ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
                                             ev_child_ids = set(ev_sub["id"].tolist())
-                                            ev_sym, ev_uncheck = tri_state_info(ev_child_ids, selected_entity_ids)
+                                            ev_sym, ev_uncheck, ev_type = tri_state_info(ev_child_ids, selected_entity_ids)
 
                                             # Level 4: Environment Node
-                                            ev_c0, ev_c1, ev_c2 = st.columns([0.6, 3.8, 0.6])
+                                            ev_c0, ev_c1, ev_c2 = st.columns([0.35, 4.15, 0.5])
                                             with ev_c0:
-                                                if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
+                                                if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", type=ev_type, use_container_width=True):
                                                     if ev_uncheck:
                                                         selected_entity_ids.difference_update(ev_child_ids)
                                                     else:
@@ -1474,9 +1475,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                                     is_act = (r.id == selected_id)
                                                     is_leaf_sel = r.id in selected_entity_ids
 
-                                                    row_c0, row_c1, row_c2 = st.columns([0.6, 3.0, 1.4])
+                                                    row_c0, row_c1, row_c2 = st.columns([0.35, 3.25, 1.4])
                                                     with row_c0:
-                                                        if st.button("☑" if is_leaf_sel else "☐", key=f"sel_leaf_{r.id}", use_container_width=True):
+                                                        ck_txt = "✓" if is_leaf_sel else " "
+                                                        if st.button(ck_txt, key=f"sel_leaf_{r.id}", type="primary" if is_leaf_sel else "secondary", use_container_width=True):
                                                             if is_leaf_sel:
                                                                 selected_entity_ids.discard(r.id)
                                                             else:
@@ -2210,11 +2212,11 @@ def render_governance_center() -> None:
         q_count_label = f" ({len(urgent_records)})" if not urgent_records.empty else " (0)"
         st.markdown(ui.panel_header("Operational Action Console & Cutoff Dispatch", color="#38bdf8", live=True, count=f"{len(urgent_records)} Urgent"), unsafe_allow_html=True)
         act_tab1, act_tab_release, act_tab2, act_tab3, act_tab4 = st.tabs([
-            f"⚡ Actionable Risk Queue{q_count_label}",
-            "🚀 Release Cutoff Alerts",
-            "📧 Expiry Alert Dispatch",
-            "🛠️ Weekly Cadence Alert Console",
-            "📋 Compliance & Audit Ledger"
+            f"⚡ Risk Queue{q_count_label}",
+            "🚀 Cutoffs",
+            "📧 Dispatch",
+            "🛠️ Cadence Console",
+            "📋 Audit Ledger"
         ])
 
         with act_tab1:
@@ -3015,7 +3017,8 @@ def render_rbac_workspace() -> None:
       - Monospace tabular data
     """
     conn = get_connection(DB_PATH)
-    users = get_users(conn)
+    all_users = get_users(conn)
+    users = [u for u in all_users if not u["username"].startswith("testuser_")]
     audit_logs = get_audit_logs(conn, limit=200)
     conn.close()
 

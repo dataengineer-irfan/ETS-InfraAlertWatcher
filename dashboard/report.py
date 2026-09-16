@@ -403,8 +403,8 @@ body{
 }
 .cadence-alert-btn{
   font:inherit; font-size:8.5px; font-weight:700; color:#0f172a; background:#38bdf8;
-  border:none; border-radius:3px; padding:2px 6px; cursor:pointer; white-space:nowrap;
-  flex:none; transition:all .12s ease; line-height:1.2;
+  border:none; border-radius:3px; height:20px; line-height:20px; padding:0 8px; cursor:pointer; white-space:nowrap;
+  flex:none; transition:all .12s ease; display:inline-flex; align-items:center; justify-content:center;
 }
 .cadence-alert-btn:hover{ background:#7dd3fc; box-shadow:0 0 6px rgba(56,189,248,0.4); }
 
@@ -1632,9 +1632,9 @@ function renderCadence(S){
   }).join("");
 
   const curScope = S.state ? ("State " + S.state) : "Fleet-Wide (All States)";
-  const tzToggle = '<div style="display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid var(--rule);border-radius:3px;padding:1px;margin-left:auto;margin-right:8px;">'
-    + '<button type="button" data-act="setTz" data-val="utc" title="Display maintenance windows in UTC" style="padding:2px 7px;font-size:8.5px;font-weight:700;font-family:var(--mono);border:none;border-radius:2px;cursor:pointer;background:' + (!isLocal ? "var(--accent)" : "transparent") + ';color:' + (!isLocal ? "#fff" : "var(--slate)") + ';">UTC</button>'
-    + '<button type="button" data-act="setTz" data-val="local" title="Display maintenance windows in local time (' + esc(localTz) + ')" style="padding:2px 7px;font-size:8.5px;font-weight:700;font-family:var(--mono);border:none;border-radius:2px;cursor:pointer;background:' + (isLocal ? "var(--accent)" : "transparent") + ';color:' + (isLocal ? "#fff" : "var(--slate)") + ';">' + esc(localTz) + '</button>'
+  const tzToggle = '<div style="display:inline-flex;align-items:center;height:20px;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid var(--rule);border-radius:3px;padding:1px;margin-left:auto;margin-right:6px;">'
+    + '<button type="button" data-act="setTz" data-val="utc" title="Display maintenance windows in UTC" style="height:16px;line-height:16px;padding:0 7px;font-size:8.5px;font-weight:700;font-family:var(--mono);border:none;border-radius:2px;cursor:pointer;background:' + (!isLocal ? "var(--accent)" : "transparent") + ';color:' + (!isLocal ? "#fff" : "var(--slate)") + ';">UTC</button>'
+    + '<button type="button" data-act="setTz" data-val="local" title="Display maintenance windows in local time (' + esc(localTz) + ')" style="height:16px;line-height:16px;padding:0 7px;font-size:8.5px;font-weight:700;font-family:var(--mono);border:none;border-radius:2px;cursor:pointer;background:' + (isLocal ? "var(--accent)" : "transparent") + ';color:' + (isLocal ? "#fff" : "var(--slate)") + ';">' + esc(localTz) + '</button>'
     + '</div>';
 
   const alertStrip = '<div class="cadence-alert-strip">'

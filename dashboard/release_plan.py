@@ -611,15 +611,15 @@ def render_release_plan_workspace(db_path: str) -> None:
         if is_chosen:
             active_border = "border:1.5px solid #38bdf8;border-top:3px solid #38bdf8;box-shadow:0 0 14px rgba(56,189,248,0.28);"
             card_opacity = "opacity:1;"
-            focus_pill = '<span style="font-size:8px;font-weight:800;color:#38bdf8;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.4);padding:1px 5px;border-radius:2px;margin-right:4px;">ACTIVE FOCUS</span>'
+            badge_html = f'<span style="font-size:8px;padding:1px 6px;border-radius:2px;font-weight:800;text-transform:uppercase;background:rgba(56,189,248,0.18);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);">ACTIVE FOCUS · {status_label}</span>'
         elif is_active_dev:
             active_border = "border:1px solid rgba(87,148,242,0.4);border-top:3px solid #5794f2;"
             card_opacity = "opacity:1;"
-            focus_pill = ""
+            badge_html = f'<span style="font-size:8px;padding:1px 6px;border-radius:2px;font-weight:700;text-transform:uppercase;background:{badge_bg};color:{badge_col};">{status_label}</span>'
         else:
             active_border = f"border:1px solid #2c3235;border-top:3px solid {accent_color};"
             card_opacity = "opacity:0.88;"
-            focus_pill = ""
+            badge_html = f'<span style="font-size:8px;padding:1px 6px;border-radius:2px;font-weight:700;text-transform:uppercase;background:{badge_bg};color:{badge_col};">{status_label}</span>'
 
         # Format 5 stages: Dev, Sit, Regress, Uat, Prod
         s_dev = _fmt_md(dev_f)
@@ -636,8 +636,7 @@ def render_release_plan_workspace(db_path: str) -> None:
               <span style="font-size:9px;color:#9fa7b3;margin-left:4px;">{state_mmis} Scope</span>
             </div>
             <div style="display:flex;align-items:center;">
-              {focus_pill}
-              <span style="font-size:8px;padding:1px 6px;border-radius:2px;font-weight:700;text-transform:uppercase;background:{badge_bg};color:{badge_col};">{status_label}</span>
+              {badge_html}
             </div>
           </div>
 
@@ -685,6 +684,13 @@ def render_release_plan_workspace(db_path: str) -> None:
         margin-bottom: 2px !important;
         border-radius: 2px !important;
         line-height: 20px !important;
+    }
+    div[class*="st-key-btn_card_"] button[data-testid*="stBaseButton-primary"],
+    div[class*="st-key-btn_card_"] button[kind="primary"] {
+        background: #0284c7 !important;
+        border-color: #38bdf8 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 8px rgba(56, 189, 248, 0.3) !important;
     }
     </style>
     ''', unsafe_allow_html=True)

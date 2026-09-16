@@ -420,6 +420,89 @@ iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100
   font-size: 11px !important;
 }}
 
+.st-key-op_tree_box div[class*="st-key-sel_"] button,
+.st-key-op_grid_box div[class*="st-key-pg_ck_"] button {{
+  width: 22px !important;
+  min-width: 22px !important;
+  max-width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
+  padding: 0 !important;
+  margin: 3px auto !important;
+  border-radius: 3px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 20px !important;
+  text-align: center !important;
+}}
+
+/* Sleek Enterprise Checkbox Micro-Buttons */
+div[class*="st-key-pg_ck_"],
+div[class*="st-key-sel_leaf_"],
+div[class*="st-key-sel_st_"],
+div[class*="st-key-sel_tm_"],
+div[class*="st-key-sel_cp_"],
+div[class*="st-key-sel_ev_"] {{
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}}
+
+div[class*="st-key-pg_ck_"] button,
+div[class*="st-key-sel_leaf_"] button,
+div[class*="st-key-sel_st_"] button,
+div[class*="st-key-sel_tm_"] button,
+div[class*="st-key-sel_cp_"] button,
+div[class*="st-key-sel_ev_"] button {{
+  width: 20px !important;
+  min-width: 20px !important;
+  max-width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 !important;
+  margin: 4px auto !important;
+  border-radius: 3px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 18px !important;
+  text-align: center !important;
+  background: #181b1f !important;
+  border: 1px solid #3b424a !important;
+  color: #94a3b8 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+}}
+
+div[class*="st-key-pg_ck_"] button:hover,
+div[class*="st-key-sel_leaf_"] button:hover,
+div[class*="st-key-sel_st_"] button:hover,
+div[class*="st-key-sel_tm_"] button:hover,
+div[class*="st-key-sel_cp_"] button:hover,
+div[class*="st-key-sel_ev_"] button:hover {{
+  border-color: #38bdf8 !important;
+  background: #22252b !important;
+}}
+
+div[class*="st-key-pg_ck_"] button[data-testid*="stBaseButton-primary"],
+div[class*="st-key-sel_leaf_"] button[data-testid*="stBaseButton-primary"],
+div[class*="st-key-sel_st_"] button[data-testid*="stBaseButton-primary"],
+div[class*="st-key-sel_tm_"] button[data-testid*="stBaseButton-primary"],
+div[class*="st-key-sel_cp_"] button[data-testid*="stBaseButton-primary"],
+div[class*="st-key-sel_ev_"] button[data-testid*="stBaseButton-primary"],
+div[class*="st-key-pg_ck_"] button[kind="primary"],
+div[class*="st-key-sel_leaf_"] button[kind="primary"],
+div[class*="st-key-sel_st_"] button[kind="primary"],
+div[class*="st-key-sel_tm_"] button[kind="primary"],
+div[class*="st-key-sel_cp_"] button[kind="primary"],
+div[class*="st-key-sel_ev_"] button[kind="primary"] {{
+  background: #0284c7 !important;
+  border: 1px solid #38bdf8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.4) !important;
+}}
+
 
 
 /* WCAG 2.1 AA Color-Blind Redundancy & High-Contrast Progress Textures */
