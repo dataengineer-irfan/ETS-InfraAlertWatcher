@@ -19,7 +19,9 @@ body {
     box-sizing: border-box;
     overflow-x: hidden;
     overflow-y: auto;
-    max-height: 220px;
+    height: 100%;
+    min-height: 380px;
+    max-height: 440px;
 }
 table {
     width: 100%;
@@ -100,11 +102,21 @@ function sendValue(val) {
     }, "*");
 }
 
+function getOptimalHeight() {
+    try {
+        if (window.parent && window.parent.innerHeight) {
+            const h = window.parent.innerHeight - 545;
+            return Math.max(300, Math.min(440, h));
+        }
+    } catch(e) {}
+    return 400;
+}
+
 function setHeight(h) {
     window.parent.postMessage({
         isStreamlitMessage: true,
         type: "streamlit:setFrameHeight",
-        height: h
+        height: h || getOptimalHeight()
     }, "*");
 }
 
@@ -114,7 +126,7 @@ function init() {
         type: "streamlit:componentReady",
         apiVersion: 1
     }, "*");
-    setHeight(220);
+    setHeight(getOptimalHeight());
 }
 
 document.getElementById("table-wrap").addEventListener("click", function(e) {
@@ -133,10 +145,11 @@ window.addEventListener("message", function(event) {
         const args = event.data.args || {};
         const rows = args.rows || [];
         const chosen = args.chosen || "";
+        const optimalH = getOptimalHeight();
 
         if (rows.length === 0) {
             document.getElementById("table-wrap").innerHTML = '<div style="text-align:center;padding:24px;color:#6e7681;">No releases match the selected roadmap filter.</div>';
-            setHeight(220);
+            setHeight(optimalH);
             return;
         }
 
@@ -174,12 +187,13 @@ window.addEventListener("message", function(event) {
 
         html += '</tbody></table>';
         document.getElementById("table-wrap").innerHTML = html;
-        setHeight(220);
+        setHeight(optimalH);
     }
 });
 
 init();
 window.addEventListener("load", init);
+window.addEventListener("resize", function() { setHeight(getOptimalHeight()); });
 document.addEventListener("DOMContentLoaded", init);
 </script>
 </body>

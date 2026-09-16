@@ -395,6 +395,20 @@ iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100
   overflow-x: hidden !important;
 }}
 
+/* Eliminate Streamlit markdown negative margin collapse */
+div[data-testid="stMarkdownContainer"],
+.stMarkdown {{
+  margin-bottom: 0 !important;
+}}
+div[data-testid="stMarkdownContainer"] > p {{
+  margin-bottom: 0 !important;
+}}
+div[data-testid="stMarkdownContainer"] > *:last-child {{
+  margin-bottom: 0 !important;
+}}
+
+
+
 /* Operations Hub: Left Below Clean Box with Borders and Internal Scroll */
 .st-key-op_grid_box,
 [data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-op_grid_box),
