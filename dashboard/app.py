@@ -50,6 +50,11 @@ from db import (  # noqa: E402
     authenticate_user,
     get_current_active_releases,
     get_release_schedules,
+    signup_user,
+    create_reset_token,
+    verify_reset_token,
+    consume_reset_token,
+    update_user_password,
 )
 from ingest_components import COMPONENTS, run as run_ingest  # noqa: E402
 from expiry_checker import get_due_reminders, mark_sent  # noqa: E402
@@ -62,6 +67,19 @@ from notifier import (  # noqa: E402
     dispatch_expired_alert_real,
     render_maintenance_cadence_email,
     dispatch_cadence_alert_real,
+    send_password_reset_email,
+)
+from auth import (  # noqa: E402
+    require_role,
+    is_admin,
+    can_write,
+    check_state_scope,
+    render_access_denied,
+    render_role_badge,
+    ROLE_ADMIN,
+    ROLE_OPERATOR,
+    ROLE_AUDITOR,
+    ROLE_VIEWER,
 )
 from ingest_releases import run_release_ingest  # noqa: E402
 from release_plan import render_release_plan_workspace
@@ -211,57 +229,227 @@ def canvas(mode: str, state: str | None, height: int) -> None:
 # Enterprise Access Control & Login Portal Gate
 # ==============================================================================
 def render_login_gate(db_path: str) -> None:
-    """Renders the centered enterprise login screen for unauthenticated sessions."""
+    """Renders the enterprise authentication portal (Login, Self-Service Signup, Password Reset)."""
+    mode = st.session_state.setdefault("auth_mode", "login")
+
     col_l, col_center, col_r = st.columns([1, 1.4, 1])
     with col_center:
-        st.markdown("""
-        <div style="text-align:center;margin-top:50px;margin-bottom:24px;">
-          <div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:14px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);margin-bottom:14px;">
-            <span style="font-size:28px;">🛡️</span>
-          </div>
-          <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:#f8fafc;">ETS WATCHTOWER</div>
-          <div style="font-size:10px;font-family:var(--mono);color:#38bdf8;font-weight:700;letter-spacing:0.12em;margin-top:3px;">ENTERPRISE ACCESS PORTAL</div>
-          <div style="font-size:12px;color:#94a3b8;margin-top:8px;">Zero-Trust PBKDF2-HMAC-SHA256 Encrypted Session</div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Display flash message if one was set (e.g. after successful signup or reset)
+        flash_msg = st.session_state.pop("auth_flash_msg", None)
+        if flash_msg:
+            st.success(flash_msg)
 
-        with st.form("portal_login_form", clear_on_submit=False):
-            st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Username</div>', unsafe_allow_html=True)
-            u_input = st.text_input("Username", key="auth_login_username", placeholder="Enter username (e.g. admin)", label_visibility="collapsed")
+        if mode == "signup":
+            # -------------------------------------------------------------
+            # Self-Service Signup Screen
+            # -------------------------------------------------------------
+            st.markdown("""
+            <div style="text-align:center;margin-top:35px;margin-bottom:20px;">
+              <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:14px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);margin-bottom:12px;">
+                <span style="font-size:26px;">👤</span>
+              </div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#f8fafc;">CREATE ENTERPRISE ACCOUNT</div>
+              <div style="font-size:10px;font-family:var(--mono);color:#38bdf8;font-weight:700;letter-spacing:0.12em;margin-top:3px;">SELF-SERVICE ONBOARDING</div>
+              <div style="font-size:11.5px;color:#94a3b8;margin-top:6px;">Standard accounts are provisioned with <b>Viewer</b> role</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:6px;">Password</div>', unsafe_allow_html=True)
-            p_input = st.text_input("Password", type="password", key="auth_login_password", placeholder="••••••••••••", label_visibility="collapsed")
+            with st.form("portal_signup_form", clear_on_submit=False):
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Full Name</div>', unsafe_allow_html=True)
+                su_fullname = st.text_input("Full Name", key="signup_fullname", placeholder="e.g. Jane Doe", label_visibility="collapsed")
 
-            st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
-            submit_login = st.form_submit_button("Sign In to Watchtower", use_container_width=True, type="primary")
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Enterprise Email *</div>', unsafe_allow_html=True)
+                su_email = st.text_input("Enterprise Email", key="signup_email", placeholder="e.g. jdoe@infinite.com", label_visibility="collapsed")
 
-            if submit_login:
-                if not u_input.strip() or not p_input:
-                    st.error("Please enter both username and password.")
-                else:
-                    conn = get_connection(db_path)
-                    user = authenticate_user(conn, u_input, p_input)
-                    conn.close()
-                    if user:
-                        st.session_state["authenticated"] = True
-                        st.session_state["active_user"] = user["username"]
-                        st.session_state["user_role"] = user["role"]
-                        st.session_state["user_full_name"] = user.get("full_name") or user["username"]
-                        st.session_state["assigned_state"] = user.get("assigned_state")
-                        st.rerun()
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Username (min 3 chars) *</div>', unsafe_allow_html=True)
+                su_uname = st.text_input("Username", key="signup_uname", placeholder="e.g. jdoe", label_visibility="collapsed")
+
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Password (min 8 chars, 1 number/symbol) *</div>', unsafe_allow_html=True)
+                su_pwd = st.text_input("Password", type="password", key="signup_pwd", placeholder="••••••••••••", label_visibility="collapsed")
+
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Confirm Password *</div>', unsafe_allow_html=True)
+                su_pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2", placeholder="••••••••••••", label_visibility="collapsed")
+
+                st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
+                submit_signup = st.form_submit_button("Create Account", use_container_width=True, type="primary")
+
+                if submit_signup:
+                    if not su_uname.strip() or not su_email.strip() or not su_pwd:
+                        st.error("Please fill in all required fields marked with *.")
+                    elif su_pwd != su_pwd2:
+                        st.error("Passwords do not match.")
                     else:
-                        st.error("Authentication failed: Invalid username or password.")
+                        try:
+                            conn = get_connection(db_path)
+                            signup_user(conn, username=su_uname.strip(), password=su_pwd, email=su_email.strip(), full_name=su_fullname.strip())
+                            conn.close()
+                            st.session_state["auth_flash_msg"] = f"✓ Account '{su_uname.strip()}' successfully created! Please sign in with your credentials."
+                            st.session_state["auth_mode"] = "login"
+                            st.rerun()
+                        except ValueError as ve:
+                            st.error(str(ve))
+                        except Exception as ex:
+                            err_str = str(ex).lower()
+                            if "users.email" in err_str:
+                                st.error("An account with this email address already exists.")
+                            elif "users.username" in err_str:
+                                st.error("This username is already taken. Please choose another.")
+                            else:
+                                st.error(f"Registration failed: {ex}")
 
-        st.markdown("""
-        <div style="background:rgba(255,255,255,0.02);border:1px solid #1e293b;border-radius:8px;padding:14px 18px;margin-top:20px;font-size:11.5px;color:#94a3b8;line-height:1.6;">
-          <div style="font-weight:700;color:#e2e8f0;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
-            <span>🔐</span> Security Verification Credentials
-          </div>
-          <div>• Administrative Access: <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">admin</code> / <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">Admin@ETS2026!</code></div>
-          <div>• State RM Logins: <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">ak_rm</code> (<code style="color:#cbd5e1;">AkRM@ETS2026!</code>) • <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">nd_rm</code> (<code style="color:#cbd5e1;">NdRM@ETS2026!</code>) • <code style="color:#38bdf8;background:rgba(56,189,248,0.1);padding:2px 6px;border-radius:4px;">nh_rm</code> (<code style="color:#cbd5e1;">NhRM@ETS2026!</code>)</div>
-          <div>• Strict State RM RBAC Isolation: 1 State RM cannot view another state's releases or operations.</div>
-        </div>
-        """, unsafe_allow_html=True)
+            if st.button("← Back to Sign In", key="btn_signup_back_login", use_container_width=True):
+                st.session_state["auth_mode"] = "login"
+                st.rerun()
+
+        elif mode == "forgot_password":
+            # -------------------------------------------------------------
+            # Forgot / Reset Password Screen
+            # -------------------------------------------------------------
+            st.markdown("""
+            <div style="text-align:center;margin-top:35px;margin-bottom:20px;">
+              <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:14px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);margin-bottom:12px;">
+                <span style="font-size:26px;">🔑</span>
+              </div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#f8fafc;">PASSWORD RECOVERY</div>
+              <div style="font-size:10px;font-family:var(--mono);color:#f59e0b;font-weight:700;letter-spacing:0.12em;margin-top:3px;">ZERO-TRUST VERIFICATION</div>
+              <div style="font-size:11.5px;color:#94a3b8;margin-top:6px;">Single-use cryptographic token validation (60-min expiry)</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            fp_tab1, fp_tab2 = st.tabs(["1. Request Reset Code", "2. Enter Code & Set Password"])
+
+            with fp_tab1:
+                with st.form("request_code_form"):
+                    st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Account Username or Email</div>', unsafe_allow_html=True)
+                    fp_ident = st.text_input("Identifier", key="forgot_ident_val", placeholder="Enter your username or email", label_visibility="collapsed")
+                    req_btn = st.form_submit_button("Generate & Send Verification Code", use_container_width=True, type="primary")
+
+                    if req_btn:
+                        if not fp_ident.strip():
+                            st.error("Please enter your account username or email.")
+                        else:
+                            conn = get_connection(db_path)
+                            token_info = create_reset_token(conn, fp_ident.strip())
+                            conn.close()
+
+                            if token_info:
+                                send_password_reset_email(
+                                    to_email=token_info["email"],
+                                    username=token_info["username"],
+                                    reset_token=token_info["token"],
+                                )
+                                st.session_state["dev_reset_code"] = token_info["token"]
+                                st.session_state["dev_reset_target"] = token_info["username"]
+                            else:
+                                st.session_state.pop("dev_reset_code", None)
+
+                            st.success("✓ If an active account matches that identifier, a verification code has been dispatched. Enter it in tab 2 with your new password.")
+
+                if "dev_reset_code" in st.session_state:
+                    st.markdown(f"""
+                    <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:10px 14px;margin-top:8px;font-size:11px;">
+                      <div style="font-weight:700;color:#38bdf8;margin-bottom:3px;">⚡ Verification Code (Dev / Local Display):</div>
+                      <div style="font-family:monospace;font-size:13px;color:#f8fafc;word-break:break-all;user-select:all;">{st.session_state['dev_reset_code']}</div>
+                      <div style="color:#94a3b8;font-size:10px;margin-top:4px;">Account: <b>{st.session_state.get('dev_reset_target')}</b> · Valid for 60 minutes</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with fp_tab2:
+                with st.form("consume_token_form"):
+                    st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Reset Verification Code</div>', unsafe_allow_html=True)
+                    token_in = st.text_input("Verification Code", key="reset_token_input_val", value=st.session_state.get("dev_reset_code", ""), placeholder="Paste single-use token", label_visibility="collapsed")
+
+                    st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">New Password (min 8 chars, 1 number/symbol)</div>', unsafe_allow_html=True)
+                    new_p1 = st.text_input("New Password", type="password", key="reset_new_pwd1", placeholder="••••••••••••", label_visibility="collapsed")
+
+                    st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Confirm New Password</div>', unsafe_allow_html=True)
+                    new_p2 = st.text_input("Confirm New Password", type="password", key="reset_new_pwd2", placeholder="••••••••••••", label_visibility="collapsed")
+
+                    st.markdown('<div style="margin-top:14px;"></div>', unsafe_allow_html=True)
+                    update_pwd_btn = st.form_submit_button("Update Password", use_container_width=True, type="primary")
+
+                    if update_pwd_btn:
+                        if not token_in.strip():
+                            st.error("Verification code is required.")
+                        elif not new_p1:
+                            st.error("New password is required.")
+                        elif new_p1 != new_p2:
+                            st.error("Passwords do not match.")
+                        else:
+                            try:
+                                conn = get_connection(db_path)
+                                ok = consume_reset_token(conn, token_in.strip(), new_p1)
+                                conn.close()
+                                if ok:
+                                    st.session_state.pop("dev_reset_code", None)
+                                    st.session_state.pop("dev_reset_target", None)
+                                    st.session_state["auth_flash_msg"] = "✓ Password successfully updated! Please sign in with your new credentials."
+                                    st.session_state["auth_mode"] = "login"
+                                    st.rerun()
+                                else:
+                                    st.error("Invalid or expired verification code. Please request a new one.")
+                            except ValueError as ve:
+                                st.error(str(ve))
+                            except Exception as ex:
+                                st.error(f"Password reset failed: {ex}")
+
+            st.markdown('<div style="margin-top:12px;"></div>', unsafe_allow_html=True)
+            if st.button("← Back to Sign In", key="btn_forgot_back_login", use_container_width=True):
+                st.session_state["auth_mode"] = "login"
+                st.rerun()
+
+        else:
+            # -------------------------------------------------------------
+            # Default: Login Screen
+            # -------------------------------------------------------------
+            st.markdown("""
+            <div style="text-align:center;margin-top:50px;margin-bottom:24px;">
+              <div style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:14px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);margin-bottom:14px;">
+                <span style="font-size:28px;">🛡️</span>
+              </div>
+              <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:#f8fafc;">ETS WATCHTOWER</div>
+              <div style="font-size:10px;font-family:var(--mono);color:#38bdf8;font-weight:700;letter-spacing:0.12em;margin-top:3px;">ENTERPRISE ACCESS PORTAL</div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:8px;">Zero-Trust PBKDF2-HMAC-SHA256 Encrypted Session</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            with st.form("portal_login_form", clear_on_submit=False):
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Username</div>', unsafe_allow_html=True)
+                u_input = st.text_input("Username", key="auth_login_username", placeholder="Enter username (e.g. admin)", label_visibility="collapsed")
+
+                st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:6px;">Password</div>', unsafe_allow_html=True)
+                p_input = st.text_input("Password", type="password", key="auth_login_password", placeholder="••••••••••••", label_visibility="collapsed")
+
+                st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
+                submit_login = st.form_submit_button("Sign In to Watchtower", use_container_width=True, type="primary")
+
+                if submit_login:
+                    if not u_input.strip() or not p_input:
+                        st.error("Please enter both username and password.")
+                    else:
+                        conn = get_connection(db_path)
+                        user = authenticate_user(conn, u_input, p_input)
+                        conn.close()
+                        if user:
+                            st.session_state["authenticated"] = True
+                            st.session_state["active_user"] = user["username"]
+                            st.session_state["user_role"] = user["role"]
+                            st.session_state["user_full_name"] = user.get("full_name") or user["username"]
+                            st.session_state["assigned_state"] = user.get("assigned_state")
+                            st.rerun()
+                        else:
+                            st.error("Authentication failed: Invalid username or password.")
+
+            # Action navigation links below the form
+            opt_c1, opt_c2 = st.columns(2)
+            with opt_c1:
+                if st.button("🔑 Forgot Password?", key="btn_nav_forgot", use_container_width=True):
+                    st.session_state["auth_mode"] = "forgot_password"
+                    st.rerun()
+            with opt_c2:
+                if st.button("✨ Create Account", key="btn_nav_signup", use_container_width=True):
+                    st.session_state["auth_mode"] = "signup"
+                    st.rerun()
 
 
 if not st.session_state.get("_ingested_verified", False):
@@ -301,16 +489,23 @@ MANAGE_WINDOWS = {
 }
 
 
-def apply_edits(changes: list) -> None:
+def apply_edits(changes: list, state_scope: str | None = None) -> None:
+    if not can_write():
+        st.error("Access Denied: Modifying expiry dates requires Operator or Admin role.")
+        return
+    if state_scope and not check_state_scope(state_scope):
+        st.error(f"Access Denied: Your assigned state scope ({st.session_state.get('assigned_state')}) does not permit modifying {state_scope} records.")
+        return
     conn = get_connection(DB_PATH)
     active_user = st.session_state.get("active_user", "Operator")
+    active_role = st.session_state.get("user_role", ROLE_OPERATOR)
     for record_id, new_date in changes:
         dt_str = new_date.isoformat() if hasattr(new_date, "isoformat") else str(new_date)[:10]
         update_component_exp_date(conn, int(record_id), dt_str)
         log_audit_event(
             conn,
             actor=active_user,
-            role="Operator",
+            role=active_role,
             action="EXPIRY_EDITED",
             target_entity=f"Record #{record_id}",
             details=f"Expiry date updated to {dt_str}",
@@ -440,28 +635,42 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
                 if after != before:
                     changes.append((record_id, after))
 
+            can_modify = can_write() and check_state_scope(state)
             save_col, note_col = st.columns([1, 3])
             if save_col.button("Save changes", type="primary", use_container_width=True,
-                                disabled=not changes):
-                apply_edits(changes)
-                st.session_state["mg_saved"] = len(changes)
-                rerun()
+                                disabled=not changes or not can_modify):
+                if can_modify:
+                    apply_edits(changes, state_scope=state)
+                    st.session_state["mg_saved"] = len(changes)
+                    rerun()
+                else:
+                    st.error(f"Access Denied: Your role ({st.session_state.get('user_role')}) cannot modify {state} records.")
             n_chg = len(changes)
-            note_col.markdown(ui.note(
-                f"<b>{n_chg}</b> unsaved {'change' if n_chg == 1 else 'changes'} — press Save changes to apply."
-                if changes else
-                "Change a date above to enable saving."), unsafe_allow_html=True)
+            if not can_modify:
+                note_col.markdown(ui.note(
+                    f"<b>Read-Only Mode:</b> Modifying {state} records requires Operator ({state}) or Admin role."
+                ), unsafe_allow_html=True)
+            elif changes:
+                note_col.markdown(ui.note(
+                    f"<b>{n_chg}</b> unsaved {'change' if n_chg == 1 else 'changes'} — press Save changes to apply."
+                ), unsafe_allow_html=True)
+            else:
+                note_col.markdown(ui.note("Change a date above to enable saving."), unsafe_allow_html=True)
         else:
+            can_modify = can_write() and check_state_scope(state)
             labels = {f"{r.schema_name} · {r.env_label} · {r.exp_date}": r.id
                       for r in work.itertuples()}
             pick = st.selectbox("Record", list(labels), key="mg_pick")
             row = work[work["id"] == labels[pick]].iloc[0]
             with st.form("mg_form"):
                 new_date = st.date_input("New expiry date", value=row["exp_dt"].date())
-                if st.form_submit_button("Save change", type="primary"):
-                    apply_edits([(row["id"], new_date)])
-                    st.session_state["mg_saved"] = 1
-                    rerun()
+                if st.form_submit_button("Save change", type="primary", disabled=not can_modify):
+                    if can_modify:
+                        apply_edits([(row["id"], new_date)], state_scope=state)
+                        st.session_state["mg_saved"] = 1
+                        rerun()
+                    else:
+                        st.error(f"Access Denied: Modifying {state} records requires Operator ({state}) or Admin role.")
 
         if st.session_state.pop("mg_saved", None):
             st.success("Saved. The Overview tab now reflects the new dates.")
@@ -2218,21 +2427,24 @@ def render_governance_center() -> None:
                     chosen_m_lbl = st.selectbox("Target Cutoff Milestone", list(m_opts.keys()), key="gov_rel_cutoff_pick", label_visibility="collapsed")
                     chosen_m = m_opts[chosen_m_lbl]
                 with rc_c2:
-                    if st.button("🚀 Dispatch Cutoff Alert (Simulate)", key="gov_dispatch_cutoff_btn", type="primary", use_container_width=True):
-                        try:
-                            conn_aud = get_connection(DB_PATH)
-                            log_audit_event(
-                                conn_aud,
-                                actor=st.session_state.get("active_user", "admin"),
-                                role="Admin",
-                                action="EMAIL_DISPATCHED",
-                                target_entity=f"{chosen_m['state']} {chosen_m['release_id']} {chosen_m['phase']}",
-                                details=f"Release cutoff alert dispatched to {chosen_m['rm_name']} <{chosen_m['rm_email']}> for cutoff {chosen_m['cutoff_date']} ({chosen_m['status_label']}).",
-                            )
-                            conn_aud.close()
-                            st.success(f"✓ Cutoff Alert dispatched for {chosen_m['release_id']} ({chosen_m['phase']}) to {chosen_m['rm_name']}!")
-                        except Exception as ex:
-                            st.error(f"Dispatch failed: {ex}")
+                    if not can_write():
+                        st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Dispatching cutoff alerts requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
+                    else:
+                        if st.button("🚀 Dispatch Cutoff Alert (Simulate)", key="gov_dispatch_cutoff_btn", type="primary", use_container_width=True):
+                            try:
+                                conn_aud = get_connection(DB_PATH)
+                                log_audit_event(
+                                    conn_aud,
+                                    actor=st.session_state.get("active_user", "admin"),
+                                    role=st.session_state.get("user_role", ROLE_OPERATOR),
+                                    action="EMAIL_DISPATCHED",
+                                    target_entity=f"{chosen_m['state']} {chosen_m['release_id']} {chosen_m['phase']}",
+                                    details=f"Release cutoff alert dispatched to {chosen_m['rm_name']} <{chosen_m['rm_email']}> for cutoff {chosen_m['cutoff_date']} ({chosen_m['status_label']}).",
+                                )
+                                conn_aud.close()
+                                st.success(f"✓ Cutoff Alert dispatched for {chosen_m['release_id']} ({chosen_m['phase']}) to {chosen_m['rm_name']}!")
+                            except Exception as ex:
+                                st.error(f"Dispatch failed: {ex}")
 
                 # Email Preview
                 st.markdown(f"""
@@ -2405,7 +2617,9 @@ def render_governance_center() -> None:
                 </div>
                 """, unsafe_allow_html=True)
 
-                if st.button("🚀 Send Real Test Email (10 Expired Items)", key="gov_trigger_real_dispatch", type="primary", use_container_width=True):
+                if not can_write():
+                    st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Live SMTP dispatch requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
+                elif st.button("🚀 Send Real Test Email (10 Expired Items)", key="gov_trigger_real_dispatch", type="primary", use_container_width=True):
                     active_host = st.session_state.get("gov_smtp_host")
                     active_port = st.session_state.get("gov_smtp_port", 587)
                     active_user = st.session_state.get("gov_smtp_user")
@@ -2446,7 +2660,7 @@ def render_governance_center() -> None:
                                     log_audit_event(
                                         conn_aud,
                                         actor=st.session_state.get("active_user", "admin"),
-                                        role="Admin",
+                                        role=st.session_state.get("user_role", ROLE_OPERATOR),
                                         action="EMAIL_DISPATCHED",
                                         target_entity="Live SMTP Overdue Alert",
                                         details=f"Delivered overdue alert with {len(exp_list)} records to {len(real_recipients)} recipient(s).",
@@ -2558,10 +2772,14 @@ def render_governance_center() -> None:
             # Dispatch action bar
             cd_c1, cd_c2 = st.columns([1.5, 1.5])
             with cd_c1:
-                if st.button("▶ Trigger Simulated Cadence Alert", key="gov_sim_cadence_btn", type="secondary", use_container_width=True):
+                if not can_write():
+                    st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Cadence simulation requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
+                elif st.button("▶ Trigger Simulated Cadence Alert", key="gov_sim_cadence_btn", type="secondary", use_container_width=True):
                     st.toast(f"Simulated Cadence alert logged for {cad_st_pick} ({len(st_schedules)} windows)", icon="📅")
             with cd_c2:
-                if st.button("🚀 Send Real Test Cadence Email", key="gov_real_cadence_btn", type="primary", use_container_width=True):
+                if not can_write():
+                    st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Real SMTP dispatch requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
+                elif st.button("🚀 Send Real Test Cadence Email", key="gov_real_cadence_btn", type="primary", use_container_width=True):
                     active_host = st.session_state.get("gov_smtp_host")
                     active_port = st.session_state.get("gov_smtp_port", 587)
                     active_user = st.session_state.get("gov_smtp_user")
@@ -2597,7 +2815,7 @@ def render_governance_center() -> None:
                                         log_audit_event(
                                             conn_aud,
                                             actor=st.session_state.get("active_user", "admin"),
-                                            role="Admin",
+                                            role=st.session_state.get("user_role", ROLE_OPERATOR),
                                             action="EMAIL_DISPATCHED",
                                             target_entity=f"Weekly Cadence Notice ({cad_st_pick})",
                                             details=f"Delivered {len(st_schedules)} schedule windows to {len(recips_list)} recipient(s).",
@@ -2886,47 +3104,53 @@ def render_rbac_workspace() -> None:
 
         with uc1:
             st.markdown(ui.panel_header("Provision Enterprise User", color="#5794f2", count="Admin Only"), unsafe_allow_html=True)
-            with st.form("rbac_create_user_form", clear_on_submit=True):
-                pf_c1, pf_c2 = st.columns(2)
-                with pf_c1:
-                    new_username = st.text_input("Username *", key="rbac_user_uname", placeholder="e.g. jdoe_ops")
-                    new_password = st.text_input("Password (min 6) *", type="password", key="rbac_user_pwd")
-                with pf_c2:
-                    new_fullname = st.text_input("Full Name", key="rbac_user_fname", placeholder="e.g. Jane Doe")
-                    new_email = st.text_input("Enterprise Email", key="rbac_user_email", placeholder="e.g. jdoe@ets.internal")
+            if not is_admin():
+                st.markdown(render_access_denied(
+                    reason="Provisioning new enterprise user accounts and assigning security roles requires Administrator (Admin) privileges. Current session is read-only.",
+                    required_role="Admin"
+                ), unsafe_allow_html=True)
+            else:
+                with st.form("rbac_create_user_form", clear_on_submit=True):
+                    pf_c1, pf_c2 = st.columns(2)
+                    with pf_c1:
+                        new_username = st.text_input("Username *", key="rbac_user_uname", placeholder="e.g. jdoe_ops")
+                        new_password = st.text_input("Password (min 6) *", type="password", key="rbac_user_pwd")
+                    with pf_c2:
+                        new_fullname = st.text_input("Full Name", key="rbac_user_fname", placeholder="e.g. Jane Doe")
+                        new_email = st.text_input("Enterprise Email", key="rbac_user_email", placeholder="e.g. jdoe@ets.internal")
 
-                new_role = st.selectbox("Assign Enterprise Role *", ["Operator", "Viewer", "Auditor", "Admin"], index=0, key="rbac_user_role")
+                    new_role = st.selectbox("Assign Enterprise Role *", ["Operator", "Viewer", "Auditor", "Admin"], index=0, key="rbac_user_role")
 
-                submitted = st.form_submit_button("Provision User", type="primary", use_container_width=True)
-                if submitted:
-                    if not new_username or not new_username.strip():
-                        st.error("Username cannot be blank.")
-                    elif len(new_password) < 6:
-                        st.error("Password must be at least 6 characters.")
-                    else:
-                        try:
-                            conn_w = get_connection(DB_PATH)
-                            create_user(
-                                conn_w,
-                                username=new_username.strip(),
-                                password=new_password,
-                                role=new_role,
-                                full_name=new_fullname.strip(),
-                                email=new_email.strip(),
-                            )
-                            log_audit_event(
-                                conn_w,
-                                actor=st.session_state.get("active_user", "admin"),
-                                role="Admin",
-                                action="USER_CREATED",
-                                target_entity=f"User: {new_username.strip()}",
-                                details=f"Assigned role {new_role} ({new_fullname.strip() or 'No Name'}).",
-                            )
-                            conn_w.close()
-                            st.success(f"✓ Provisioned user '{new_username.strip()}' as {new_role}!")
-                            rerun()
-                        except Exception as ex:
-                            st.error(f"Failed to create user: {ex}")
+                    submitted = st.form_submit_button("Provision User", type="primary", use_container_width=True)
+                    if submitted:
+                        if not new_username or not new_username.strip():
+                            st.error("Username cannot be blank.")
+                        elif len(new_password) < 6:
+                            st.error("Password must be at least 6 characters.")
+                        else:
+                            try:
+                                conn_w = get_connection(DB_PATH)
+                                create_user(
+                                    conn_w,
+                                    username=new_username.strip(),
+                                    password=new_password,
+                                    role=new_role,
+                                    full_name=new_fullname.strip(),
+                                    email=new_email.strip(),
+                                )
+                                log_audit_event(
+                                    conn_w,
+                                    actor=st.session_state.get("active_user", "admin"),
+                                    role="Admin",
+                                    action="USER_CREATED",
+                                    target_entity=f"User: {new_username.strip()}",
+                                    details=f"Assigned role {new_role} ({new_fullname.strip() or 'No Name'}).",
+                                )
+                                conn_w.close()
+                                st.success(f"✓ Provisioned user '{new_username.strip()}' as {new_role}!")
+                                rerun()
+                            except Exception as ex:
+                                st.error(f"Failed to create user: {ex}")
 
             st.markdown("""
             <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px 10px;margin-top:10px;">
@@ -2989,45 +3213,51 @@ def render_rbac_workspace() -> None:
 
             # User Role Modification / Account Revocation Controls
             with st.expander("⚙️ Manage Existing Accounts & Revocations", expanded=True):
-                del_c1, del_c2 = st.columns([1.5, 1.5])
-                with del_c1:
-                    user_list = [u["username"] for u in users if u["username"] != "admin"]
-                    if user_list:
-                        target_user = st.selectbox("Select Account to Manage", user_list, key="rbac_target_user")
-                        new_r = st.selectbox("Change Role", ["Operator", "Viewer", "Auditor", "Admin"], key="rbac_change_role_val")
-                        if st.button("Update Role", key="rbac_update_role_btn", use_container_width=True):
-                            conn_u = get_connection(DB_PATH)
-                            update_user_role(conn_u, target_user, new_r)
-                            log_audit_event(
-                                conn_u,
-                                actor=st.session_state.get("active_user", "admin"),
-                                role="Admin",
-                                action="ROLE_MODIFIED",
-                                target_entity=f"User: {target_user}",
-                                details=f"Changed role to {new_r}.",
-                            )
-                            conn_u.close()
-                            st.success(f"✓ Updated {target_user} to {new_r}")
-                            rerun()
-                    else:
-                        st.info("No secondary user accounts provisioned yet.")
-                with del_c2:
-                    if user_list:
-                        st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-                        if st.button("🗑️ Revoke & Delete Account", key="rbac_delete_user_btn", type="secondary", use_container_width=True):
-                            conn_d = get_connection(DB_PATH)
-                            delete_user(conn_d, target_user)
-                            log_audit_event(
-                                conn_d,
-                                actor=st.session_state.get("active_user", "admin"),
-                                role="Admin",
-                                action="USER_DELETED",
-                                target_entity=f"User: {target_user}",
-                                details=f"Permanently revoked account {target_user}.",
-                            )
-                            conn_d.close()
-                            st.warning(f"Revoked user '{target_user}'.")
-                            rerun()
+                if not is_admin():
+                    st.markdown(render_access_denied(
+                        reason="Updating user roles and revoking enterprise accounts requires Administrator (Admin) privileges. Current session is read-only.",
+                        required_role="Admin"
+                    ), unsafe_allow_html=True)
+                else:
+                    del_c1, del_c2 = st.columns([1.5, 1.5])
+                    with del_c1:
+                        user_list = [u["username"] for u in users if u["username"] != "admin"]
+                        if user_list:
+                            target_user = st.selectbox("Select Account to Manage", user_list, key="rbac_target_user")
+                            new_r = st.selectbox("Change Role", ["Operator", "Viewer", "Auditor", "Admin"], key="rbac_change_role_val")
+                            if st.button("Update Role", key="rbac_update_role_btn", use_container_width=True):
+                                conn_u = get_connection(DB_PATH)
+                                update_user_role(conn_u, target_user, new_r)
+                                log_audit_event(
+                                    conn_u,
+                                    actor=st.session_state.get("active_user", "admin"),
+                                    role="Admin",
+                                    action="ROLE_MODIFIED",
+                                    target_entity=f"User: {target_user}",
+                                    details=f"Changed role to {new_r}.",
+                                )
+                                conn_u.close()
+                                st.success(f"✓ Updated {target_user} to {new_r}")
+                                rerun()
+                        else:
+                            st.info("No secondary user accounts provisioned yet.")
+                    with del_c2:
+                        if user_list:
+                            st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
+                            if st.button("🗑️ Revoke & Delete Account", key="rbac_delete_user_btn", type="secondary", use_container_width=True):
+                                conn_d = get_connection(DB_PATH)
+                                delete_user(conn_d, target_user)
+                                log_audit_event(
+                                    conn_d,
+                                    actor=st.session_state.get("active_user", "admin"),
+                                    role="Admin",
+                                    action="USER_DELETED",
+                                    target_entity=f"User: {target_user}",
+                                    details=f"Permanently revoked account {target_user}.",
+                                )
+                                conn_d.close()
+                                st.warning(f"Revoked user '{target_user}'.")
+                                rerun()
 
             # Live Security Audit Stream preview
             st.markdown(ui.panel_header("Recent Security Audit Stream", color="#5794f2", count=f"{min(5, len(audit_logs))} Latest Events"), unsafe_allow_html=True)

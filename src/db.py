@@ -42,7 +42,7 @@ import hashlib
 from pathlib import Path
 import secrets
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS expiry_records (
@@ -138,7 +138,9 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     last_login_at TEXT,
-    is_active INTEGER NOT NULL DEFAULT 1
+    is_active INTEGER NOT NULL DEFAULT 1,
+    reset_token_hash TEXT,
+    reset_token_expires_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -300,6 +302,12 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     u_cols = [col[1] for col in conn.execute("PRAGMA table_info(users)").fetchall()]
     if "assigned_state" not in u_cols:
         conn.execute("ALTER TABLE users ADD COLUMN assigned_state TEXT;")
+        conn.commit()
+    if "reset_token_hash" not in u_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN reset_token_hash TEXT;")
+        conn.commit()
+    if "reset_token_expires_at" not in u_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN reset_token_expires_at TEXT;")
         conn.commit()
 
     # Seed default administrative and state RM identities if not present
@@ -878,8 +886,208 @@ def authenticate_user(
 
 
 # ==============================================================================
+# Self-Service Signup, Password Reset & Account Recovery
+# ==============================================================================
+
+import re as _re
+
+_EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def signup_user(
+    conn: sqlite3.Connection,
+    username: str,
+    password: str,
+    email: str,
+    full_name: str = "",
+) -> dict:
+    """
+    Self-service user registration. Always assigns the 'Viewer' role.
+    Enforces minimum 8-character password, basic email format, and
+    prevents duplicate username or email.
+    Raises ValueError for validation failures, sqlite3.IntegrityError for duplicates.
+    """
+    clean_username = username.strip()
+    clean_email = email.strip().lower()
+    clean_full_name = full_name.strip()
+
+    if not clean_username:
+        raise ValueError("Username cannot be blank.")
+    if len(clean_username) < 3:
+        raise ValueError("Username must be at least 3 characters.")
+    if not _EMAIL_RE.match(clean_email):
+        raise ValueError("A valid email address is required.")
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters.")
+    # Basic complexity: at least one digit or special character
+    if not any(c.isdigit() or not c.isalnum() for c in password):
+        raise ValueError("Password must contain at least one digit or special character.")
+
+    # Check for duplicate email (case-insensitive)
+    existing_email = conn.execute(
+        "SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(?)", (clean_email,)
+    ).fetchone()
+    if existing_email:
+        raise sqlite3.IntegrityError("UNIQUE constraint failed: users.email")
+
+    # Check for duplicate username (case-insensitive)
+    existing_uname = conn.execute(
+        "SELECT id FROM users WHERE LOWER(TRIM(username)) = LOWER(?)", (clean_username,)
+    ).fetchone()
+    if existing_uname:
+        raise sqlite3.IntegrityError("UNIQUE constraint failed: users.username")
+
+    result = create_user(
+        conn,
+        username=clean_username,
+        password=password,
+        role="Viewer",
+        full_name=clean_full_name,
+        email=clean_email,
+    )
+    log_audit_event(
+        conn,
+        actor=clean_username,
+        role="Viewer",
+        action="USER_SIGNUP",
+        target_entity=f"User: {clean_username}",
+        details=f"Self-service account created ({clean_email}).",
+        ip_address="127.0.0.1",
+    )
+    return result
+
+
+def update_user_password(conn: sqlite3.Connection, username: str, new_password: str) -> bool:
+    """
+    Directly updates a user's password hash (used after successful reset).
+    Enforces minimum 8-character length and complexity.
+    Returns True if the user record was found and updated.
+    """
+    if len(new_password) < 8:
+        raise ValueError("Password must be at least 8 characters.")
+    if not any(c.isdigit() or not c.isalnum() for c in new_password):
+        raise ValueError("Password must contain at least one digit or special character.")
+    new_hash, new_salt = hash_password(new_password)
+    cur = conn.execute(
+        "UPDATE users SET password_hash = ?, salt = ? WHERE LOWER(TRIM(username)) = LOWER(?)",
+        (new_hash, new_salt, username.strip()),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def create_reset_token(conn: sqlite3.Connection, identifier: str) -> dict | None:
+    """
+    Generates a secure password-reset token for the user identified by username
+    or email. Stores only the SHA-256 hash of the token (never the plaintext).
+    Token expires in 60 minutes. Returns {'token': <plaintext_token>, 'username': ...,
+    'email': ...} or None if no active account matches.
+    """
+    clean_id = identifier.strip().lower()
+    row = conn.execute(
+        """
+        SELECT id, username, email, is_active
+        FROM users
+        WHERE LOWER(TRIM(username)) = LOWER(?) OR LOWER(TRIM(email)) = LOWER(?)
+        """,
+        (clean_id, clean_id),
+    ).fetchone()
+
+    if not row or not row["is_active"]:
+        # Return None without revealing whether the account exists
+        return None
+
+    plaintext_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(plaintext_token.encode("utf-8")).hexdigest()
+    now = datetime.now(timezone.utc)
+    expires_at = (now + timedelta(hours=1)).isoformat()
+
+    conn.execute(
+        "UPDATE users SET reset_token_hash = ?, reset_token_expires_at = ? WHERE id = ?",
+        (token_hash, expires_at, row["id"]),
+    )
+    conn.commit()
+
+    log_audit_event(
+        conn,
+        actor=row["username"],
+        role="Viewer",
+        action="PASSWORD_RESET_REQUESTED",
+        target_entity=f"User: {row['username']}",
+        details="Password reset token generated.",
+        ip_address="127.0.0.1",
+    )
+
+    return {
+        "token": plaintext_token,
+        "username": row["username"],
+        "email": row["email"],
+    }
+
+
+def verify_reset_token(conn: sqlite3.Connection, token: str) -> str | None:
+    """
+    Validates a reset token. Returns the username if the token is valid and
+    not expired; returns None otherwise. Does NOT consume the token.
+    """
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    row = conn.execute(
+        """
+        SELECT username, reset_token_expires_at
+        FROM users
+        WHERE reset_token_hash = ? AND is_active = 1
+        """,
+        (token_hash,),
+    ).fetchone()
+    if not row:
+        return None
+    if row["reset_token_expires_at"] and row["reset_token_expires_at"] < now_iso:
+        return None  # Expired
+    return row["username"]
+
+
+def consume_reset_token(
+    conn: sqlite3.Connection,
+    token: str,
+    new_password: str,
+) -> bool:
+    """
+    Validates the token, resets the password, and immediately invalidates the
+    token so it cannot be reused. Returns True on success, False on invalid/
+    expired token. Raises ValueError for weak passwords.
+    """
+    username = verify_reset_token(conn, token)
+    if not username:
+        return False
+
+    update_user_password(conn, username, new_password)
+
+    # Invalidate token (single-use)
+    conn.execute(
+        "UPDATE users SET reset_token_hash = NULL, reset_token_expires_at = NULL WHERE LOWER(TRIM(username)) = LOWER(?)",
+        (username,),
+    )
+    conn.commit()
+
+    log_audit_event(
+        conn,
+        actor=username,
+        role="Viewer",
+        action="PASSWORD_RESET_COMPLETED",
+        target_entity=f"User: {username}",
+        details="Password successfully reset via secure token.",
+        ip_address="127.0.0.1",
+    )
+    return True
+
+
+# ==============================================================================
 # Enterprise Schedule Release Plan & State RM Governance
 # ==============================================================================
+
 
 def upsert_release_schedule(conn: sqlite3.Connection, rec: dict) -> None:
     """Insert or update a release record into release_schedules."""

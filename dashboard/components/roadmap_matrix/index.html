@@ -6,12 +6,20 @@
 body {
     margin: 0;
     padding: 0;
-    background: #181b1f;
+    background: transparent;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     color: #d8d9da;
+    overflow: hidden;
+    font-size: 10px;
+}
+#table-wrap {
+    background: #181b1f;
+    border: 1px solid #2c3235;
+    border-radius: 4px;
+    box-sizing: border-box;
     overflow-x: hidden;
     overflow-y: auto;
-    font-size: 10px;
+    max-height: 220px;
 }
 table {
     width: 100%;
@@ -24,7 +32,7 @@ thead th {
     background: #141619;
     border-bottom: 1px solid #2c3235;
     z-index: 2;
-    padding: 4px 6px;
+    padding: 5px 6px;
     text-align: left;
     font-size: 9px;
     color: #6e7681;
@@ -45,7 +53,7 @@ tbody tr.active-row {
     border-left: 3px solid #38bdf8 !important;
 }
 td {
-    padding: 3px 6px;
+    padding: 3.5px 6px;
     vertical-align: middle;
 }
 .mono {

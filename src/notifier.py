@@ -450,6 +450,54 @@ def subject_for(record: dict) -> str:
     return f"Action Required: {team} {component} Expiring in {days} Days ({state} {env})"
 
 
+def send_password_reset_email(
+    to_email: str,
+    username: str,
+    reset_token: str,
+    smtp_config: dict | None = None,
+) -> dict:
+    """
+    Sends an authentic password reset token email via SMTP.
+    Returns status dict or safely handles errors for non-routable domains.
+    """
+    if not smtp_config:
+        smtp_config = smtp_config_from_env()
+
+    subject = "ETS Watchtower — Password Reset Verification Code"
+    html_body = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #f8fafc; padding: 28px; border-radius: 8px; border: 1px solid #1e293b;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <span style="font-size: 32px;">🛡️</span>
+        <h2 style="color: #38bdf8; margin: 8px 0 4px; font-size: 20px;">ETS WATCHTOWER</h2>
+        <div style="color: #94a3b8; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;">Security &amp; Identity Subsystem</div>
+      </div>
+      <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">Hello <b>{username}</b>,</p>
+      <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">A request was received to reset the password for your ETS Watchtower account.</p>
+      <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 16px; margin: 20px 0; text-align: center;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #38bdf8; margin-bottom: 6px;">Your Single-Use Reset Token</div>
+        <div style="font-family: monospace; font-size: 18px; font-weight: bold; color: #ffffff; letter-spacing: 0.05em; word-break: break-all;">{reset_token}</div>
+        <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;">Expires in 60 minutes · Single-use only</div>
+      </div>
+      <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">Copy this token and paste it into the <b>Reset Password</b> form on the login portal along with your new password.</p>
+      <p style="font-size: 12px; color: #64748b; margin-top: 24px; border-top: 1px solid #1e293b; padding-top: 12px;">If you did not request a password reset, you can safely ignore this email.</p>
+    </div>
+    """
+
+    if not smtp_config.get("host") or not smtp_config.get("user"):
+        return {"status": "DEV_PRINT", "token": reset_token, "username": username}
+
+    try:
+        return send_real_smtp_email(
+            smtp_config=smtp_config,
+            to_emails=[to_email],
+            subject=subject,
+            html_body=html_body,
+            item_count=1,
+        )
+    except Exception as e:
+        return {"status": "FAILED", "error": str(e), "token": reset_token, "username": username}
+
+
 def run(db_path: str, threshold_days: int, dry_run: bool = False) -> int:
     conn = get_connection(db_path)
     due = get_due_reminders(conn, threshold_days)
