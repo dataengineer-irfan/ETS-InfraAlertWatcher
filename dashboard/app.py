@@ -436,6 +436,7 @@ def render_login_gate(db_path: str) -> None:
                             st.session_state["user_role"] = user["role"]
                             st.session_state["user_full_name"] = user.get("full_name") or user["username"]
                             st.session_state["assigned_state"] = user.get("assigned_state")
+                            st.query_params["_auth_user"] = user["username"]
                             st.rerun()
                         else:
                             st.error("Authentication failed: Invalid username or password.")
@@ -457,6 +458,21 @@ if not st.session_state.get("_ingested_verified", False):
     st.session_state["_ingested_verified"] = True
 
 # Session State Initialization & Authentication Gate
+_qp_user = st.query_params.get("_auth_user")
+if _qp_user and not st.session_state.get("authenticated", False):
+    try:
+        conn_auth = get_connection(DB_PATH)
+        u_data = conn_auth.execute("SELECT username, role, full_name, assigned_state FROM users WHERE username = ?", (_qp_user,)).fetchone()
+        conn_auth.close()
+        if u_data:
+            st.session_state["authenticated"] = True
+            st.session_state["active_user"] = u_data[0]
+            st.session_state["user_role"] = u_data[1]
+            st.session_state["user_full_name"] = u_data[2] or u_data[0]
+            st.session_state["assigned_state"] = u_data[3]
+    except Exception:
+        pass
+
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
     st.session_state["active_user"] = None
@@ -780,6 +796,54 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     tree_open = st.session_state.setdefault("op_tree_open", set())
     selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
+    # Reactive URL Query Parameter Handling for 1-Click Interactive Filtering
+    active_user = st.session_state.get("active_user", "admin")
+    auth_suffix = f"&_auth_user={active_user}&tab=2"
+
+    qp_kpi = st.query_params.get("op_kpi")
+    if qp_kpi:
+        if qp_kpi in ["All", "Expired", "Urgent", "Healthy"]:
+            st.session_state["op_kpi_filter"] = qp_kpi
+            st.session_state["op_cell_filter"] = None
+            if qp_kpi == "Expired":
+                tree_open.clear()
+                tree_open.add("ND")
+                tree_open.add("ND/Core")
+                tree_open.add("ND/Core/Database Password Expiry")
+            elif qp_kpi == "Urgent":
+                tree_open.clear()
+                tree_open.add("AK")
+                tree_open.add("NH")
+        del st.query_params["op_kpi"]
+
+    qp_cell = st.query_params.get("op_cell")
+    if qp_cell:
+        if qp_cell == "clear":
+            st.session_state["op_cell_filter"] = None
+        elif ":" in qp_cell:
+            p_st, p_cp = qp_cell.split(":", 1)
+            p_cp = p_cp if p_cp else None
+            if st.session_state.get("op_cell_filter") == (p_st, p_cp):
+                st.session_state["op_cell_filter"] = None
+            else:
+                st.session_state["op_cell_filter"] = (p_st, p_cp)
+                tree_open.clear()
+                tree_open.add(p_st)
+                if p_cp:
+                    sub_matches = df[(df["state"] == p_st) & (df["component"] == p_cp)]
+                    for t in sub_matches["team"].unique():
+                        tree_open.add(f"{p_st}/{t}")
+                        tree_open.add(f"{p_st}/{t}/{p_cp}")
+        del st.query_params["op_cell"]
+
+    qp_act = st.query_params.get("op_act_id")
+    if qp_act:
+        try:
+            st.session_state["op_active_id"] = int(qp_act)
+        except Exception:
+            pass
+        del st.query_params["op_act_id"]
+
     active_scope = st.session_state.get("_override_canvas_state")
     op_st_key = f"op_state_{reset_idx}"
     if active_scope and active_scope in STATES and op_st_key not in st.session_state:
@@ -908,7 +972,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     debt_callout = f'<span style="font-size:9px;color:var(--warning);font-weight:600;">(Overdue Debt: {" · ".join(debt_sub)})</span>' if debt_sub else '<span style="font-size:9px;color:var(--healthy);font-weight:600;">(Debt Free)</span>'
 
     st.markdown(f"""
-    <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
+    <div class="scope-line" style="margin-top:2px;margin-bottom:4px;padding:4px 10px;">
       <div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;">
         <span class="scope-label">SCOPE</span>
         <span class="scope-val">{scope_name}</span>
@@ -923,7 +987,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Executive Metric Ribbon — Compact Grafana-style stat panels
+    # 3. Executive Metric Ribbon — Clickable Grafana stat cards (Single 48px row)
     tot_cnt = len(df)
     scope_cnt = len(filtered)
     exp_cnt = int((filtered["days_left"] < 0).sum())
@@ -932,9 +996,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     hlth_cnt = int((filtered["days_left"] > ui.WARNING_DAYS).sum())
     g_exp = int((df["days_left"] < 0).sum())
 
-    k1_sub = f"Filtered scope ({scope_cnt} of {tot_cnt} fleet)" if scope_cnt < tot_cnt else "Consolidated fleet coverage"
-    k2_sub = f"Requires renewal ({g_exp} across fleet)" if (scope_cnt < tot_cnt and exp_cnt != g_exp) else ("Requires immediate renewal" if exp_cnt else "Zero overdue accounts")
-    k3_sub = f"{crit_cnt} critical (≤15d) · {warn_cnt} warning (≤30d)"
+    k1_sub = f"Filtered scope ({scope_cnt} of {tot_cnt})" if scope_cnt < tot_cnt else "Consolidated fleet coverage"
+    k2_sub = f"Requires renewal ({g_exp} fleet)" if (scope_cnt < tot_cnt and exp_cnt != g_exp) else ("Requires immediate renewal" if exp_cnt else "Zero overdue accounts")
+    k3_sub = f"{crit_cnt} critical · {warn_cnt} warning"
     pct_local = (hlth_cnt / scope_cnt * 100) if scope_cnt else 0
     k4_sub = f"{pct_local:.1f}% compliance rate"
 
@@ -943,7 +1007,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     k3_active = (cur_kpi == "Urgent" or health_filter in ["Critical", "Warning"])
     k4_active = (cur_kpi == "Healthy" or health_filter == "Healthy")
 
-    # Build sparkline trend from snapshot history
     try:
         conn_snap = get_connection(DB_PATH)
         _snaps = get_metric_snapshots(conn_snap, limit=7)
@@ -955,143 +1018,115 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     except Exception:
         _exp_trend = _cw_trend = _hlth_trend = _scope_trend = []
 
+    def _make_kpi_card_html(label: str, val: str | int, subtext: str, badge: str, state_kpi: str, is_active: bool, kpi_param: str, spark_vals=None, donut_val=None) -> str:
+        if state_kpi == "firing":
+            fill_cls = "stat-fill-red"
+            val_col = "#f2495c"
+            bg_col = "rgba(242,73,92,0.18)"
+            fg_col = "#f2495c"
+        elif state_kpi == "pending":
+            fill_cls = "stat-fill-yellow"
+            val_col = "#ff9830"
+            bg_col = "rgba(255,152,48,0.18)"
+            fg_col = "#ff9830"
+        elif state_kpi == "ok" and "health" in label.lower():
+            fill_cls = "stat-fill-green"
+            val_col = "#73bf69"
+            bg_col = "rgba(115,191,105,0.18)"
+            fg_col = "#73bf69"
+        else:
+            fill_cls = "stat-fill-neutral"
+            val_col = "#5794f2"
+            bg_col = "rgba(255,255,255,0.08)"
+            fg_col = "#f8fafc"
 
-    k1, k2, k3, k4 = st.columns(4)
+        active_style = "border:1.5px solid #38bdf8;box-shadow:0 0 10px rgba(56,189,248,0.28);background:rgba(56,189,248,0.08);" if is_active else "border:1px solid #2c3235;"
+        vis_html = ""
+        if donut_val is not None:
+            vis_html = ui.compliance_donut(donut_val, val_col, size=24)
+        elif spark_vals:
+            vis_html = ui.grafana_sparkline(spark_vals, val_col, height=16, width=44)
 
-    with k1:
-        st.markdown(ui.grafana_stat_card(
-            label="Portfolio Scope",
-            value=f"{scope_cnt} / {tot_cnt}",
-            color="#5794f2",
-            subtext=k1_sub,
-            badge="ALL FLEET" if k1_active else "SCOPED",
-            sparkline_vals=_scope_trend,
-            state="ok",
-        ), unsafe_allow_html=True)
-        if st.button("✓ Active: All Fleet" if k1_active else "Filter: All Fleet", key="op_kpi_all", use_container_width=True, type="primary" if k1_active else "secondary"):
-            st.session_state["op_kpi_filter"] = "All"
-            st.session_state["op_cell_filter"] = None
-            rerun()
+        b_html = f'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:2px;background:{bg_col};color:{fg_col};">{"ACTIVE: " if is_active else ""}{badge}</span>'
 
-    with k2:
-        k2_state = "firing" if exp_cnt > 0 else "ok"
-        st.markdown(ui.grafana_stat_card(
-            label="Expired Items",
-            value=exp_cnt,
-            color="#f2495c" if exp_cnt else "#73bf69",
-            subtext=k2_sub,
-            badge="FIRING" if exp_cnt else "CLEAR",
-            sparkline_vals=_exp_trend,
-            delta=f"▲ +{exp_cnt} vs baseline" if exp_cnt else "✓ None overdue",
-            state=k2_state,
-        ), unsafe_allow_html=True)
-        if st.button("✓ Active: Expired" if k2_active else "Filter: Expired", key="op_kpi_exp", use_container_width=True, type="primary" if k2_active else "secondary"):
-            if k2_active:
-                st.session_state["op_kpi_filter"] = "All"
-            else:
-                st.session_state["op_kpi_filter"] = "Expired"
-                st.session_state["op_cell_filter"] = None
-                tree_open.clear()
-                tree_open.add("ND")
-                tree_open.add("ND/Core")
-                tree_open.add("ND/Core/Database Password Expiry")
-            rerun()
+        return f'''
+        <a href="?op_kpi={kpi_param}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">
+          <div class="panel stat-panel grafana-card {fill_cls}" style="{active_style}border-radius:2px;padding:4px 8px;min-height:48px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;line-height:1;margin-bottom:2px;">
+                <span style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.02em;">{label}</span>
+                {b_html}
+              </div>
+              <div style="display:flex;align-items:baseline;gap:6px;">
+                <span style="font-size:17px;font-weight:800;font-family:var(--mono);color:{val_col};line-height:1;">{val}</span>
+                <span style="font-size:8.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{subtext}</span>
+              </div>
+            </div>
+            <div style="flex:none;margin-left:4px;">
+              {vis_html}
+            </div>
+          </div>
+        </a>
+        '''
 
-    with k3:
-        k3_state = "pending" if (crit_cnt + warn_cnt) > 0 else "ok"
-        st.markdown(ui.grafana_stat_card(
-            label="Critical & Warning",
-            value=crit_cnt + warn_cnt,
-            color="#f2495c" if crit_cnt else ("#ff9830" if warn_cnt else "#73bf69"),
-            subtext=k3_sub,
-            badge="PENDING" if (crit_cnt + warn_cnt) else "STABLE",
-            sparkline_vals=_cw_trend,
-            delta=f"▲ {crit_cnt}C + {warn_cnt}W" if (crit_cnt + warn_cnt) else "✓ All stable",
-            state=k3_state,
-        ), unsafe_allow_html=True)
-        if st.button("✓ Active: Urgent" if k3_active else "Filter: Urgent", key="op_kpi_urgent", use_container_width=True, type="primary" if k3_active else "secondary"):
-            if k3_active:
-                st.session_state["op_kpi_filter"] = "All"
-            else:
-                st.session_state["op_kpi_filter"] = "Urgent"
-                st.session_state["op_cell_filter"] = None
-                tree_open.clear()
-                tree_open.add("AK")
-                tree_open.add("NH")
-            rerun()
+    def _render_html(html_str: str) -> None:
+        """Render HTML safely without markdown 4-space code-block escaping."""
+        cleaned = "\n".join(line.strip() for line in html_str.splitlines() if line.strip())
+        st.markdown(cleaned, unsafe_allow_html=True)
 
-    with k4:
-        st.markdown(ui.grafana_stat_card(
-            label="Healthy Entities",
-            value=hlth_cnt,
-            color="#73bf69",
-            subtext=k4_sub,
-            badge="COMPLIANT",
-            donut_pct=pct_local,
-            delta=f"✓ {pct_local:.1f}% fleet OK",
-            state="ok",
-        ), unsafe_allow_html=True)
-        if st.button("✓ Active: Healthy" if k4_active else "Filter: Healthy", key="op_kpi_hlth", use_container_width=True, type="primary" if k4_active else "secondary"):
-            if k4_active:
-                st.session_state["op_kpi_filter"] = "All"
-            else:
-                st.session_state["op_kpi_filter"] = "Healthy"
-                st.session_state["op_cell_filter"] = None
-            rerun()
+    c_k1 = _make_kpi_card_html("Portfolio Scope", f"{scope_cnt} / {tot_cnt}", k1_sub, "ALL FLEET" if k1_active else "SCOPED", "ok", k1_active, "All", spark_vals=_scope_trend)
+    c_k2 = _make_kpi_card_html("Expired Items", exp_cnt, k2_sub, "FIRING" if exp_cnt else "CLEAR", "firing" if exp_cnt else "ok", k2_active, "Expired", spark_vals=_exp_trend)
+    c_k3 = _make_kpi_card_html("Critical & Warning", crit_cnt + warn_cnt, k3_sub, "PENDING" if (crit_cnt + warn_cnt) else "STABLE", "pending" if (crit_cnt + warn_cnt) else "ok", k3_active, "Urgent", spark_vals=_cw_trend)
+    c_k4 = _make_kpi_card_html("Healthy Entities", hlth_cnt, k4_sub, "COMPLIANT", "ok", k4_active, "Healthy", donut_val=pct_local)
 
-    # 4. Cross-Filter Visual Feedback Banner (Animates cause & effect connection)
+    _render_html(f'''
+    <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:4px;">
+      {c_k1}
+      {c_k2}
+      {c_k3}
+      {c_k4}
+    </div>
+    ''')
+
+    # 4. Cross-Filter Visual Feedback Banner
     if k2_active:
-        st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(242,73,92,0.12);border:1px solid #f2495c;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        _render_html(f"""
+        <div class="cross-filter-pulse" style="background:rgba(242,73,92,0.12);border:1px solid #f2495c;border-radius:2px;padding:2px 8px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#f2495c;">⚡ ACTIVE CROSS-FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:var(--text);">Expired Items</span>
-            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} debt entities synchronized across Hierarchy Tree & Heatmap)</span>
+            <span style="font-size:10px;font-weight:700;color:#f2495c;">⚡ ACTIVE FILTER:</span>
+            <span style="font-size:10.5px;font-weight:700;color:var(--text);">Expired Items</span>
+            <span style="font-size:9px;color:var(--slate);">({scope_cnt} overdue assets in focus)</span>
           </div>
-          <span style="font-size:9.5px;color:#f2495c;font-variant-numeric:tabular-nums;font-weight:600;">Tree & Heatmap Linked</span>
+          <a href="?op_kpi=All{auth_suffix}" target="_self" style="font-size:9px;color:#f2495c;text-decoration:none;font-weight:700;">✕ Clear Filter</a>
         </div>
-        """, unsafe_allow_html=True)
+        """)
     elif k3_active:
-        st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(255,152,48,0.12);border:1px solid #ff9830;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        _render_html(f"""
+        <div class="cross-filter-pulse" style="background:rgba(255,152,48,0.12);border:1px solid #ff9830;border-radius:2px;padding:2px 8px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#ff9830;">⚡ ACTIVE CROSS-FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:var(--text);">Critical & Warning</span>
-            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} urgent entities synchronized across Hierarchy Tree & Heatmap)</span>
+            <span style="font-size:10px;font-weight:700;color:#ff9830;">⚡ ACTIVE FILTER:</span>
+            <span style="font-size:10.5px;font-weight:700;color:var(--text);">Critical & Warning</span>
+            <span style="font-size:9px;color:var(--slate);">({scope_cnt} urgent assets in focus)</span>
           </div>
-          <span style="font-size:9.5px;color:#ff9830;font-variant-numeric:tabular-nums;font-weight:600;">Tree & Heatmap Linked</span>
+          <a href="?op_kpi=All{auth_suffix}" target="_self" style="font-size:9px;color:#ff9830;text-decoration:none;font-weight:700;">✕ Clear Filter</a>
         </div>
-        """, unsafe_allow_html=True)
-    elif k4_active and is_scoped:
-        st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(115,191,105,0.12);border:1px solid #73bf69;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#73bf69;">⚡ ACTIVE CROSS-FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:var(--text);">Healthy Entities</span>
-            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} compliant assets synchronized across Hierarchy Tree & Heatmap)</span>
-          </div>
-          <span style="font-size:9.5px;color:#73bf69;font-variant-numeric:tabular-nums;font-weight:600;">Tree & Heatmap Linked</span>
-        </div>
-        """, unsafe_allow_html=True)
+        """)
     elif cell_filter:
         c_st, c_cp = cell_filter
-        st.markdown(f"""
-        <div class="cross-filter-pulse" style="background:rgba(255,120,10,0.12);border:1px solid #ff780a;border-radius:2px;padding:3px 10px;margin-top:3px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;">
+        _render_html(f"""
+        <div class="cross-filter-pulse" style="background:rgba(255,120,10,0.12);border:1px solid #ff780a;border-radius:2px;padding:2px 8px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10.5px;font-weight:700;color:#ff780a;">⚡ ACTIVE HEATMAP FILTER:</span>
-            <span style="font-size:11px;font-weight:700;color:var(--text);">State {c_st}{f' × {c_cp}' if c_cp else ''}</span>
-            <span style="font-size:9.5px;color:var(--slate);">({scope_cnt} entities in focus across Tree & Inspector)</span>
+            <span style="font-size:10px;font-weight:700;color:#ff780a;">⚡ HEATMAP FILTER:</span>
+            <span style="font-size:10.5px;font-weight:700;color:var(--text);">State {c_st}{f' × {c_cp}' if c_cp else ''}</span>
+            <span style="font-size:9px;color:var(--slate);">({scope_cnt} entities synced)</span>
           </div>
-          <span style="font-size:9.5px;color:#ff780a;font-variant-numeric:tabular-nums;font-weight:600;">Heatmap Synced</span>
+          <a href="?op_cell=clear{auth_suffix}" target="_self" style="font-size:9px;color:#ff780a;text-decoration:none;font-weight:700;">✕ Clear Filter</a>
         </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
+        """)
 
-    # 5. Master-Detail Workspace (49% Left Hierarchy Tree / 51% Right Inspector)
-    left_col, _, right_col = st.columns([1.98, 0.04, 2.02])
-
-    # Active entity scope for inspector
+    # --------------------------------------------------------------------------
+    # 5. RESOLVE ACTIVE SELECTION
+    # --------------------------------------------------------------------------
     cur_scope_df = df[df["id"].isin(selected_entity_ids)] if selected_entity_ids else filtered
     if cur_scope_df.empty:
         selected_id = None
@@ -1103,566 +1138,456 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.session_state["op_active_id"] = cur_active_id
         selected_id = cur_active_id
 
+    # --------------------------------------------------------------------------
+    # 6. TIER 3: COMMAND CENTER GRID (58% Matrix Heatmap / 42% Risk & SLA Telemetry)
+    # --------------------------------------------------------------------------
+    mat_col, sla_col = st.columns([5.8, 4.2], gap="small")
 
-    with left_col:
-        lt_c1, lt_c2 = st.columns([1.6, 1.4])
-        with lt_c1:
-            if hasattr(st, "radio"):
-                left_mode = st.radio(
-                    "Explorer Mode",
-                    ["🌳 Tree", "📋 Power Grid"],
-                    horizontal=True,
-                    label_visibility="collapsed",
-                    key="op_explorer_mode",
-                )
-            else:
-                left_mode = "🌳 Tree"
-        with lt_c2:
-            st.markdown(
-                f"<div style='text-align:right;font-size:9.5px;color:#94a3b8;padding-top:4px;font-family:var(--mono);'>"
-                f"<b>{len(filtered)}</b> of {len(df)} Assets</div>",
-                unsafe_allow_html=True,
-            )
-
-        if filtered.empty:
-            st.markdown(ui.empty("No records match filter", "Try broadening your search query or reset filters."), unsafe_allow_html=True)
-        elif left_mode == "📋 Power Grid":
-            selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
-
-            # Sort and Search Controls
-            pg_s_c1, pg_s_c2 = st.columns([1.8, 1.4])
-            with pg_s_c1:
-                pg_sort = st.selectbox(
-                    "Sort Grid",
-                    ["Days Left (Asc)", "Days Left (Desc)", "SLA Weight (High Risk First)", "Schema Name (A-Z)", "State (A-Z)"],
-                    label_visibility="collapsed",
-                    key="op_pg_sort",
-                )
-            with pg_s_c2:
-                all_pg_ids = set(filtered["id"].tolist())
-                n_sel = len(selected_entity_ids)
-                if n_sel > 0:
-                    if st.button(f"Clear ({n_sel})", key="pg_clear_all_sel", use_container_width=True):
-                        selected_entity_ids.clear()
-                        rerun()
-                else:
-                    if st.button("Select Filtered", key="pg_sel_all_filt", use_container_width=True):
-                        selected_entity_ids.update(all_pg_ids)
-                        rerun()
-
-            pg_work = filtered.copy()
-            if pg_sort == "Days Left (Asc)":
-                pg_work = pg_work.sort_values("days_left", ascending=True)
-            elif pg_sort == "Days Left (Desc)":
-                pg_work = pg_work.sort_values("days_left", ascending=False)
-            elif pg_sort == "SLA Weight (High Risk First)":
-                pg_work = pg_work.sort_values(["sla_weight", "days_left"], ascending=[False, True])
-            elif pg_sort == "Schema Name (A-Z)":
-                pg_work = pg_work.sort_values("schema_name", ascending=True)
-            elif pg_sort == "State (A-Z)":
-                pg_work = pg_work.sort_values(["state", "days_left"], ascending=[True, True])
-
-            PAGE_SIZE = 25
-            n_records = len(pg_work)
-            n_pages = max(1, (n_records + PAGE_SIZE - 1) // PAGE_SIZE)
-            cur_page = st.session_state.setdefault("op_pg_page_idx", 0)
-            if cur_page >= n_pages:
-                cur_page = n_pages - 1
-                st.session_state["op_pg_page_idx"] = cur_page
-
-            # Compact Pagination Bar
-            p_c1, p_c2, p_c3 = st.columns([1.0, 2.0, 1.0])
-            with p_c1:
-                if st.button("◀ Prev", key="op_pg_prev_btn", disabled=(cur_page <= 0), use_container_width=True):
-                    st.session_state["op_pg_page_idx"] = max(0, cur_page - 1)
-                    rerun()
-            with p_c2:
-                st.markdown(
-                    f"<div style='text-align:center;font-size:10px;font-weight:700;color:#f8fafc;padding-top:5px;font-family:var(--mono);'>"
-                    f"Page {cur_page + 1} of {n_pages} <span style='color:#94a3b8;font-weight:400;'>({n_records} assets)</span></div>",
-                    unsafe_allow_html=True,
-                )
-            with p_c3:
-                if st.button("Next ▶", key="op_pg_next_btn", disabled=(cur_page >= n_pages - 1), use_container_width=True):
-                    st.session_state["op_pg_page_idx"] = min(n_pages - 1, cur_page + 1)
-                    rerun()
-
-            # Clean box with borders and internal scroll
-            with st.container(height=265, border=True, key="op_grid_box"):
-                page_records = pg_work.iloc[cur_page * PAGE_SIZE : (cur_page + 1) * PAGE_SIZE]
-                for r in page_records.itertuples():
-                    is_act = (r.id == selected_id)
-                    is_sel = r.id in selected_entity_ids
-                    r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-                    _sbar = ui.leaf_sparkbar(int(r.days_left))
-                    sla_badge_str = ui.sla_badge(r.env_label)
-
-                    pg_r0, pg_r1, pg_r2 = st.columns([0.35, 2.85, 1.4])
-                    with pg_r0:
-                        ck_txt = "✓" if is_sel else " "
-                        if st.button(ck_txt, key=f"pg_ck_{r.id}", type="primary" if is_sel else "secondary", use_container_width=True):
-                            if is_sel:
-                                selected_entity_ids.discard(r.id)
-                            else:
-                                selected_entity_ids.add(r.id)
-                            rerun()
-                    with pg_r1:
-                        btn_txt = f"#{r.id} {r.schema_name} · {r.state}"
-                        if st.button(btn_txt, key=f"pg_act_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
-                            st.session_state["op_active_id"] = int(r.id)
-                            rerun()
-                    with pg_r2:
-                        st.markdown(
-                            f"<div style='text-align:right;padding-top:2px;padding-right:2px;'>"
-                            f"<span style='font-family:var(--mono);font-size:9.5px;font-weight:700;color:{r_meta['color']};'>{r_meta['symbol']} {ui.fmt_days(r.days_left)}</span> {sla_badge_str}"
-                            f"{_sbar}"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+    with mat_col:
+        if selected_entity_ids:
+            mat_df = df[df["id"].isin(selected_entity_ids)].copy()
+            mat_scope_lbl = f"{len(selected_entity_ids)} Selected Entities"
         else:
-            # Persistent Interactive Breadcrumb Header & Selection Toolbar
-            bc_parts = ["<span style='color:var(--accent);font-weight:700;font-size:10px;'>All</span>"]
-            d_st = state_filter if state_filter != "All States" else None
-            if not d_st and len(tree_open) > 0:
-                open_st = [s for s in STATES if s in tree_open]
-                if len(open_st) == 1:
-                    d_st = open_st[0]
+            mat_df = filtered.copy()
+            mat_scope_lbl = "Filtered Scope" if is_scoped else "Consolidated Fleet"
 
-            d_tm = team_filter if team_filter != "All Teams" else None
-            if not d_tm and len(tree_open) > 0 and d_st:
-                open_tm = [t for t in ui.TEAMS if f"{d_st}/{t}" in tree_open]
-                if len(open_tm) == 1:
-                    d_tm = open_tm[0]
+        available_states = [s for s in STATES if s in mat_df["state"].unique()]
+        mat_states = available_states if available_states else STATES
+        mat_comps = COMPONENT_ORDER
 
-            d_cp = comp_filter if comp_filter != "All Components" else None
-            if not d_cp and len(tree_open) > 0 and d_st and d_tm:
-                open_cp = [c for c in COMPONENT_ORDER if f"{d_st}/{d_tm}/{c}" in tree_open]
-                if len(open_cp) == 1:
-                    d_cp = open_cp[0]
+        clear_hm_link = f'<a href="?op_cell=clear{auth_suffix}" target="_self" style="font-size:8.5px;color:#f59e0b;font-weight:700;text-decoration:none;border:1px solid #f59e0b;padding:1px 6px;border-radius:2px;">✕ Clear Filter</a>' if cell_filter else '<span style="font-size:8px;color:#94a3b8;">Click cell to cross-filter</span>'
 
-            if d_st:
-                bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;font-size:10px;'>State: {d_st}</span>")
-            if d_tm:
-                bc_parts.append(f"<span style='color:#cbd5e1;font-size:10px;'>Team: {d_tm}</span>")
-            if d_cp:
-                cp_c = ui.COMPONENT_CODE.get(d_cp, d_cp)
-                bc_parts.append(f"<span style='color:#94a3b8;font-size:10px;'>Comp: {cp_c}</span>")
-            if cur_kpi != "All":
-                bc_parts.append(f"<span style='color:var(--accent);font-weight:600;font-size:10px;'>Status: {cur_kpi}</span>")
+        # Build table rows for Heatmap
+        hm_tr_list = []
+        for st_val in mat_states:
+            st_sub = mat_df[mat_df["state"] == st_val]
+            is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+            st_border = "1.5px solid #38bdf8" if is_st_active else "1px solid #2c3235"
+            st_bg = "rgba(56,189,248,0.2)" if is_st_active else "#212429"
+            st_color = "#38bdf8" if is_st_active else "#f8fafc"
 
-            bc_trail = " <span style='color:var(--rule);font-size:10px;margin:0 2px;'>›</span> ".join(bc_parts)
-
-            selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
-
-            def tri_state_info(child_ids: set, selected_ids: set) -> tuple[str, bool, str]:
-                """Returns (symbol, should_uncheck, btn_type) where symbol is '✓', '−', or ' '."""
-                if not child_ids:
-                    return " ", False, "secondary"
-                intersect_n = len(child_ids.intersection(selected_ids))
-                if intersect_n == len(child_ids):
-                    return "✓", True, "primary"
-                elif intersect_n > 0:
-                    return "−", True, "primary"
-                else:
-                    return " ", False, "secondary"
-
-            def toggle_tree_node(path: str, parent_prefix: str | None = None) -> None:
-                """Toggle a node with accordion behavior (collapsing sibling nodes at the same level)."""
-                if path in tree_open:
-                    to_remove = {p for p in tree_open if p == path or p.startswith(path + "/")}
-                    tree_open.difference_update(to_remove)
-                else:
-                    if parent_prefix:
-                        prefix_slash = parent_prefix + "/"
-                        to_remove = {p for p in tree_open if p.startswith(prefix_slash)}
-                        tree_open.difference_update(to_remove)
-                    else:
-                        tree_open.clear()
-                    tree_open.add(path)
-
-            # Tree Header Bar — integrated Title + Breadcrumb Trail
-            st.markdown(f"""
-            <div style="display:flex;align-items:center;justify-content:space-between;background:#181b1f;border:1px solid var(--rule);border-radius:2px;padding:6px 10px;margin-bottom:6px;">
-              <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;">
-                <span style="font-size:11.5px;font-weight:600;color:var(--ink);white-space:nowrap;">Hierarchy — State</span>
-                <span style="color:var(--rule-soft);font-size:10px;">|</span>
-                <div style="font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">{bc_trail}</div>
-              </div>
-              <span style="color:var(--mute);font-size:12px;flex:none;cursor:pointer;">⋮</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Action Toolbar
-            tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.3])
-            with tc1:
-                if st.button("Expand", key="tree_exp_all", use_container_width=True):
-                    for s_val in filtered["state"].unique():
-                        tree_open.add(str(s_val))
-                        st_sub = filtered[filtered["state"] == s_val]
-                        for t_val in st_sub["team"].unique():
-                            tree_open.add(f"{s_val}/{t_val}")
-                            tm_sub = st_sub[st_sub["team"] == t_val]
-                            for c_val in tm_sub["component"].unique():
-                                tree_open.add(f"{s_val}/{t_val}/{c_val}")
-                                cp_sub = tm_sub[tm_sub["component"] == c_val]
-                                for e_val in cp_sub["env_label"].unique():
-                                    tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
-                    rerun()
-            with tc2:
-                if st.button("Collapse", key="tree_col_all", use_container_width=True):
-                    tree_open.clear()
-                    rerun()
-            with tc3:
-                all_f_ids = set(filtered["id"].tolist())
-                n_sel = len(selected_entity_ids)
-                if n_sel > 0:
-                    if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
-                        selected_entity_ids.clear()
-                        rerun()
-                else:
-                    if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
-                        selected_entity_ids.update(all_f_ids)
-                        rerun()
-            with tc4:
-                n_sel = len(selected_entity_ids)
-                btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
-                if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
-                    st.session_state["op_target_tab"] = "batch"
-                    rerun()
-
-            # Hierarchical Matrix Tree inside a clean, bordered, scrollable box
-            with st.container(height=265, border=True, key="op_tree_box"):
-                for st_val in filtered["state"].unique():
-                    st_sub = filtered[filtered["state"] == st_val]
-                    st_path = str(st_val)
-                    st_is_open = st_path in tree_open
-                    st_worst = ui.worst_band(st_sub["band"].tolist())
-                    st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
-                    st_exp_n = (st_sub["days_left"] < 0).sum()
-                    st_child_ids = set(st_sub["id"].tolist())
-                    st_sym, st_uncheck, st_type = tri_state_info(st_child_ids, selected_entity_ids)
-
-                    # Level 1: State Node
-                    s_c0, s_c1, s_c2 = st.columns([0.35, 4.15, 0.5])
-                    with s_c0:
-                        if st.button(st_sym, key=f"sel_st_{st_val}", type=st_type, use_container_width=True):
-                            if st_uncheck:
-                                selected_entity_ids.difference_update(st_child_ids)
-                            else:
-                                selected_entity_ids.update(st_child_ids)
-                            rerun()
-                    with s_c1:
-                        is_st_foc = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
-                        st_badge_txt = f"{st_exp_n} Expired" if st_exp_n else st_worst
-                        btn_lbl = f"📍 State {st_val} ({len(st_sub)} items) · {st_meta['symbol']} {st_badge_txt}"
-                        if st.button(btn_lbl, key=f"foc_st_tree_{st_val}", use_container_width=True, type="primary" if is_st_foc else "secondary", help=f"Focus entire workspace on State {st_val}"):
-                            if is_st_foc:
-                                st.session_state["op_cell_filter"] = None
-                            else:
-                                st.session_state["op_cell_filter"] = (st_val, None)
-                                tree_open.clear()
-                                tree_open.add(st_val)
-                            rerun()
-
-                    with s_c2:
-                        if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
-                            toggle_tree_node(st_path, None)
-                            rerun()
-
-                    if st_is_open:
-                        for tm_val in st_sub["team"].unique():
-                            tm_sub = st_sub[st_sub["team"] == tm_val]
-                            tm_path = f"{st_val}/{tm_val}"
-                            tm_is_open = tm_path in tree_open
-                            tm_worst = ui.worst_band(tm_sub["band"].tolist())
-                            tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
-                            tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#5794f2")
-                            tm_child_ids = set(tm_sub["id"].tolist())
-                            tm_sym, tm_uncheck, tm_type = tri_state_info(tm_child_ids, selected_entity_ids)
-
-                            # Level 2: Team Node
-                            t_c0, t_c1, t_c2 = st.columns([0.35, 4.15, 0.5])
-                            with t_c0:
-                                if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", type=tm_type, use_container_width=True):
-                                    if tm_uncheck:
-                                        selected_entity_ids.difference_update(tm_child_ids)
-                                    else:
-                                        selected_entity_ids.update(tm_child_ids)
-                                    rerun()
-                            with t_c1:
-                                st.markdown(f"""
-                                <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:#141619;border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10.5px;">
-                                  <span style="color:{tm_color};font-weight:600;">
-                                    👥 {tm_val} <span style="color:var(--mute);font-weight:400;font-size:9px;">({len(tm_sub)})</span>
-                                  </span>
-                                  <span style="color:{tm_meta['color']};font-weight:600;font-size:9px;">{tm_meta['symbol']} {tm_worst}</span>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            with t_c2:
-                                if st.button("▼" if tm_is_open else "▶", key=f"t_tm_{st_val}_{tm_val}", use_container_width=True):
-                                    toggle_tree_node(tm_path, st_path)
-                                    rerun()
-
-                            if tm_is_open:
-                                for cp_val in tm_sub["component"].unique():
-                                    cp_sub = tm_sub[tm_sub["component"] == cp_val]
-                                    cp_path = f"{st_val}/{tm_val}/{cp_val}"
-                                    cp_is_open = cp_path in tree_open
-                                    cp_worst = ui.worst_band(cp_sub["band"].tolist())
-                                    cp_meta = ui.BAND_META.get(cp_worst, ui.BAND_META["Healthy"])
-                                    cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
-                                    cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
-                                    cp_child_ids = set(cp_sub["id"].tolist())
-                                    cp_sym, cp_uncheck, cp_type = tri_state_info(cp_child_ids, selected_entity_ids)
-
-                                    # Level 3: Component Node
-                                    cp_c0, cp_c1, cp_c2 = st.columns([0.35, 4.15, 0.5])
-                                    chip_head = f"{cp_icon} {cp_code}"
-                                    with cp_c0:
-                                        if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", type=cp_type, use_container_width=True):
-                                            if cp_uncheck:
-                                                 selected_entity_ids.difference_update(cp_child_ids)
-                                            else:
-                                                 selected_entity_ids.update(cp_child_ids)
-                                            rerun()
-                                    with cp_c1:
-                                        st.markdown(f"""
-                                        <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10px;">
-                                          <span style="color:var(--text);font-weight:500;">{chip_head} <span style="color:var(--mute);font-size:8.5px;">({len(cp_sub)})</span></span>
-                                          <span style="color:{cp_meta['color']};font-size:9px;">{cp_meta['symbol']} {cp_worst}</span>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                                    with cp_c2:
-                                        if st.button("▼" if cp_is_open else "▶", key=f"t_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
-                                            toggle_tree_node(cp_path, tm_path)
-                                            rerun()
-
-                                    if cp_is_open:
-                                        for ev_val in cp_sub["env_label"].unique():
-                                            ev_sub = cp_sub[cp_sub["env_label"] == ev_val]
-                                            ev_path = f"{st_val}/{tm_val}/{cp_val}/{ev_val}"
-                                            ev_is_open = ev_path in tree_open
-                                            ev_worst = ui.worst_band(ev_sub["band"].tolist())
-                                            ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
-                                            ev_child_ids = set(ev_sub["id"].tolist())
-                                            ev_sym, ev_uncheck, ev_type = tri_state_info(ev_child_ids, selected_entity_ids)
-
-                                            # Level 4: Environment Node
-                                            ev_c0, ev_c1, ev_c2 = st.columns([0.35, 4.15, 0.5])
-                                            with ev_c0:
-                                                if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", type=ev_type, use_container_width=True):
-                                                    if ev_uncheck:
-                                                        selected_entity_ids.difference_update(ev_child_ids)
-                                                    else:
-                                                        selected_entity_ids.update(ev_child_ids)
-                                                    rerun()
-                                            with ev_c1:
-                                                st.markdown(f"""
-                                                <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;border-radius:2px;padding:2px 4px;font-size:9.5px;color:var(--slate);">
-                                                  <span>🖥️ <span class="env-tag" style="font-size:8.5px;">{ev_val}</span> ({len(ev_sub)})</span>
-                                                  <span style="color:{ev_meta['color']};font-size:8.5px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
-                                                </div>
-                                                """, unsafe_allow_html=True)
-                                            with ev_c2:
-                                                if st.button("▼" if ev_is_open else "▶", key=f"t_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
-                                                    toggle_tree_node(ev_path, cp_path)
-                                                    rerun()
-
-                                            if ev_is_open:
-                                                # Level 5: Leaf Entities
-                                                for r in ev_sub.itertuples():
-                                                    r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
-                                                    is_act = (r.id == selected_id)
-                                                    is_leaf_sel = r.id in selected_entity_ids
-
-                                                    row_c0, row_c1, row_c2 = st.columns([0.35, 3.25, 1.4])
-                                                    with row_c0:
-                                                        ck_txt = "✓" if is_leaf_sel else " "
-                                                        if st.button(ck_txt, key=f"sel_leaf_{r.id}", type="primary" if is_leaf_sel else "secondary", use_container_width=True):
-                                                            if is_leaf_sel:
-                                                                selected_entity_ids.discard(r.id)
-                                                            else:
-                                                                selected_entity_ids.add(r.id)
-                                                            rerun()
-                                                    with row_c1:
-                                                        if st.button(r.schema_name, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
-                                                            st.session_state["op_active_id"] = r.id
-                                                            rerun()
-                                                    with row_c2:
-                                                        r_c = r_meta["color"]
-                                                        r_s = r_meta["symbol"]
-                                                        _sbar = ui.leaf_sparkbar(int(r.days_left))
-                                                        st.markdown(
-                                                            f"<div style='text-align:right;padding-top:4px;padding-right:4px;'>"
-                                                            f"<div style='font-size:10px;font-weight:600;color:{r_c};white-space:nowrap;font-variant-numeric:tabular-nums;'>{r_s} {ui.fmt_days(r.days_left)}</div>"
-                                                            f"{_sbar}"
-                                                            f"</div>",
-                                                            unsafe_allow_html=True
-                                                        )
-
-            # Component Severity Distribution Panel (Rule 6: size to content, eliminate empty space)
-            dist_source = df[df["id"].isin(selected_entity_ids)] if selected_entity_ids else filtered
-            dist_rows = []
-            for c_val in COMPONENT_ORDER:
-                c_sub = dist_source[dist_source["component"] == c_val]
-                c_cnt = len(c_sub)
+            td_cells = []
+            for c_val in mat_comps:
                 c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+                sub = st_sub[st_sub["component"] == c_val]
+                c_cnt = len(sub)
+                is_cell_active = (cell_filter == (st_val, c_val))
+
                 if c_cnt == 0:
-                    dist_rows.append(
-                        f'<div class="dist-row">'
-                        f'<div class="dist-name">{c_code}</div>'
-                        f'<div class="dist-track"><div style="width:100%;background:#212429;"></div></div>'
-                        f'<div class="dist-num">0 · 0%</div>'
-                        f'</div>'
-                    )
+                    td_cells.append('''
+                    <td style="padding:1px;">
+                      <div style="background:rgba(255,255,255,0.015);border:1px solid #22262a;border-radius:2px;height:32px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;font-family:var(--mono);">
+                        —
+                      </div>
+                    </td>
+                    ''')
                 else:
-                    c_exp = int((c_sub["days_left"] < 0).sum())
-                    c_crit = int((c_sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-                    c_warn = int((c_sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-                    c_hlth = int((c_sub["days_left"] > ui.WARNING_DAYS).sum())
+                    c_exp = int((sub["days_left"] < 0).sum())
+                    c_crit = int((sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                    c_warn = int((sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                    c_hlth = int((sub["days_left"] > ui.WARNING_DAYS).sum())
+                    min_days = int(sub["days_left"].min())
 
-                    p_exp = (c_exp / c_cnt) * 100
-                    p_crit = (c_crit / c_cnt) * 100
-                    p_warn = (c_warn / c_cnt) * 100
-                    p_hlth = (c_hlth / c_cnt) * 100
-
-                    track_parts = []
-                    if p_exp > 0: track_parts.append(f'<div style="width:{p_exp:.1f}%;background:var(--expired);" title="{c_exp} expired"></div>')
-                    if p_crit > 0: track_parts.append(f'<div style="width:{p_crit:.1f}%;background:var(--critical);" title="{c_crit} critical"></div>')
-                    if p_warn > 0: track_parts.append(f'<div style="width:{p_warn:.1f}%;background:var(--warning);" title="{c_warn} warning"></div>')
-                    if p_hlth > 0: track_parts.append(f'<div style="width:{p_hlth:.1f}%;background:var(--healthy);" title="{c_hlth} healthy"></div>')
-                    track_html = "".join(track_parts) if track_parts else '<div style="width:100%;background:#212429;"></div>'
+                    worst_b = ui.worst_band(sub["band"].tolist())
+                    c_color = ui.BAND_META[worst_b]["color"]
 
                     if c_exp > 0:
-                        num_html = f'<span style="color:var(--expired);font-weight:700;">{c_exp} exp</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                        c_badge = f"▲ {c_exp} Exp"
+                        c_fill = "rgba(242,73,92,0.22)"
                     elif c_crit > 0:
-                        num_html = f'<span style="color:var(--critical);font-weight:700;">{c_crit} crit</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                        c_badge = f"▲ {c_crit} Crit"
+                        c_fill = "rgba(242,73,92,0.18)"
                     elif c_warn > 0:
-                        num_html = f'<span style="color:var(--warning);font-weight:700;">{c_warn} warn</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                        c_badge = f"{c_warn} Warn"
+                        c_fill = "rgba(255,152,48,0.18)"
                     else:
-                        num_html = f'<span style="color:var(--healthy);font-weight:600;">{c_cnt}</span> <span style="color:var(--mute);font-weight:400;">(100%)</span>'
+                        c_badge = f"✓ {c_hlth} OK"
+                        c_fill = "rgba(115,191,105,0.18)"
 
-                    dist_rows.append(
-                        f'<div class="dist-row">'
-                        f'<div class="dist-name">{c_code}</div>'
-                        f'<div class="dist-track">{track_html}</div>'
-                        f'<div class="dist-num">{num_html}</div>'
-                        f'</div>'
-                    )
+                    c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
+                    cd_str = ui.fmt_heatmap_time(min_days)
 
-            panel_scope_lbl = f"{len(selected_entity_ids)} Selected Entities" if selected_entity_ids else "Selected Scope"
-            with st.expander(f"📊 Severity by Component & Fleet SLA ({panel_scope_lbl})", expanded=False):
+                    td_cells.append(f'''
+                    <td style="padding:1px;">
+                      <a href="?op_cell={st_val}:{c_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">
+                        <div style="{c_border};border-radius:2px;padding:2px 4px;height:32px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;" title="Filter to {st_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">
+                          <div style="display:flex;align-items:center;justify-content:space-between;line-height:1;">
+                            <span style="font-family:var(--mono);font-size:11px;font-weight:800;color:#f8fafc;">{c_cnt}</span>
+                            <span style="font-size:7.5px;font-weight:700;color:{c_color};">{c_badge}</span>
+                          </div>
+                          <div style="font-size:7.5px;color:{c_color};font-family:var(--mono);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            {cd_str}
+                          </div>
+                        </div>
+                      </a>
+                    </td>
+                    ''')
+
+            _st_worst = ui.worst_band(st_sub["band"].tolist()) if not st_sub.empty else "Healthy"
+            _st_color = ui.BAND_META[_st_worst]["color"]
+            tot_td = f'<td style="padding:1px;text-align:center;"><div style="font-family:var(--mono);font-size:11.5px;font-weight:800;color:{_st_color};line-height:32px;">{len(st_sub)}</div></td>'
+
+            hm_tr_list.append(f'''
+            <tr>
+              <td style="padding:1px;">
+                <a href="?op_cell={st_val}:{auth_suffix}" target="_self" style="text-decoration:none;display:block;">
+                  <div style="background:{st_bg};border:{st_border};color:{st_color};border-radius:2px;padding:0 4px;height:32px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;cursor:pointer;" title="Filter to State {st_val}">
+                    📍 {st_val}
+                  </div>
+                </a>
+              </td>
+              {''.join(td_cells)}
+              {tot_td}
+            </tr>
+            ''')
+
+        _render_html(f'''
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:144px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+            <div style="font-size:9.5px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.04em;">
+              Severity Heatmap — State × Component ({mat_scope_lbl})
+            </div>
+            {clear_hm_link}
+          </div>
+          <table style="width:100%;border-collapse:separate;border-spacing:3px;margin:0;padding:0;">
+            <thead>
+              <tr style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;font-weight:700;line-height:1;">
+                <th style="width:10%;text-align:center;padding:1px 0;">STATE</th>
+                <th style="width:20%;text-align:center;padding:1px 0;">🔑 CRYPTO</th>
+                <th style="width:20%;text-align:center;padding:1px 0;">🔒 DBPWD</th>
+                <th style="width:20%;text-align:center;padding:1px 0;">📦 SWVER</th>
+                <th style="width:20%;text-align:center;padding:1px 0;">🛠️ PATCH</th>
+                <th style="width:10%;text-align:center;padding:1px 0;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {''.join(hm_tr_list)}
+            </tbody>
+          </table>
+        </div>
+        ''')
+
+    with sla_col:
+        dist_source = df[df["id"].isin(selected_entity_ids)] if selected_entity_ids else filtered
+        dist_rows = []
+        for c_val in COMPONENT_ORDER:
+            c_sub = dist_source[dist_source["component"] == c_val]
+            c_cnt = len(c_sub)
+            c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+            if c_cnt == 0:
+                dist_rows.append(
+                    f'<div class="dist-row" style="margin-bottom:1px;display:flex;align-items:center;gap:6px;">'
+                    f'<div class="dist-name" style="font-size:8.5px;width:48px;font-weight:700;">{c_code}</div>'
+                    f'<div class="dist-track" style="height:5px;flex:1;background:#212429;border-radius:1px;"></div>'
+                    f'<div class="dist-num" style="font-size:8px;color:#94a3b8;width:44px;text-align:right;">0 (0%)</div>'
+                    f'</div>'
+                )
+            else:
+                c_exp = int((c_sub["days_left"] < 0).sum())
+                c_crit = int((c_sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                c_warn = int((c_sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                c_hlth = int((c_sub["days_left"] > ui.WARNING_DAYS).sum())
+
+                p_exp = (c_exp / c_cnt) * 100
+                p_crit = (c_crit / c_cnt) * 100
+                p_warn = (c_warn / c_cnt) * 100
+                p_hlth = (c_hlth / c_cnt) * 100
+
+                track_parts = []
+                if p_exp > 0: track_parts.append(f'<div style="width:{p_exp:.1f}%;background:var(--expired);" title="{c_exp} expired"></div>')
+                if p_crit > 0: track_parts.append(f'<div style="width:{p_crit:.1f}%;background:var(--critical);" title="{c_crit} critical"></div>')
+                if p_warn > 0: track_parts.append(f'<div style="width:{p_warn:.1f}%;background:var(--warning);" title="{c_warn} warning"></div>')
+                if p_hlth > 0: track_parts.append(f'<div style="width:{p_hlth:.1f}%;background:var(--healthy);" title="{c_hlth} healthy"></div>')
+                track_html = "".join(track_parts) if track_parts else '<div style="width:100%;background:#212429;"></div>'
+
+                if c_exp > 0:
+                    num_html = f'<span style="color:var(--expired);font-weight:700;">{c_exp} exp</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                elif c_crit > 0:
+                    num_html = f'<span style="color:var(--critical);font-weight:700;">{c_crit} crit</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                elif c_warn > 0:
+                    num_html = f'<span style="color:var(--warning);font-weight:700;">{c_warn} warn</span> <span style="color:var(--mute);font-weight:400;">/ {c_cnt}</span>'
+                else:
+                    num_html = f'<span style="color:var(--healthy);font-weight:700;">{c_cnt}</span> <span style="color:var(--mute);font-weight:400;">(100%)</span>'
+
+                dist_rows.append(
+                    f'<div class="dist-row" style="margin-bottom:1px;display:flex;align-items:center;gap:6px;">'
+                    f'<div class="dist-name" style="font-size:8.5px;width:48px;font-weight:700;">{c_code}</div>'
+                    f'<div class="dist-track" style="height:5px;flex:1;border-radius:1px;display:flex;overflow:hidden;background:#212429;">{track_html}</div>'
+                    f'<div class="dist-num" style="font-size:8px;width:58px;text-align:right;">{num_html}</div>'
+                    f'</div>'
+                )
+
+        _render_html(f"""
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:144px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+            <div style="font-size:9.5px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:0.04em;">
+              Component Severity &amp; Fleet SLA ({mat_scope_lbl})
+            </div>
+            <span style="font-size:8px;color:#94a3b8;font-weight:600;">100% Target</span>
+          </div>
+
+          <div class="dist-body" style="padding:1px 0;display:flex;flex-direction:column;gap:1.5px;">
+            {''.join(dist_rows)}
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:8.5px;border-top:1px solid #22252b;padding-top:3px;">
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#10b981;font-weight:700;">PROD Resiliency</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">100% (0)</span>
+            </div>
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#38bdf8;font-weight:700;">Fleet Scope</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{len(df)} Assets</span>
+            </div>
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#ff9830;font-weight:700;">Governance Leads</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">5 Teams</span>
+            </div>
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#73bf69;font-weight:700;">Batch Console</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">Ready</span>
+            </div>
+          </div>
+        </div>
+        """)
+
+    # --------------------------------------------------------------------------
+    # 7. TIER 4: MASTER OPERATIONS WORKSPACE (Full-Width Tabs & 250px Grid)
+    # --------------------------------------------------------------------------
+    st.markdown('''
+    <style>
+    .op-table-container {
+        background: #181b1f;
+        border: 1px solid #2c3235;
+        border-radius: 3px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: auto;
+        height: 250px;
+        max-height: 250px;
+        scrollbar-width: thin;
+        scrollbar-color: #38bdf8 #181b1f;
+    }
+    .op-table-container::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+        display: block;
+    }
+    .op-table-container::-webkit-scrollbar-track {
+        background: #181b1f;
+        border-left: 1px solid #2c3235;
+    }
+    .op-table-container::-webkit-scrollbar-thumb {
+        background: #38bdf8;
+        border-radius: 3px;
+        border: 1px solid #0284c7;
+    }
+    </style>
+    ''', unsafe_allow_html=True)
+
+    op_tab_inv, op_tab_insp, op_tab_tree, op_tab_batch, op_tab_rev = st.tabs([
+        "📋 Master Asset Inventory",
+        "🔍 Entity Detail Inspector",
+        "🌳 Hierarchy Tree Explorer",
+        "⚡ Batch Grid Editor",
+        "↩️ Rollback Ledger"
+    ])
+
+    with op_tab_inv:
+        if selected_id is not None and not cur_scope_df.empty:
+            rec = df[df["id"] == selected_id].iloc[0]
+            meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
+            team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
+            conf = st.session_state.get("confirm_action")
+            cur_dt = rec["exp_dt"].date()
+
+            f_col_info, f_col_acts = st.columns([2.5, 1.5])
+            with f_col_info:
                 st.markdown(f"""
-                <div class="panel" style="margin-top:2px;border:none;background:transparent;padding:0;">
-                  <div class="dist-body" style="padding:4px 0;">
-                    {''.join(dist_rows)}
-                  </div>
+                <div style="display:flex;align-items:center;gap:6px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:3px 8px;border-radius:2px;margin-bottom:3px;">
+                  <span style="font-family:var(--mono);font-size:11px;font-weight:800;color:#f8fafc;">#{rec['id']} {rec['schema_name']}</span>
+                  <span class="env-tag" style="font-size:8.5px;">{rec['env_label']}</span>
+                  <span style="font-size:9px;color:#94a3b8;">State {rec['state']} · {rec['team']} · {rec['component']}</span>
+                  <span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+                  <span style="font-size:8.5px;color:#8fb8f8;font-family:var(--mono);">{ui.fmt_days(rec['days_left'])}</span>
                 </div>
+                """, unsafe_allow_html=True)
+            with f_col_acts:
+                if conf and conf.get("id") == rec["id"]:
+                    st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                    cf_y, cf_n = st.columns(2)
+                    with cf_y:
+                        if st.button("✓ Confirm", key=f"inv_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                            apply_edits([(conf["id"], conf["new_dt"])])
+                            del st.session_state["confirm_action"]
+                            st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
+                            rerun()
+                    with cf_n:
+                        if st.button("Cancel", key=f"inv_cf_no_{rec['id']}", use_container_width=True):
+                            del st.session_state["confirm_action"]
+                            rerun()
+                else:
+                    n_act = 4 if rec["edited"] else 3
+                    act_cols = st.columns(n_act)
+                    if act_cols[0].button("+90d", key=f"inv_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                        rerun()
+                    if act_cols[1].button("+1yr", key=f"inv_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                        rerun()
+                    with act_cols[2]:
+                        if hasattr(st, "popover"):
+                            with st.popover("📅 Date"):
+                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
+                                if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
+                                    apply_edits([(rec["id"], c_date)])
+                                    st.success(f"Updated to {c_date}")
+                                    rerun()
+                        else:
+                            with st.expander("📅 Date"):
+                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
+                                if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
+                                    apply_edits([(rec["id"], c_date)])
+                                    st.success(f"Updated to {c_date}")
+                                    rerun()
+                    if rec["edited"] and len(act_cols) > 3:
+                        with act_cols[3]:
+                            if st.button("↩ Rev", key=f"inv_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                                conn = get_connection(DB_PATH)
+                                try:
+                                    revert_component_exp_date(conn, int(rec["id"]))
+                                finally:
+                                    conn.close()
+                                bust_cache()
+                                st.success("Reverted to source workbook.")
+                                rerun()
 
-                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;margin-top:4px;">
-                  <div style="font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;display:flex;justify-content:space-between;">
-                    <span>🛡️ Fleet SLA Compliance &amp; Asset Integrity</span>
-                    <span style="color:#10b981;font-weight:700;">100% INVENTORY SYNC</span>
+        # Build Master Table Rows
+        inv_table_rows = []
+        for r in cur_scope_df.itertuples():
+            is_act = (r.id == selected_id)
+            row_bg = "background:rgba(56,189,248,0.14);border-left:3px solid #38bdf8;" if is_act else "border-bottom:1px solid #22252b;"
+            target_icon = '<span style="color:#38bdf8;font-size:9.5px;margin-right:3px;">🎯</span>' if is_act else ''
+            r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+            sla_badge_str = ui.sla_badge(r.env_label)
+            days_str = ui.fmt_days(r.days_left)
+            badge_html = f'<span style="font-size:8.5px;font-weight:700;padding:1.5px 5px;border-radius:2px;background:{r_meta["tint"]};color:{r_meta["color"]};">{r_meta["symbol"]} {r.band}</span>'
+            action_btn_html = f'<a href="?op_act_id={r.id}{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:2px;font-size:9.5px;font-weight:700;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;">Focus ↗</a>'
+
+            inv_table_rows.append(f'''
+            <tr style="{row_bg}">
+                <td style="padding:3px 6px;font-family:var(--mono);"><a href="?op_act_id={r.id}{auth_suffix}" target="_self" style="text-decoration:none;font-weight:700;color:{'#ffffff' if is_act else '#38bdf8'};">{target_icon}#{r.id}</a></td>
+                <td style="padding:3px 6px;font-weight:700;color:#9fa7b3;">{r.state}</td>
+                <td style="padding:3px 6px;color:#cbd5e1;">{r.team}</td>
+                <td style="padding:3px 6px;color:#d8d9da;">{ui.COMPONENT_CODE.get(r.component, r.component)}</td>
+                <td style="padding:3px 6px;font-family:var(--mono);font-weight:600;color:#f8fafc;">{r.schema_name}</td>
+                <td style="padding:3px 6px;"><span class="env-tag">{r.env_label}</span></td>
+                <td style="padding:3px 6px;">{sla_badge_str}</td>
+                <td style="padding:3px 6px;font-family:var(--mono);">{r.exp_date}</td>
+                <td style="padding:3px 6px;font-family:var(--mono);color:{r_meta['color']};font-weight:700;">{days_str}</td>
+                <td style="padding:3px 6px;">{badge_html}</td>
+                <td style="padding:3px 6px;text-align:right;">{action_btn_html}</td>
+            </tr>
+            ''')
+
+        _render_html(f'''
+        <div class="op-table-container">
+            <table style="width:100%;min-width:920px;border-collapse:collapse;font-size:10px;color:#d8d9da;">
+                <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
+                    <tr style="color:#6e7681;text-transform:uppercase;font-size:9px;font-weight:600;letter-spacing:0.03em;">
+                        <th style="padding:4px 6px;text-align:left;">ID</th>
+                        <th style="padding:4px 6px;text-align:left;">State</th>
+                        <th style="padding:4px 6px;text-align:left;">Team</th>
+                        <th style="padding:4px 6px;text-align:left;">Component</th>
+                        <th style="padding:4px 6px;text-align:left;">Schema / Asset</th>
+                        <th style="padding:4px 6px;text-align:left;">Env</th>
+                        <th style="padding:4px 6px;text-align:left;">SLA</th>
+                        <th style="padding:4px 6px;text-align:left;">Current Expiry</th>
+                        <th style="padding:4px 6px;text-align:left;">Time Left</th>
+                        <th style="padding:4px 6px;text-align:left;">Status</th>
+                        <th style="padding:4px 6px;text-align:right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(inv_table_rows)}
+                </tbody>
+            </table>
+        </div>
+        ''')
+
+    with op_tab_insp:
+        if selected_id is None or cur_scope_df.empty:
+            st.markdown(ui.empty("Select a record", "Choose an item from the master inventory table to inspect."), unsafe_allow_html=True)
+        else:
+            rec = df[df["id"] == selected_id].iloc[0]
+            meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
+            team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
+            cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
+            conf = st.session_state.get("confirm_action")
+            cur_dt = rec["exp_dt"].date()
+
+            head_c1, head_c2 = st.columns([2.5, 1.5])
+            with head_c1:
+                st.markdown(f"""
+                <div class="entity-head" style="border-left:3px solid {meta['color']};margin-bottom:6px;">
+                  <div class="entity-crumb">
+                    <span>ENTITY #{rec['id']} · <b style="color:var(--text);letter-spacing:0.04em;">State {rec['state']}</b> · <span style="color:{team_meta['color']};font-weight:600;">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
+                    <span class="status-pill" style="background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
                   </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9.5px;">
-                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
-                      <span style="color:#10b981;font-weight:700;">PROD Resiliency:</span> <span style="color:var(--text);">100%</span>
-                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">0 breaches</div>
-                    </div>
-                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
-                      <span style="color:#38bdf8;font-weight:700;">Fleet Scope:</span> <span style="color:var(--text);">{len(df)} Assets</span>
-                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">AK, ND, NH</div>
-                    </div>
-                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
-                      <span style="color:#ff9830;font-weight:700;">Governance Leads:</span> <span style="color:var(--text);">5 Teams</span>
-                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">Assigned</div>
-                    </div>
-                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
-                      <span style="color:#73bf69;font-weight:700;">Batch Console:</span> <span style="color:var(--text);">Ready</span>
-                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">Active</div>
-                    </div>
-                  </div>
+                  <div class="entity-name">{rec['schema_name']} <span class="env-tag">{rec['env_label']}</span></div>
                 </div>
                 """, unsafe_allow_html=True)
 
-    with right_col:
-        if selected_id is None:
-            st.markdown(ui.empty("Select a record", "Choose an item from the master hierarchy tree on the left to inspect."), unsafe_allow_html=True)
-            return
-
-        rec = df[df["id"] == selected_id].iloc[0]
-        meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
-        team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
-        cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
-        conf = st.session_state.get("confirm_action")
-        cur_dt = rec["exp_dt"].date()
-
-        # Unified Inspector Command Deck (Breadcrumb + Entity Title + Status + Action Chips)
-        head_c1, head_c2 = st.columns([2.5, 1.5])
-        with head_c1:
-            st.markdown(f"""
-            <div class="entity-head" style="border-left:3px solid {meta['color']};margin-bottom:6px;">
-              <div class="entity-crumb">
-                <span>ENTITY #{rec['id']} · <b style="color:var(--text);letter-spacing:0.04em;">State {rec['state']}</b> · <span style="color:{team_meta['color']};font-weight:600;">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
-                <span class="status-pill" style="background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
-              </div>
-              <div class="entity-name">{rec['schema_name']} <span class="env-tag">{rec['env_label']}</span></div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with head_c2:
-            if conf and conf.get("id") == rec["id"]:
-                st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
-                cf_y, cf_n = st.columns(2)
-                with cf_y:
-                    if st.button("✓ Confirm", key=f"op_cf_yes_{rec['id']}", type="primary", use_container_width=True):
-                        apply_edits([(conf["id"], conf["new_dt"])])
-                        del st.session_state["confirm_action"]
-                        st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
-                        rerun()
-                with cf_n:
-                    if st.button("Cancel", key=f"op_cf_no_{rec['id']}", use_container_width=True):
-                        del st.session_state["confirm_action"]
-                        rerun()
-            else:
-                n_act = 4 if rec["edited"] else 3
-                act_cols = st.columns(n_act)
-                if act_cols[0].button("+90d", key=f"op_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
-                    st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
-                    rerun()
-                if act_cols[1].button("+1yr", key=f"op_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
-                    st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
-                    rerun()
-                with act_cols[2]:
-                    if hasattr(st, "popover"):
-                        with st.popover("📅 Date"):
-                            c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
-                            if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
-                                apply_edits([(rec["id"], c_date)])
-                                st.success(f"Updated to {c_date}")
-                                rerun()
-                    else:
-                        with st.expander("📅 Date"):
-                            c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"op_pop_dt_{rec['id']}")
-                            if st.button("Commit Date", type="primary", key=f"op_pop_btn_{rec['id']}", use_container_width=True):
-                                apply_edits([(rec["id"], c_date)])
-                                st.success(f"Updated to {c_date}")
-                                rerun()
-                if rec["edited"] and len(act_cols) > 3:
-                    with act_cols[3]:
-                        if st.button("↩ Rev", key=f"op_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
-                            conn = get_connection(DB_PATH)
-                            try:
-                                revert_component_exp_date(conn, int(rec["id"]))
-                            finally:
-                                conn.close()
-                            bust_cache()
-                            st.success("Reverted to source workbook.")
+            with head_c2:
+                if conf and conf.get("id") == rec["id"]:
+                    st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                    cf_y, cf_n = st.columns(2)
+                    with cf_y:
+                        if st.button("✓ Confirm", key=f"insp_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                            apply_edits([(conf["id"], conf["new_dt"])])
+                            del st.session_state["confirm_action"]
+                            st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
                             rerun()
+                    with cf_n:
+                        if st.button("Cancel", key=f"insp_cf_no_{rec['id']}", use_container_width=True):
+                            del st.session_state["confirm_action"]
+                            rerun()
+                else:
+                    n_act = 4 if rec["edited"] else 3
+                    act_cols = st.columns(n_act)
+                    if act_cols[0].button("+90d", key=f"insp_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                        rerun()
+                    if act_cols[1].button("+1yr", key=f"insp_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                        rerun()
+                    with act_cols[2]:
+                        if hasattr(st, "popover"):
+                            with st.popover("📅 Date"):
+                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
+                                if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
+                                    apply_edits([(rec["id"], c_date)])
+                                    st.success(f"Updated to {c_date}")
+                                    rerun()
+                        else:
+                            with st.expander("📅 Date"):
+                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
+                                if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
+                                    apply_edits([(rec["id"], c_date)])
+                                    st.success(f"Updated to {c_date}")
+                                    rerun()
+                    if rec["edited"] and len(act_cols) > 3:
+                        with act_cols[3]:
+                            if st.button("↩ Rev", key=f"insp_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                                conn = get_connection(DB_PATH)
+                                try:
+                                    revert_component_exp_date(conn, int(rec["id"]))
+                                finally:
+                                    conn.close()
+                                bust_cache()
+                                st.success("Reverted to source workbook.")
+                                rerun()
 
-        i_tab1, i_tab2, i_tab3, i_tab4 = st.tabs(["Overview & Lineage", "Portfolio Matrix", "Batch Grid Editor", "Rollback Ledger"])
-
-        with i_tab1:
             exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
             _life_gauge = ui.life_gauge(int(rec['days_left']))
             _team_chip = ui.alert_chip(rec["band"])
@@ -1697,227 +1622,393 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 "band": rec["band"],
                 "edited_at": str(rec["edited_at"]),
             }
-            with st.expander("Technical Diagnostics & Database Query", expanded=False):
+            with st.expander("Technical Diagnostics & Database Query", expanded=True):
                 if hasattr(st, "code"):
                     st.caption("Technical Diagnostics & Database Query")
                     st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
                     st.code(json.dumps(payload, indent=2), language="json")
 
+    with op_tab_tree:
+        # Persistent Interactive Breadcrumb Header & Selection Toolbar
+        bc_parts = ["<span style='color:var(--accent);font-weight:700;font-size:10px;'>All</span>"]
+        d_st = state_filter if state_filter != "All States" else None
+        if not d_st and len(tree_open) > 0:
+            open_st = [s for s in STATES if s in tree_open]
+            if len(open_st) == 1:
+                d_st = open_st[0]
 
-        with i_tab2:
-            # Resolve scope for Portfolio Matrix (support selection, state_filter, cell_filter, and search)
-            if selected_entity_ids:
-                mat_df = df[df["id"].isin(selected_entity_ids)].copy()
-                mat_scope_lbl = f"{len(selected_entity_ids)} Selected Entities"
+        d_tm = team_filter if team_filter != "All Teams" else None
+        if not d_tm and len(tree_open) > 0 and d_st:
+            open_tm = [t for t in ui.TEAMS if f"{d_st}/{t}" in tree_open]
+            if len(open_tm) == 1:
+                d_tm = open_tm[0]
+
+        d_cp = comp_filter if comp_filter != "All Components" else None
+        if not d_cp and len(tree_open) > 0 and d_st and d_tm:
+            open_cp = [c for c in COMPONENT_ORDER if f"{d_st}/{d_tm}/{c}" in tree_open]
+            if len(open_cp) == 1:
+                d_cp = open_cp[0]
+
+        if d_st:
+            bc_parts.append(f"<span style='color:#f8fafc;font-weight:600;font-size:10px;'>State: {d_st}</span>")
+        if d_tm:
+            bc_parts.append(f"<span style='color:#cbd5e1;font-size:10px;'>Team: {d_tm}</span>")
+        if d_cp:
+            cp_c = ui.COMPONENT_CODE.get(d_cp, d_cp)
+            bc_parts.append(f"<span style='color:#94a3b8;font-size:10px;'>Comp: {cp_c}</span>")
+        if cur_kpi != "All":
+            bc_parts.append(f"<span style='color:var(--accent);font-weight:600;font-size:10px;'>Status: {cur_kpi}</span>")
+
+        bc_trail = " <span style='color:var(--rule);font-size:10px;margin:0 2px;'>›</span> ".join(bc_parts)
+
+        def tri_state_info(child_ids: set, selected_ids: set) -> tuple[str, bool, str]:
+            if not child_ids:
+                return " ", False, "secondary"
+            intersect_n = len(child_ids.intersection(selected_ids))
+            if intersect_n == len(child_ids):
+                return "✓", True, "primary"
+            elif intersect_n > 0:
+                return "−", True, "primary"
             else:
-                mat_df = filtered.copy()
-                mat_scope_lbl = "Filtered Scope" if is_scoped else "Consolidated Fleet"
+                return " ", False, "secondary"
 
-            st.markdown(ui.panel_header(
-                f"Severity Heatmap — State × Component ({mat_scope_lbl})",
-                color="#f59e0b",
-                info="Cell color saturation = risk density. Click any cell to cross-filter the Hierarchy Tree."
-            ), unsafe_allow_html=True)
+        def toggle_tree_node(path: str, parent_prefix: str | None = None) -> None:
+            if path in tree_open:
+                to_remove = {p for p in tree_open if p == path or p.startswith(path + "/")}
+                tree_open.difference_update(to_remove)
+            else:
+                if parent_prefix:
+                    prefix_slash = parent_prefix + "/"
+                    to_remove = {p for p in tree_open if p.startswith(prefix_slash)}
+                    tree_open.difference_update(to_remove)
+                else:
+                    tree_open.clear()
+                tree_open.add(path)
 
-            available_states = [s for s in STATES if s in mat_df["state"].unique()]
-            mat_states = available_states if available_states else STATES
-            mat_comps = COMPONENT_ORDER
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:space-between;background:#181b1f;border:1px solid var(--rule);border-radius:2px;padding:4px 8px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;">
+            <span style="font-size:11px;font-weight:600;color:var(--ink);white-space:nowrap;">Hierarchy — State</span>
+            <span style="color:var(--rule-soft);font-size:10px;">|</span>
+            <div style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">{bc_trail}</div>
+          </div>
+          <span style="color:var(--mute);font-size:11px;flex:none;cursor:pointer;">⋮</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-            # Header Row — framed column labels with clean bottom margin
-            h_c0, h_c1, h_c2, h_c3, h_c4, h_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
-            with h_c0:
-                st.markdown("<div class='hm-col-hdr' style='color:#94a3b8;'>STATE</div>", unsafe_allow_html=True)
-            for idx, c_val in enumerate(mat_comps):
-                c_icon = ui.COMPONENT_ICONS.get(c_val, '')
-                c_code = ui.COMPONENT_CODE.get(c_val, c_val)
-                [h_c1, h_c2, h_c3, h_c4][idx].markdown(
-                    f"<div class='hm-col-hdr'>{c_icon} {c_code}</div>",
-                    unsafe_allow_html=True
-                )
-            with h_c5:
-                st.markdown("<div class='hm-col-hdr' style='color:#94a3b8;'>TOTAL</div>", unsafe_allow_html=True)
+        tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.3])
+        with tc1:
+            if st.button("Expand All", key="tree_exp_all", use_container_width=True):
+                for s_val in filtered["state"].unique():
+                    tree_open.add(str(s_val))
+                    st_sub = filtered[filtered["state"] == s_val]
+                    for t_val in st_sub["team"].unique():
+                        tree_open.add(f"{s_val}/{t_val}")
+                        tm_sub = st_sub[st_sub["team"] == t_val]
+                        for c_val in tm_sub["component"].unique():
+                            tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                            cp_sub = tm_sub[tm_sub["component"] == c_val]
+                            for e_val in cp_sub["env_label"].unique():
+                                tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+                rerun()
+        with tc2:
+            if st.button("Collapse All", key="tree_col_all", use_container_width=True):
+                tree_open.clear()
+                rerun()
+        with tc3:
+            all_f_ids = set(filtered["id"].tolist())
+            n_sel = len(selected_entity_ids)
+            if n_sel > 0:
+                if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
+                    selected_entity_ids.clear()
+                    rerun()
+            else:
+                if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
+                    selected_entity_ids.update(all_f_ids)
+                    rerun()
+        with tc4:
+            n_sel = len(selected_entity_ids)
+            btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
+            if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
+                st.session_state["op_target_tab"] = "batch"
+                rerun()
 
-            # Rows
-            for st_val in mat_states:
-                st_sub = mat_df[mat_df["state"] == st_val]
-                r_c0, r_c1, r_c2, r_c3, r_c4, r_c5 = st.columns([0.7, 1.25, 1.25, 1.25, 1.25, 0.7])
-                is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
-                with r_c0:
-                    st.markdown("<div class='hm-state-btn'>", unsafe_allow_html=True)
-                    if st.button(f"📍 {st_val}", key=f"hm_st_{st_val}", type="primary" if is_st_active else "secondary", use_container_width=True, help=f"Filter to State {st_val}"):
-                        if is_st_active:
+        with st.container(height=215, border=True, key="op_tree_box"):
+            for st_val in filtered["state"].unique():
+                st_sub = filtered[filtered["state"] == st_val]
+                st_path = str(st_val)
+                st_is_open = st_path in tree_open
+                st_worst = ui.worst_band(st_sub["band"].tolist())
+                st_meta = ui.BAND_META.get(st_worst, ui.BAND_META["Healthy"])
+                st_exp_n = (st_sub["days_left"] < 0).sum()
+                st_child_ids = set(st_sub["id"].tolist())
+                st_sym, st_uncheck, st_type = tri_state_info(st_child_ids, selected_entity_ids)
+
+                s_c0, s_c1, s_c2 = st.columns([0.35, 4.15, 0.5])
+                with s_c0:
+                    if st.button(st_sym, key=f"sel_st_{st_val}", type=st_type, use_container_width=True):
+                        if st_uncheck:
+                            selected_entity_ids.difference_update(st_child_ids)
+                        else:
+                            selected_entity_ids.update(st_child_ids)
+                        rerun()
+                with s_c1:
+                    is_st_foc = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+                    st_badge_txt = f"{st_exp_n} Expired" if st_exp_n else st_worst
+                    btn_lbl = f"📍 State {st_val} ({len(st_sub)} items) · {st_meta['symbol']} {st_badge_txt}"
+                    if st.button(btn_lbl, key=f"foc_st_tree_{st_val}", use_container_width=True, type="primary" if is_st_foc else "secondary", help=f"Focus entire workspace on State {st_val}"):
+                        if is_st_foc:
                             st.session_state["op_cell_filter"] = None
                         else:
                             st.session_state["op_cell_filter"] = (st_val, None)
                             tree_open.clear()
                             tree_open.add(st_val)
                         rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
 
-                comp_cols = [r_c1, r_c2, r_c3, r_c4]
-                for idx, c_val in enumerate(mat_comps):
-                    cell_sub = st_sub[st_sub["component"] == c_val]
-                    with comp_cols[idx]:
-                        if cell_sub.empty:
-                            st.markdown("<div style='background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.08);border-radius:6px;height:56px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.15);font-size:14px;'>—</div>", unsafe_allow_html=True)
-                        else:
-                            c_cnt = len(cell_sub)
-                            c_exp = int((cell_sub["days_left"] < 0).sum())
-                            c_crit = int((cell_sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-                            c_warn = int((cell_sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-                            c_hlth = int((cell_sub["days_left"] > ui.WARNING_DAYS).sum())
-                            min_days = int(cell_sub["days_left"].min())
-                            c_code = ui.COMPONENT_CODE.get(c_val, c_val)
-                            c_worst = ui.worst_band(cell_sub["band"].tolist())
-                            c_color = ui.BAND_META[c_worst]["color"]
-                            is_cell_active = (cell_filter == (st_val, c_val)) or (state_filter == st_val and comp_filter == c_val and cell_filter is None)
+                with s_c2:
+                    if st.button("▼" if st_is_open else "▶", key=f"t_st_{st_val}", use_container_width=True):
+                        toggle_tree_node(st_path, None)
+                        rerun()
 
-                            breakdown_parts = []
-                            if c_exp: breakdown_parts.append(f"{c_exp} Expired")
-                            if c_crit: breakdown_parts.append(f"{c_crit} Critical (≤15d)")
-                            if c_warn: breakdown_parts.append(f"{c_warn} Warning (≤30d)")
-                            if c_hlth: breakdown_parts.append(f"{c_hlth} Healthy")
-                            help_desc = f"Cross-filter to {st_val} × {c_code} ({', '.join(breakdown_parts)} — soonest in {ui.fmt_heatmap_time(min_days)})"
+                if st_is_open:
+                    for tm_val in st_sub["team"].unique():
+                        tm_sub = st_sub[st_sub["team"] == tm_val]
+                        tm_path = f"{st_val}/{tm_val}"
+                        tm_is_open = tm_path in tree_open
+                        tm_worst = ui.worst_band(tm_sub["band"].tolist())
+                        tm_meta = ui.BAND_META.get(tm_worst, ui.BAND_META["Healthy"])
+                        tm_color = ui.TEAM_META.get(tm_val, {}).get("color", "#5794f2")
+                        tm_child_ids = set(tm_sub["id"].tolist())
+                        tm_sym, tm_uncheck, tm_type = tri_state_info(tm_child_ids, selected_entity_ids)
 
-                            # Visual cell
-                            st.markdown(
-                                ui.heatmap_visual_cell(c_cnt, c_exp, c_crit, c_warn, c_hlth, min_days, c_color, is_cell_active),
-                                unsafe_allow_html=True
-                            )
-                            btn_label = "✓ SELECTED" if is_cell_active else "Inspect ↗"
-                            st.markdown("<div class='hm-action-btn'>", unsafe_allow_html=True)
-                            if st.button(btn_label, key=f"hm_c_{st_val}_{c_code}", help=help_desc, use_container_width=True, type="primary" if is_cell_active else "secondary"):
-                                if is_cell_active:
-                                    st.session_state["op_cell_filter"] = None
+                        t_c0, t_c1, t_c2 = st.columns([0.35, 4.15, 0.5])
+                        with t_c0:
+                            if st.button(tm_sym, key=f"sel_tm_{st_val}_{tm_val}", type=tm_type, use_container_width=True):
+                                if tm_uncheck:
+                                    selected_entity_ids.difference_update(tm_child_ids)
                                 else:
-                                    st.session_state["op_cell_filter"] = (st_val, c_val)
-                                    tree_open.clear()
-                                    tree_open.add(st_val)
-                                    for t in cell_sub["team"].unique():
-                                        tree_open.add(f"{st_val}/{t}")
-                                        tree_open.add(f"{st_val}/{t}/{c_val}")
+                                    selected_entity_ids.update(tm_child_ids)
                                 rerun()
-                            st.markdown("</div>", unsafe_allow_html=True)
+                        with t_c1:
+                            st.markdown(f"""
+                            <div class="tree-node-row{' active' if tm_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:4px;background:#141619;border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:10px;">
+                              <span style="color:{tm_color};font-weight:600;">
+                                👥 {tm_val} <span style="color:var(--mute);font-weight:400;font-size:8.5px;">({len(tm_sub)})</span>
+                              </span>
+                              <span style="color:{tm_meta['color']};font-weight:600;font-size:8.5px;">{tm_meta['symbol']} {tm_worst}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        with t_c2:
+                            if st.button("▼" if tm_is_open else "▶", key=f"t_tm_{st_val}_{tm_val}", use_container_width=True):
+                                toggle_tree_node(tm_path, st_path)
+                                rerun()
 
-                with r_c5:
-                    # State total with colored accent
-                    _st_worst = ui.worst_band(st_sub["band"].tolist()) if not st_sub.empty else "Healthy"
-                    _st_color = ui.BAND_META[_st_worst]["color"]
-                    st.markdown(f"<div style='font-family:var(--mono);font-weight:700;color:{_st_color};text-align:center;padding-top:22px;font-size:13px;letter-spacing:.02em;'>{len(st_sub)}</div>", unsafe_allow_html=True)
+                        if tm_is_open:
+                            for cp_val in tm_sub["component"].unique():
+                                cp_sub = tm_sub[tm_sub["component"] == cp_val]
+                                cp_path = f"{st_val}/{tm_val}/{cp_val}"
+                                cp_is_open = cp_path in tree_open
+                                cp_worst = ui.worst_band(cp_sub["band"].tolist())
+                                cp_meta = ui.BAND_META.get(cp_worst, ui.BAND_META["Healthy"])
+                                cp_code = ui.COMPONENT_CODE.get(cp_val, cp_val)
+                                cp_icon = ui.COMPONENT_ICONS.get(cp_val, ui.COMPONENT_ICONS.get(cp_code, "📦"))
+                                cp_child_ids = set(cp_sub["id"].tolist())
+                                cp_sym, cp_uncheck, cp_type = tri_state_info(cp_child_ids, selected_entity_ids)
 
+                                cp_c0, cp_c1, cp_c2 = st.columns([0.35, 4.15, 0.5])
+                                chip_head = f"{cp_icon} {cp_code}"
+                                with cp_c0:
+                                    if st.button(cp_sym, key=f"sel_cp_{st_val}_{tm_val}_{cp_code}", type=cp_type, use_container_width=True):
+                                        if cp_uncheck:
+                                             selected_entity_ids.difference_update(cp_child_ids)
+                                        else:
+                                             selected_entity_ids.update(cp_child_ids)
+                                        rerun()
+                                np_act = (cell_filter == (st_val, cp_val))
+                                with cp_c1:
+                                    st.markdown(f"""
+                                    <div class="tree-node-row{' active' if cp_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:8px;border-left:2px solid {cp_meta['color']};border-radius:2px;padding:2px 6px;margin-bottom:2px;font-size:9.5px;">
+                                      <span style="color:var(--text);font-weight:500;">{chip_head} <span style="color:var(--mute);font-size:8.5px;">({len(cp_sub)})</span></span>
+                                      <span style="color:{cp_meta['color']};font-size:8.5px;">{cp_meta['symbol']} {cp_worst}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                with cp_c2:
+                                    if st.button("▼" if cp_is_open else "▶", key=f"t_cp_{st_val}_{tm_val}_{cp_code}", use_container_width=True):
+                                        toggle_tree_node(cp_path, tm_path)
+                                        rerun()
 
+                                if cp_is_open:
+                                    for ev_val in cp_sub["env_label"].unique():
+                                        ev_sub = cp_sub[cp_sub["env_label"] == ev_val]
+                                        ev_path = f"{st_val}/{tm_val}/{cp_val}/{ev_val}"
+                                        ev_is_open = ev_path in tree_open
+                                        ev_worst = ui.worst_band(ev_sub["band"].tolist())
+                                        ev_meta = ui.BAND_META.get(ev_worst, ui.BAND_META["Healthy"])
+                                        ev_child_ids = set(ev_sub["id"].tolist())
+                                        ev_sym, ev_uncheck, ev_type = tri_state_info(ev_child_ids, selected_entity_ids)
 
+                                        ev_c0, ev_c1, ev_c2 = st.columns([0.35, 4.15, 0.5])
+                                        with ev_c0:
+                                            if st.button(ev_sym, key=f"sel_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", type=ev_type, use_container_width=True):
+                                                if ev_uncheck:
+                                                    selected_entity_ids.difference_update(ev_child_ids)
+                                                else:
+                                                    selected_entity_ids.update(ev_child_ids)
+                                                rerun()
+                                        with ev_c1:
+                                            st.markdown(f"""
+                                            <div class="tree-node-row{' active' if ev_is_open else ''}" style="display:flex;align-items:center;justify-content:space-between;margin-left:12px;border-radius:2px;padding:2px 4px;font-size:9px;color:var(--slate);">
+                                              <span>🖥️ <span class="env-tag" style="font-size:8px;">{ev_val}</span> ({len(ev_sub)})</span>
+                                              <span style="color:{ev_meta['color']};font-size:8px;">{ev_meta['symbol']} {ui.fmt_days(ev_sub['days_left'].min())}</span>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        with ev_c2:
+                                            if st.button("▼" if ev_is_open else "▶", key=f"t_ev_{st_val}_{tm_val}_{cp_code}_{ev_val}", use_container_width=True):
+                                                toggle_tree_node(ev_path, cp_path)
+                                                rerun()
 
-        with i_tab3:
+                                        if ev_is_open:
+                                            for r in ev_sub.itertuples():
+                                                r_meta = ui.BAND_META.get(r.band, ui.BAND_META["Healthy"])
+                                                is_act = (r.id == selected_id)
+                                                is_leaf_sel = r.id in selected_entity_ids
+
+                                                row_c0, row_c1, row_c2 = st.columns([0.35, 3.25, 1.4])
+                                                with row_c0:
+                                                    ck_txt = "✓" if is_leaf_sel else " "
+                                                    if st.button(ck_txt, key=f"sel_leaf_{r.id}", type="primary" if is_leaf_sel else "secondary", use_container_width=True):
+                                                        if is_leaf_sel:
+                                                            selected_entity_ids.discard(r.id)
+                                                        else:
+                                                            selected_entity_ids.add(r.id)
+                                                        rerun()
+                                                with row_c1:
+                                                    if st.button(r.schema_name, key=f"leaf_btn_{r.id}", type="primary" if is_act else "secondary", use_container_width=True):
+                                                        st.session_state["op_active_id"] = r.id
+                                                        rerun()
+                                                with row_c2:
+                                                    r_c = r_meta["color"]
+                                                    r_s = r_meta["symbol"]
+                                                    _sbar = ui.leaf_sparkbar(int(r.days_left))
+                                                    st.markdown(
+                                                        f"<div style='text-align:right;padding-top:4px;padding-right:4px;'>"
+                                                        f"<div style='font-size:9.5px;font-weight:600;color:{r_c};white-space:nowrap;font-variant-numeric:tabular-nums;'>{r_s} {ui.fmt_days(r.days_left)}</div>"
+                                                        f"{_sbar}"
+                                                        f"</div>",
+                                                        unsafe_allow_html=True
+                                                    )
+
+    with op_tab_batch:
+        if selected_entity_ids:
+            batch_work = df[df["id"].isin(selected_entity_ids)].copy()
+            batch_work.sort_values(by=["state", "team", "component", "env_no", "schema_name"], inplace=True)
+        else:
+            batch_work = filtered.copy()
+
+        total_batch_n = len(batch_work)
+        b_per_page = 4
+        b_pages = max(1, (total_batch_n + b_per_page - 1) // b_per_page)
+        b_page = st.session_state.setdefault("op_batch_page_no", 0)
+        b_page = max(0, min(b_page, b_pages - 1))
+
+        b_from = b_page * b_per_page + 1 if total_batch_n > 0 else 0
+        b_to = min(total_batch_n, (b_page + 1) * b_per_page)
+        page_slice = batch_work.iloc[b_from - 1:b_to].copy() if total_batch_n > 0 else batch_work.copy()
+
+        all_filtered_ids = set(filtered["id"].tolist())
+        is_all_filtered_selected = (len(all_filtered_ids) > 0 and all_filtered_ids.issubset(selected_entity_ids))
+
+        bg_c1, bg_c2, bg_c3, bg_c4 = st.columns([1.6, 1.3, 0.9, 0.6])
+        with bg_c1:
             if selected_entity_ids:
-                batch_work = df[df["id"].isin(selected_entity_ids)].copy()
-                batch_work.sort_values(by=["state", "team", "component", "env_no", "schema_name"], inplace=True)
+                st.markdown(f"<div style='font-size:10px;color:#38bdf8;font-weight:700;padding-top:4px;'>⚡ {len(selected_entity_ids)} selected · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
             else:
-                batch_work = filtered.copy()
-
-            total_batch_n = len(batch_work)
-            b_per_page = 4
-            b_pages = max(1, (total_batch_n + b_per_page - 1) // b_per_page)
-            b_page = st.session_state.setdefault("op_batch_page_no", 0)
-            b_page = max(0, min(b_page, b_pages - 1))
-
-            b_from = b_page * b_per_page + 1 if total_batch_n > 0 else 0
-            b_to = min(total_batch_n, (b_page + 1) * b_per_page)
-            page_slice = batch_work.iloc[b_from - 1:b_to].copy() if total_batch_n > 0 else batch_work.copy()
-
-            all_filtered_ids = set(filtered["id"].tolist())
-            is_all_filtered_selected = (len(all_filtered_ids) > 0 and all_filtered_ids.issubset(selected_entity_ids))
-
-            bg_c1, bg_c2, bg_c3, bg_c4 = st.columns([1.6, 1.3, 0.9, 0.6])
-            with bg_c1:
-                if selected_entity_ids:
-                    st.markdown(f"<div style='font-size:10px;color:#38bdf8;font-weight:700;padding-top:4px;'>⚡ {len(selected_entity_ids)} selected · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='font-size:10px;color:#cbd5e1;font-weight:600;padding-top:4px;'>Scope: {total_batch_n} items · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
-            with bg_c2:
-                if is_all_filtered_selected:
-                    st.button("✓ All In Filter Selected", key="op_batch_sel_all_flt", use_container_width=True, disabled=True)
-                else:
-                    if st.button(f"Select All {len(filtered)} in Filter", key="op_batch_sel_all_flt", type="primary", use_container_width=True):
-                        selected_entity_ids.update(all_filtered_ids)
-                        st.session_state["op_batch_page_no"] = 0
-                        rerun()
-            with bg_c3:
-                if b_pages > 1:
-                    p_c1, p_c2 = st.columns(2)
-                    if p_c1.button("‹", key="op_batch_p_prev", disabled=(b_page == 0), use_container_width=True):
-                        st.session_state["op_batch_page_no"] = b_page - 1
-                        rerun()
-                    if p_c2.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
-                        st.session_state["op_batch_page_no"] = b_page + 1
-                        rerun()
-            with bg_c4:
-                if selected_entity_ids:
-                    if st.button("Clear", key="op_batch_clear_sel", use_container_width=True):
-                        selected_entity_ids.clear()
-                        st.session_state["op_batch_page_no"] = 0
-                        rerun()
-
-            if hasattr(st, "data_editor") and hasattr(st, "column_config") and not page_slice.empty:
-                b_view = page_slice[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
-                b_view["exp_dt"] = b_view["exp_dt"].dt.date
-                b_view["days_left"] = b_view["days_left"].apply(ui.fmt_days)
-                b_view["band"] = b_view["band"].apply(ui.health_text)
-
-                b_edited = st.data_editor(
-                    b_view, key=f"op_batch_editor_p{b_page}", hide_index=True, use_container_width=True,
-                    num_rows="fixed", height=min(180, 36 + len(page_slice) * 35),
-                    column_config={
-                        "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width=175),
-                        "env_label": st.column_config.TextColumn("Env", disabled=True, width=55),
-                        "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width=140),
-                        "band": st.column_config.TextColumn("Status", disabled=True, width=85),
-                        "days_left": st.column_config.TextColumn("Time Left", disabled=True, width=110),
-                    },
-                )
-
-                b_ids = page_slice["id"].tolist()
-                b_changes = []
-                for b_pos, b_rec_id in enumerate(b_ids):
-                    b_before = b_view.iloc[b_pos]["exp_dt"]
-                    b_after = b_edited.iloc[b_pos]["exp_dt"]
-                    if b_after is not None and not pd.isna(b_after):
-                        b_after = pd.to_datetime(b_after).date()
-                        if b_after != b_before:
-                            b_changes.append((b_rec_id, b_after))
-
-                b_btn_col, b_note_col = st.columns([1.4, 2.6])
-                if b_btn_col.button("Save Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
-                    apply_edits(b_changes)
-                    st.success(f"Saved {len(b_changes)} batch updates!")
+                st.markdown(f"<div style='font-size:10px;color:#cbd5e1;font-weight:600;padding-top:4px;'>Scope: {total_batch_n} items · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
+        with bg_c2:
+            if is_all_filtered_selected:
+                st.button("✓ All In Filter Selected", key="op_batch_sel_all_flt", use_container_width=True, disabled=True)
+            else:
+                if st.button(f"Select All {len(filtered)} in Filter", key="op_batch_sel_all_flt", type="primary", use_container_width=True):
+                    selected_entity_ids.update(all_filtered_ids)
+                    st.session_state["op_batch_page_no"] = 0
                     rerun()
-                n_bchg = len(b_changes)
-                b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{n_bchg}</b> unsaved {'change' if n_bchg == 1 else 'changes'} on current page</div>", unsafe_allow_html=True)
-            elif page_slice.empty:
-                st.markdown("<div style='font-size:11px;color:#94a3b8;padding:12px 0;'>No entities selected. Select items from the tree or filters.</div>", unsafe_allow_html=True)
+        with bg_c3:
+            if b_pages > 1:
+                p_c1, p_c2 = st.columns(2)
+                if p_c1.button("‹", key="op_batch_p_prev", disabled=(b_page == 0), use_container_width=True):
+                    st.session_state["op_batch_page_no"] = b_page - 1
+                    rerun()
+                if p_c2.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
+                    st.session_state["op_batch_page_no"] = b_page + 1
+                    rerun()
+        with bg_c4:
+            if selected_entity_ids:
+                if st.button("Clear", key="op_batch_clear_sel", use_container_width=True):
+                    selected_entity_ids.clear()
+                    st.session_state["op_batch_page_no"] = 0
+                    rerun()
 
-        with i_tab4:
-            active_edits = df[df["edited"]].copy()
-            if active_edits.empty:
-                st.markdown("""
-                <div class="card" style="font-size:11px;color:#94a3b8;padding:6px 10px;">
-                  <div style="font-weight:700;color:#10b981;margin-bottom:2px;">✓ Fleet 100% In Sync with Workbooks</div>
-                  All 500 records match source Excel files. Local overrides appear here for 1-click rollback.
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                n_ovr = len(active_edits)
-                st.markdown(ui.note(f"<b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'}:"), unsafe_allow_html=True)
-                for er in active_edits.itertuples():
-                    ec1, ec2 = st.columns([3, 1])
-                    ec1.markdown(f"<span style='font-size:11px;'><b>{er.schema_name}</b> ({er.state}) — <code>{er.exp_date}</code></span>", unsafe_allow_html=True)
-                    if ec2.button("Revert", key=f"op_rev_ledger_{er.id}", use_container_width=True):
-                        conn = get_connection(DB_PATH)
-                        revert_component_exp_date(conn, int(er.id))
-                        conn.close()
-                        bust_cache()
-                        st.success(f"Reverted {er.schema_name}")
-                        rerun()
+        if hasattr(st, "data_editor") and hasattr(st, "column_config") and not page_slice.empty:
+            b_view = page_slice[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
+            b_view["exp_dt"] = b_view["exp_dt"].dt.date
+            b_view["days_left"] = b_view["days_left"].apply(ui.fmt_days)
+            b_view["band"] = b_view["band"].apply(ui.health_text)
+
+            b_edited = st.data_editor(
+                b_view, key=f"op_batch_editor_p{b_page}", hide_index=True, use_container_width=True,
+                num_rows="fixed", height=min(180, 36 + len(page_slice) * 35),
+                column_config={
+                    "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width=175),
+                    "env_label": st.column_config.TextColumn("Env", disabled=True, width=55),
+                    "exp_dt": st.column_config.DateColumn("Expiry Date", format="YYYY-MM-DD", required=True, width=140),
+                    "band": st.column_config.TextColumn("Status", disabled=True, width=85),
+                    "days_left": st.column_config.TextColumn("Time Left", disabled=True, width=110),
+                },
+            )
+
+            b_ids = page_slice["id"].tolist()
+            b_changes = []
+            for b_pos, b_rec_id in enumerate(b_ids):
+                b_before = b_view.iloc[b_pos]["exp_dt"]
+                b_after = b_edited.iloc[b_pos]["exp_dt"]
+                if b_after is not None and not pd.isna(b_after):
+                    b_after = pd.to_datetime(b_after).date()
+                    if b_after != b_before:
+                        b_changes.append((b_rec_id, b_after))
+
+            b_btn_col, b_note_col = st.columns([1.4, 2.6])
+            if b_btn_col.button("Save Changes", type="primary", key="op_save_batch_btn", disabled=not b_changes, use_container_width=True):
+                apply_edits(b_changes)
+                st.success(f"Saved {len(b_changes)} batch updates!")
+                rerun()
+            n_bchg = len(b_changes)
+            b_note_col.markdown(f"<div style='font-size:10.5px;color:#94a3b8;padding-top:4px;'><b>{n_bchg}</b> unsaved {'change' if n_bchg == 1 else 'changes'} on current page</div>", unsafe_allow_html=True)
+        elif page_slice.empty:
+            st.markdown("<div style='font-size:11px;color:#94a3b8;padding:12px 0;'>No entities selected. Select items from the tree or filters.</div>", unsafe_allow_html=True)
+
+    with op_tab_rev:
+        active_edits = df[df["edited"]].copy()
+        if active_edits.empty:
+            st.markdown("""
+            <div class="card" style="font-size:11px;color:#94a3b8;padding:6px 10px;">
+              <div style="font-weight:700;color:#10b981;margin-bottom:2px;">✓ Fleet 100% In Sync with Workbooks</div>
+              All 500 records match source Excel files. Local overrides appear here for 1-click rollback.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            n_ovr = len(active_edits)
+            st.markdown(ui.note(f"<b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'}:"), unsafe_allow_html=True)
+            for er in active_edits.itertuples():
+                ec1, ec2 = st.columns([3, 1])
+                ec1.markdown(f"<span style='font-size:11px;'><b>{er.schema_name}</b> ({er.state}) — <code>{er.exp_date}</code></span>", unsafe_allow_html=True)
+                if ec2.button("Revert", key=f"op_rev_ledger_{er.id}", use_container_width=True):
+                    conn = get_connection(DB_PATH)
+                    revert_component_exp_date(conn, int(er.id))
+                    conn.close()
+                    bust_cache()
+                    st.success(f"Reverted {er.schema_name}")
+                    rerun()
+
 
 
 # ==========================================================================

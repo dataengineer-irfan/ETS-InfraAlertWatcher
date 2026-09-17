@@ -302,10 +302,43 @@ PATCH_SCRIPT = """
         }, true);
       }
 
+      // 5. Automatic Deep-Link & URL Query Parameter Tab Synchronizer
+      function syncTabFromUrl() {
+        try {
+          const p = new URLSearchParams(window.location.search);
+          let targetTabIdx = null;
+          if (p.has('tab')) {
+            targetTabIdx = parseInt(p.get('tab'), 10);
+          } else if (p.has('op_kpi') || p.has('op_cell') || p.has('op_act_id')) {
+            targetTabIdx = 2; // Operations Hub
+          }
+          if (targetTabIdx !== null && !isNaN(targetTabIdx)) {
+            let tries = 0;
+            const tabTimer = setInterval(function() {
+              tries++;
+              const tabs = document.querySelectorAll('[data-testid="stTabs"] [role="tab"]');
+              if (tabs && tabs.length > targetTabIdx) {
+                const targetTab = tabs[targetTabIdx];
+                if (targetTab && targetTab.getAttribute('aria-selected') !== 'true') {
+                  targetTab.click();
+                }
+                clearInterval(tabTimer);
+              } else if (tries > 80) {
+                clearInterval(tabTimer);
+              }
+            }, 50);
+          }
+        } catch (_) {}
+      }
+
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', setupNav);
+        document.addEventListener('DOMContentLoaded', function() {
+          setupNav();
+          syncTabFromUrl();
+        });
       } else {
         setupNav();
+        syncTabFromUrl();
       }
     })();
     </script>
@@ -358,7 +391,14 @@ def patch_index_html() -> bool:
 
         content = idx_path.read_text(encoding="utf-8")
         if PATCH_MARKER in content:
-            print("[+] Streamlit static index.html is already patched.")
+            if "syncTabFromUrl" in content:
+                print("[+] Streamlit static index.html is already patched with syncTabFromUrl.")
+                return True
+            import re
+            cleaned = re.sub(r'<!-- ETS Watchtower Resilience Watchdog & Hotkey Sanitizer -->[\s\S]*?</script>', '', content)
+            new_content = cleaned.replace("</head>", f"{PATCH_SCRIPT}\n  </head>")
+            idx_path.write_text(new_content, encoding="utf-8")
+            print(f"[+] Successfully upgraded patch on {idx_path}")
             return True
 
         if "</head>" not in content:

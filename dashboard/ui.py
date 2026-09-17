@@ -664,7 +664,9 @@ code, kbd, .mono, .num {{
 
 /* Zero-height helper for background bridge iframe components */
 iframe[height="0"], [data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {{
-  display: none !important;
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
   height: 0 !important;
   max-height: 0 !important;
   margin: 0 !important;
