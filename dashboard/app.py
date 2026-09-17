@@ -847,13 +847,13 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     qp_subtab = st.query_params.get("op_subtab")
     if qp_subtab:
         if qp_subtab == "insp":
-            st.session_state["op_target_tab"] = "🔍 Entity Detail Inspector"
+            st.session_state["op_target_tab"] = "🔍 Inspector"
         elif qp_subtab == "batch":
-            st.session_state["op_target_tab"] = "⚡ Batch Grid Editor"
+            st.session_state["op_target_tab"] = "⚡ Batch"
         elif qp_subtab == "tree":
-            st.session_state["op_target_tab"] = "🌳 Hierarchy Tree Explorer"
+            st.session_state["op_target_tab"] = "🌳 Hierarchy"
         elif qp_subtab == "rev":
-            st.session_state["op_target_tab"] = "↩️ Rollback Ledger"
+            st.session_state["op_target_tab"] = "↩️ Rollback"
         del st.query_params["op_subtab"]
 
     active_scope = st.session_state.get("_override_canvas_state")
@@ -1383,14 +1383,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     }
     div.st-key-op_workspace_subtabs_box div[data-baseweb="tab-list"] {
         width: fit-content !important;
-        max-width: 46% !important;
+        max-width: 480px !important;
         border-bottom: 1px solid #2c3235 !important;
         gap: 2px !important;
         height: 36px !important;
     }
     div.st-key-op_workspace_subtabs_box div[data-baseweb="tab-list"] button[role="tab"] {
-        padding: 3px 7px !important;
-        font-size: 10.5px !important;
+        padding: 3px 6px !important;
+        font-size: 10px !important;
         font-weight: 600 !important;
         white-space: nowrap !important;
     }
@@ -1398,14 +1398,22 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         position: absolute !important;
         top: 2px !important;
         right: 0 !important;
-        width: 53% !important;
+        left: auto !important;
+        width: auto !important;
+        max-width: calc(100% - 500px) !important;
         height: 32px !important;
         z-index: 99 !important;
         background: transparent !important;
         border: none !important;
     }
+    div[class*="st-key-tab_actions_inv_"] { min-width: 500px !important; }
+    div[class*="st-key-tab_actions_insp_"] { min-width: 500px !important; }
+    div[class*="st-key-tab_actions_tree_"] { min-width: 400px !important; }
+    div[class*="st-key-tab_actions_batch_"] { min-width: 480px !important; }
+    div[class*="st-key-tab_actions_rev_"] { min-width: 260px !important; }
     div[class*="st-key-tab_actions_"] div[data-testid="stHorizontalBlock"] {
         align-items: center !important;
+        justify-content: flex-end !important;
         gap: 4px !important;
     }
     div[class*="st-key-tab_actions_"] button,
@@ -1421,6 +1429,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         justify-content: center !important;
         line-height: 1 !important;
         border-radius: 2px !important;
+    }
+    div[class*="st-key-tab_actions_"] button p {
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
     div[class*="st-key-tab_actions_"] div[data-testid="stPopover"] {
         width: 100% !important;
@@ -1438,23 +1454,28 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     target_tab = st.session_state.pop("op_target_tab", None)
     valid_subtabs = [
-        "📋 Master Inventory",
-        "🔍 Detail Inspector",
-        "🌳 Hierarchy Tree",
-        "⚡ Batch Grid",
-        "↩️ Rollback Ledger"
+        "📋 Inventory",
+        "🔍 Inspector",
+        "🌳 Hierarchy",
+        "⚡ Batch",
+        "↩️ Rollback"
     ]
     # Backward compatibility for tab targeting
     tab_aliases = {
-        "📋 Master Asset Inventory": "📋 Master Inventory",
-        "🔍 Entity Detail Inspector": "🔍 Detail Inspector",
-        "🌳 Hierarchy Tree Explorer": "🌳 Hierarchy Tree",
-        "⚡ Batch Grid Editor": "⚡ Batch Grid",
-        "batch": "⚡ Batch Grid",
-        "insp": "🔍 Detail Inspector",
-        "inv": "📋 Master Inventory",
-        "tree": "🌳 Hierarchy Tree",
-        "rev": "↩️ Rollback Ledger"
+        "📋 Master Asset Inventory": "📋 Inventory",
+        "🔍 Entity Detail Inspector": "🔍 Inspector",
+        "🌳 Hierarchy Tree Explorer": "🌳 Hierarchy",
+        "⚡ Batch Grid Editor": "⚡ Batch",
+        "📋 Master Inventory": "📋 Inventory",
+        "🔍 Detail Inspector": "🔍 Inspector",
+        "🌳 Hierarchy Tree": "🌳 Hierarchy",
+        "⚡ Batch Grid": "⚡ Batch",
+        "↩️ Rollback Ledger": "↩️ Rollback",
+        "batch": "⚡ Batch",
+        "insp": "🔍 Inspector",
+        "inv": "📋 Inventory",
+        "tree": "🌳 Hierarchy",
+        "rev": "↩️ Rollback"
     }
     if target_tab in tab_aliases:
         target_tab = tab_aliases[target_tab]
@@ -1476,14 +1497,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 conf = st.session_state.get("confirm_action")
                 cur_dt = rec["exp_dt"].date()
 
-                f_col_info, f_col_acts = st.columns([2.6, 1.6], gap="small")
+                f_col_info, f_col_acts = st.columns([2.3, 1.2], gap="small")
                 with f_col_info:
                     st.markdown(f"""
-                    <div style="display:flex;align-items:center;gap:5px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;">
-                      <span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">🎯 #{rec['id']} {rec['schema_name']}</span>
-                      <span class="env-tag" style="font-size:8px;padding:0 3px;">{rec['env_label']}</span>
-                      <span style="font-size:8.5px;color:#94a3b8;">State {rec['state']} · {rec['team']}</span>
-                      <span style="font-size:7.5px;font-weight:700;padding:0 4px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+                    <div style="display:flex;align-items:center;gap:4px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 5px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                      <span style="font-family:var(--mono);font-size:9px;font-weight:800;color:#f8fafc;">🎯 #{rec['id']} {rec['schema_name']}</span>
+                      <span class="env-tag" style="font-size:7.5px;padding:0 3px;">{rec['env_label']}</span>
+                      <span style="font-size:8px;color:#94a3b8;">{rec['state']} · {rec['team']}</span>
+                      <span style="font-size:7.5px;font-weight:700;padding:0 3px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
                       <span style="font-size:8px;color:#8fb8f8;font-family:var(--mono);">{ui.fmt_days(rec['days_left'])}</span>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1601,14 +1622,14 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 conf = st.session_state.get("confirm_action")
                 cur_dt = rec["exp_dt"].date()
 
-                head_c1, head_c2 = st.columns([2.6, 1.6], gap="small")
+                head_c1, head_c2 = st.columns([2.3, 1.2], gap="small")
                 with head_c1:
                     st.markdown(f"""
-                    <div style="display:flex;align-items:center;gap:5px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;">
-                      <span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">ENTITY #{rec['id']} {rec['schema_name']}</span>
-                      <span class="env-tag" style="font-size:8px;padding:0 3px;">{rec['env_label']}</span>
-                      <span style="font-size:8.5px;color:#94a3b8;">State {rec['state']} · {rec['team']} · {cp_icon} {rec['component']}</span>
-                      <span style="font-size:7.5px;font-weight:700;padding:0 4px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+                    <div style="display:flex;align-items:center;gap:4px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 5px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                      <span style="font-family:var(--mono);font-size:9px;font-weight:800;color:#f8fafc;">ENTITY #{rec['id']} {rec['schema_name']}</span>
+                      <span class="env-tag" style="font-size:7.5px;padding:0 3px;">{rec['env_label']}</span>
+                      <span style="font-size:8px;color:#94a3b8;">{rec['state']} · {rec['team']}</span>
+                      <span style="font-size:7.5px;font-weight:700;padding:0 3px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -1782,7 +1803,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         with st.container(key=f"tab_actions_tree_{reset_idx}"):
             n_sel = len(selected_entity_ids)
             if n_sel > 0:
-                tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.4], gap="small")
+                tc1, tc2, tc3, tc4 = st.columns([1.1, 1.2, 1.3, 1.3], gap="small")
                 with tc1:
                     if st.button("⊞ Expand", key="tree_exp_all", use_container_width=True, help="Expand all tree nodes"):
                         for s_val in filtered["state"].unique():
@@ -1810,7 +1831,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         st.session_state["op_target_tab"] = "⚡ Batch Grid"
                         rerun()
             else:
-                tc1, tc2, tc3, tc_stat = st.columns([1.0, 1.0, 1.2, 0.9], gap="small")
+                tc1, tc2, tc3, tc_stat = st.columns([1.1, 1.2, 1.3, 0.8], gap="small")
                 with tc1:
                     if st.button("⊞ Expand", key="tree_exp_all", use_container_width=True, help="Expand all tree nodes"):
                         for s_val in filtered["state"].unique():
@@ -2024,7 +2045,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
         # ── Unified same-line toolbar: selection status, pagination, and 1-click bulk date actions ──
         with st.container(key=f"tab_actions_batch_{reset_idx}"):
-            bg_c1, bg_c2, bg_c3, bg_c4, bg_c5 = st.columns([1.5, 0.7, 0.7, 0.7, 1.0], gap="small")
+            bg_c1, bg_c2, bg_c3, bg_c4, bg_c5 = st.columns([1.3, 0.6, 1.0, 1.0, 0.8], gap="small")
             with bg_c1:
                 if selected_entity_ids:
                     st.markdown(f"<div style='font-size:9.5px;color:#38bdf8;font-weight:700;padding-top:4px;white-space:nowrap;'>⚡ {len(selected_entity_ids)} sel · P{b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
