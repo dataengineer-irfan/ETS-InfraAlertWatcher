@@ -28,6 +28,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 import streamlit as st
@@ -403,6 +404,11 @@ def render_on_call_workspace(db_path: str) -> None:
     tm_count = bundle["tm_count"]
     distinct_ps_engineers = bundle["distinct_ps_engineers"]
 
+    # Check if engineer was selected via interactive table link ?eng=...
+    qp_eng = st.query_params.get("eng")
+    if qp_eng and qp_eng in all_available_engineers:
+        ss["oncall_selected_eng"] = qp_eng
+
     # Resolve Scope Lock state from global app state
     active_scope_state = ss.get("_override_canvas_state") or ss.get("global_state_filter")
     if active_scope_state in ["NH", "ND", "AK"]:
@@ -415,33 +421,33 @@ def render_on_call_workspace(db_path: str) -> None:
     cur_slot = _get_current_active_slot(now_utc)
     use_ist = (ss["oncall_tz"] == "IST")
 
-    # Injected CSS for Zero-Scroll & HTML-inspired compact cards
+    # Injected CSS for Zero-Scroll, High-Density Executive Layout & Custom Cyan Scrollbars
     st.markdown("""
     <style>
     .block-container {
-        padding-top: 0.6rem !important;
+        padding-top: 0.4rem !important;
         padding-bottom: 0 !important;
-        padding-left: 1.25rem !important;
-        padding-right: 1.25rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     .oc-kpi-row {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         gap: 6px;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
     }
     .oc-stat-card {
         background: #181b1f;
         border: 1px solid #2c3235;
         border-radius: 2px;
-        padding: 6px 10px 5px 10px;
+        padding: 4px 8px 3px 8px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        height: 70px;
-        min-height: 70px;
-        max-height: 70px;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
         box-sizing: border-box;
     }
     .oc-stat-fill-green {
@@ -465,15 +471,16 @@ def render_on_call_workspace(db_path: str) -> None:
         border-top: 2px solid #b877d7;
     }
     .oc-stat-label {
-        font-size: 9.5px;
+        font-size: 8.5px;
         color: var(--slate, #9fa7b3);
         text-transform: uppercase;
-        font-weight: 600;
-        letter-spacing: .02em;
+        font-weight: 700;
+        letter-spacing: .03em;
+        line-height: 1;
     }
     .oc-stat-val {
-        font-size: 20px;
-        font-weight: 700;
+        font-size: 15px;
+        font-weight: 800;
         margin-top: 1px;
         line-height: 1.1;
         color: #fff;
@@ -481,13 +488,99 @@ def render_on_call_workspace(db_path: str) -> None:
         font-variant-numeric: tabular-nums;
     }
     .oc-stat-sub {
-        font-size: 9px;
+        font-size: 8px;
         color: var(--mute, #8b949e);
-        margin-top: 2px;
-        line-height: 1.2;
+        margin-top: 1px;
+        line-height: 1.1;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    /* Slicer buttons & chips compact styling */
+    div[class*="st-key-oncall_tz_"] button,
+    div[class*="st-key-oncall_chip_btn_"] button,
+    div[class*="st-key-oncall_qs_"] button {
+        height: 24px !important;
+        min-height: 24px !important;
+        padding: 0 5px !important;
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+        line-height: 22px !important;
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+        border-radius: 2px !important;
+    }
+    div[class*="st-key-oncall_div_btn_"] button {
+        height: 26px !important;
+        min-height: 26px !important;
+        padding: 0 6px !important;
+        font-size: 10.5px !important;
+        font-weight: 700 !important;
+        line-height: 24px !important;
+        border-radius: 3px !important;
+    }
+    div[class*="st-key-oncall_prev_page"] button,
+    div[class*="st-key-oncall_next_page"] button {
+        height: 22px !important;
+        min-height: 22px !important;
+        padding: 0 !important;
+        font-size: 10px !important;
+    }
+    /* Master & Inspector Pane Scroll Containers */
+    .oc-table-container {
+        border: 1px solid #2c3235;
+        border-radius: 3px;
+        background: #141619;
+        height: 395px;
+        max-height: 400px;
+        overflow-y: auto;
+        overflow-x: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #38bdf8 #181b1f;
+    }
+    .oc-table-container::-webkit-scrollbar,
+    .st-key-oncall_insp_frame::-webkit-scrollbar,
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-oncall_insp_frame)::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+        display: block;
+    }
+    .oc-table-container::-webkit-scrollbar-track,
+    .st-key-oncall_insp_frame::-webkit-scrollbar-track,
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-oncall_insp_frame)::-webkit-scrollbar-track {
+        background: #181b1f;
+        border-left: 1px solid #2c3235;
+    }
+    .oc-table-container::-webkit-scrollbar-thumb,
+    .st-key-oncall_insp_frame::-webkit-scrollbar-thumb,
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-oncall_insp_frame)::-webkit-scrollbar-thumb {
+        background: #38bdf8;
+        border-radius: 3px;
+        border: 1px solid #0284c7;
+    }
+    .oc-table-container::-webkit-scrollbar-thumb:hover,
+    .st-key-oncall_insp_frame::-webkit-scrollbar-thumb:hover,
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-oncall_insp_frame)::-webkit-scrollbar-thumb:hover {
+        background: #60a5fa;
+    }
+    .st-key-oncall_insp_frame,
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-oncall_insp_frame) {
+        border: 1px solid #2c3235 !important;
+        border-radius: 3px !important;
+        background: #141619 !important;
+        height: 395px !important;
+        max-height: 400px !important;
+        overflow-y: auto !important;
+        padding: 6px 8px !important;
+        scrollbar-width: thin !important;
+        scrollbar-color: #38bdf8 #181b1f !important;
+    }
+    thead th {
+        position: sticky !important;
+        top: 0 !important;
+        background: #141619 !important;
+        z-index: 10 !important;
+        border-bottom: 2px solid #2c3235 !important;
     }
     .shift-badge-m { background: rgba(115,191,105,0.16); color: #73bf69; border: 1px solid rgba(115,191,105,0.3); border-radius: 2px; padding: 1.5px 5px; font-size: 9px; font-weight: 700; white-space: nowrap; }
     .shift-badge-e { background: rgba(87,148,242,0.16); color: #8fb8f8; border: 1px solid rgba(87,148,242,0.3); border-radius: 2px; padding: 1.5px 5px; font-size: 9px; font-weight: 700; white-space: nowrap; }
@@ -507,7 +600,6 @@ def render_on_call_workspace(db_path: str) -> None:
     .oc-tier-badge-2 { background: rgba(245,158,11,0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8px; font-weight: 700; }
     .oc-tier-badge-3 { background: rgba(239,68,68,0.14); color: #f87171; border: 1px solid rgba(239,68,68,0.3); border-radius: 2px; padding: 1px 5px; font-size: 8px; font-weight: 700; }
     .oc-sla-pill { background: rgba(255,255,255,0.06); color: #94a3b8; border-radius: 2px; padding: 1px 4px; font-size: 8px; font-weight: 600; font-family: var(--mono); }
-    thead th { position: sticky; top: 0; background: #141619; z-index: 5; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -992,6 +1084,9 @@ def render_on_call_workspace(db_path: str) -> None:
         ss["oncall_selected_eng"] = scoped_engineers[0]
 
     cur_selected = ss.get("oncall_selected_eng")
+    insp_picker_key = f"oncall_insp_picker_{cur_div}"
+    if cur_selected in scoped_engineers:
+        ss[insp_picker_key] = cur_selected
 
     master_col, detail_col = st.columns([3.5, 2.5])
 
@@ -1059,7 +1154,7 @@ def render_on_call_workspace(db_path: str) -> None:
 
             empty_mod_notice = "<tr><td colspan='7' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>No active modules match the selected filters. Click ✕ Reset to view all.</td></tr>"
             table_mod_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);min-height:500px;overflow-y:auto;'>"
+                "<div class='oc-table-container'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10.5px;'>"
                 "<thead>"
                 "<tr style='background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;text-transform:uppercase;color:var(--slate);'>"
@@ -1078,32 +1173,33 @@ def render_on_call_workspace(db_path: str) -> None:
             )
             st.markdown(table_mod_html, unsafe_allow_html=True)
 
-            st.markdown("""
-            <div style="background:#141619;border:1px solid #2c3235;border-radius:3px;padding:8px 12px;margin-top:8px;">
-              <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
-                <span>📡 Fleet Shift Handover &amp; Escalation Telemetry</span>
-                <span style="color:#10b981;font-weight:700;">● 100% OPERATIONAL SYNC</span>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;font-size:10px;">
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
-                  <div style="color:var(--mute);font-size:9px;">Active Fleet Shift</div>
-                  <div style="color:#38bdf8;font-weight:700;margin-top:2px;">Slot 2 · Afternoon Rotation</div>
+            with st.expander("📡 Fleet Shift Handover & Escalation Telemetry", expanded=False):
+                st.markdown("""
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:3px;padding:8px 12px;">
+                  <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
+                    <span>Fleet Shift Handover &amp; Escalation Telemetry</span>
+                    <span style="color:#10b981;font-weight:700;">● 100% OPERATIONAL SYNC</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;font-size:10px;">
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                      <div style="color:var(--mute);font-size:9px;">Active Fleet Shift</div>
+                      <div style="color:#38bdf8;font-weight:700;margin-top:2px;">Slot 2 · Afternoon Rotation</div>
+                    </div>
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                      <div style="color:var(--mute);font-size:9px;">Governing Shift Leads</div>
+                      <div style="color:#f59e0b;font-weight:700;margin-top:2px;">Anil Tankala / Kishore N.</div>
+                    </div>
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                      <div style="color:var(--mute);font-size:9px;">Next Handover Target</div>
+                      <div style="color:#10b981;font-weight:700;margin-top:2px;">19:30 IST / 14:00 UTC</div>
+                    </div>
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
+                      <div style="color:var(--mute);font-size:9px;">Escalation War Room</div>
+                      <div style="color:#f87171;font-weight:700;margin-top:2px;">Bridge P1-Live (Active)</div>
+                    </div>
+                  </div>
                 </div>
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
-                  <div style="color:var(--mute);font-size:9px;">Governing Shift Leads</div>
-                  <div style="color:#f59e0b;font-weight:700;margin-top:2px;">Anil Tankala / Kishore N.</div>
-                </div>
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
-                  <div style="color:var(--mute);font-size:9px;">Next Handover Target</div>
-                  <div style="color:#10b981;font-weight:700;margin-top:2px;">19:30 IST / 14:00 UTC</div>
-                </div>
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:6px 8px;">
-                  <div style="color:var(--mute);font-size:9px;">Escalation War Room</div>
-                  <div style="color:#f87171;font-weight:700;margin-top:2px;">Bridge P1-Live (Active)</div>
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
         # B. MODE 2: PRODUCTION SUPPORT 24x7 (Hierarchical Cross-Tab Matrix)
         elif cur_div == "Production Support 24x7":
@@ -1266,7 +1362,7 @@ def render_on_call_workspace(db_path: str) -> None:
 
             empty_notice = "<tr><td colspan='100' style='padding:20px;text-align:center;color:var(--mute);font-size:11px;'>No engineers match the selected filters. Click ✕ Reset to restore all.</td></tr>"
             table_crosstab_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;background:#181b1f;max-height:calc(100vh - 240px);min-height:500px;overflow-y:auto;overflow-x:hidden;'>"
+                "<div class='oc-table-container' style='overflow-x:auto;'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10px;min-width:780px;'>"
                 f"{head_html}"
                 f"<tbody>{''.join(body_rows) if body_rows else empty_notice}</tbody>"
@@ -1437,7 +1533,7 @@ def render_on_call_workspace(db_path: str) -> None:
             )
 
             container_esc_html = (
-                f"<div style='max-height:calc(100vh - 240px);overflow-y:auto;padding-right:4px;'>"
+                f"<div class='oc-table-container' style='padding:6px;'>"
                 f"{''.join(esc_cards_html)}"
                 f"{infra_nc_summary_html if state_slicer == 'All States' else ''}"
                 f"</div>"
@@ -1642,7 +1738,7 @@ def render_on_call_workspace(db_path: str) -> None:
                 "No shift assignments match the selected filters. Click ✕ Reset to view all.</td></tr>"
             )
             table_shifts_html = (
-                "<div style='border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 240px);min-height:500px;overflow-y:auto;'>"
+                "<div class='oc-table-container'>"
                 "<table style='width:100%;border-collapse:collapse;font-size:10.5px;'>"
                 "<thead>"
                 "<tr style='background:#141619;border-bottom:1px solid #2c3235;font-size:9.5px;text-transform:uppercase;color:var(--slate);'>"
@@ -1740,222 +1836,223 @@ def render_on_call_workspace(db_path: str) -> None:
         else:
             duty_badge = '<span class="pill" style="color:#64748b;background:rgba(100,116,139,0.16);font-size:8.5px;font-weight:700;border:1px solid rgba(100,116,139,0.3);">OFF DUTY TODAY</span>'
 
-        card_profile = (
-            '<div style="background:#141619;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:3px;padding:8px 12px;margin-bottom:8px;">'
-            '<div style="display:flex;align-items:center;justify-content:space-between;">'
-            '<div style="display:flex;align-items:center;gap:10px;">'
-            f'{avatar_lg}'
-            '<div>'
-            f'<div style="font-size:13px;font-weight:800;color:var(--ink);letter-spacing:0.02em;">{escape(sel_name)}</div>'
-            f'<div style="font-size:10px;color:var(--slate);">{escape(eng_div)} &bull; <b style="color:#38bdf8;">{escape(eng_domain)}</b></div>'
-            '</div></div>'
-            f'{duty_badge}'
-            '</div></div>'
-        )
-        st.markdown(card_profile, unsafe_allow_html=True)
+        with st.container(height=395, border=True, key="oncall_insp_frame"):
+            card_profile = (
+                '<div style="background:#141619;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:3px;padding:8px 12px;margin-bottom:8px;">'
+                '<div style="display:flex;align-items:center;justify-content:space-between;">'
+                '<div style="display:flex;align-items:center;gap:10px;">'
+                f'{avatar_lg}'
+                '<div>'
+                f'<div style="font-size:13px;font-weight:800;color:var(--ink);letter-spacing:0.02em;">{escape(sel_name)}</div>'
+                f'<div style="font-size:10px;color:var(--slate);">{escape(eng_div)} &bull; <b style="color:#38bdf8;">{escape(eng_domain)}</b></div>'
+                '</div></div>'
+                f'{duty_badge}'
+                '</div></div>'
+            )
+            st.markdown(card_profile, unsafe_allow_html=True)
 
-        # 2. Timing and Live Status Card (Supports both Domain shifts & Production Support)
-        t_est = "See Master Roster"
-        t_ist = "Rotation Shift Hours"
-        timing_title = "Scheduled Shift Hours"
+            # 2. Timing and Live Status Card (Supports both Domain shifts & Production Support)
+            t_est = "See Master Roster"
+            t_ist = "Rotation Shift Hours"
+            timing_title = "Scheduled Shift Hours"
 
-        if matching_shifts:
-            ref_shift = matching_shifts[0]
-            t_est = ref_shift.get("time_est", "See Roster")
-            t_ist = ref_shift.get("time_ist", "See Roster")
-            timing_title = f"Scheduled Shift Hours ({ref_shift.get('day_name', 'Day')} {ref_shift.get('shift_date', '')[5:]})"
-        elif matching_ps:
-            ref_ps = today_match_ps[0] if today_match_ps else matching_ps[0]
-            win = ref_ps.get("shift_window", "")
-            win_l = win.lower()
-            timing_title = f"Scheduled Shift Hours ({ref_ps.get('day_name', 'Today')} {ref_ps.get('shift_date', '')[5:]})"
-            if "6:30" in win_l or "morning" in win_l:
-                t_ist = "06:30 AM to 03:30 PM (Morning)"
-                t_est = "09:00 PM to 06:00 AM (Prev Night)"
-            elif "14:30" in win_l or "evening" in win_l:
-                t_ist = "02:30 PM to 11:30 PM (Evening)"
-                t_est = "05:00 AM to 02:00 PM (Morning/Day)"
-            elif "22:30" in win_l or "night" in win_l:
-                t_ist = "10:30 PM to 07:30 AM (Night)"
-                t_est = "01:00 PM to 10:00 PM (Afternoon/Eve)"
-            elif "holiday" in win_l or "float" in win_l:
-                t_ist = "Floating Holiday (On-Call Standby)"
-                t_est = "Fleet Standby / Non-Working"
-            elif "leave" in win_l:
-                t_ist = "Approved Leave (Backfilled)"
-                t_est = "Off Fleet Roster"
+            if matching_shifts:
+                ref_shift = matching_shifts[0]
+                t_est = ref_shift.get("time_est", "See Roster")
+                t_ist = ref_shift.get("time_ist", "See Roster")
+                timing_title = f"Scheduled Shift Hours ({ref_shift.get('day_name', 'Day')} {ref_shift.get('shift_date', '')[5:]})"
+            elif matching_ps:
+                ref_ps = today_match_ps[0] if today_match_ps else matching_ps[0]
+                win = ref_ps.get("shift_window", "")
+                win_l = win.lower()
+                timing_title = f"Scheduled Shift Hours ({ref_ps.get('day_name', 'Today')} {ref_ps.get('shift_date', '')[5:]})"
+                if "6:30" in win_l or "morning" in win_l:
+                    t_ist = "06:30 AM to 03:30 PM (Morning)"
+                    t_est = "09:00 PM to 06:00 AM (Prev Night)"
+                elif "14:30" in win_l or "evening" in win_l:
+                    t_ist = "02:30 PM to 11:30 PM (Evening)"
+                    t_est = "05:00 AM to 02:00 PM (Morning/Day)"
+                elif "22:30" in win_l or "night" in win_l:
+                    t_ist = "10:30 PM to 07:30 AM (Night)"
+                    t_est = "01:00 PM to 10:00 PM (Afternoon/Eve)"
+                elif "holiday" in win_l or "float" in win_l:
+                    t_ist = "Floating Holiday (On-Call Standby)"
+                    t_est = "Fleet Standby / Non-Working"
+                elif "leave" in win_l:
+                    t_ist = "Approved Leave (Backfilled)"
+                    t_est = "Off Fleet Roster"
+                else:
+                    t_ist = "Scheduled Week Off (Rest Day)"
+                    t_est = "Off Duty / Standby"
+
+            card_timing = (
+                '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
+                f'<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;">{timing_title}</div>'
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+                '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
+                '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN EST (UTC-5)</div>'
+                f'<div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--ink);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(t_est)}</div>'
+                '</div>'
+                '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
+                '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN IST (UTC+5:30)</div>'
+                f'<div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:#38bdf8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(t_ist)}</div>'
+                '</div></div></div>'
+            )
+            st.markdown(card_timing, unsafe_allow_html=True)
+
+            # 3. 3-Tier Escalation Hierarchy Lineage
+            t1_name = matching_esc.get("tier1_name") or "Abhijit Vajja / Sreekanth Veluguleti"
+            t1_title = matching_esc.get("tier1_title") or "Offshore Team Lead (TL/TM)"
+            t2_name = matching_esc.get("tier2_name") or "Anil Tankala / Kishore Nagarajan"
+            t2_title = matching_esc.get("tier2_title") or "Service Delivery Manager (SDM)"
+            t3_name = matching_esc.get("tier3_name") or "Nagarajan Kochunni / Radhakanta Samantara"
+            t3_title = matching_esc.get("tier3_title") or "Project Director (PD)"
+
+            # Check if currently filtered SDM matches Tier 2
+            is_sdm_focused = clean_sdm_name and clean_sdm_name.lower() in t2_name.lower()
+            t2_border = "border-left:3px solid #10b981;background:rgba(16,185,129,0.08);" if is_sdm_focused else "border-left:3px solid #f59e0b;background:#141619;"
+            t2_badge = '<span style="font-size:8px;color:#10b981;font-weight:700;">● FILTER FOCUS</span>' if is_sdm_focused else '<span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">SDM Lead</span>'
+
+            # Tier 1 badge label (Correct TL for PS, TM for Non-Core)
+            if cur_div == "Production Support 24x7" or eng_div == "Production Support":
+                t1_badge_label = "Offshore TL"
+            elif cur_div == "Non-Core Dev" or eng_div == "Non-Core Dev":
+                t1_badge_label = "Tech Mgr (TM)"
             else:
-                t_ist = "Scheduled Week Off (Rest Day)"
-                t_est = "Off Duty / Standby"
+                t1_badge_label = "Lead TL"
 
-        card_timing = (
-            '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
-            f'<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;">{timing_title}</div>'
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
-            '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
-            '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN EST (UTC-5)</div>'
-            f'<div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:var(--ink);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(t_est)}</div>'
-            '</div>'
-            '<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:4px 8px;">'
-            '<div style="font-size:8.5px;color:var(--mute);font-weight:600;">TIME IN IST (UTC+5:30)</div>'
-            f'<div style="font-size:10.5px;font-family:var(--mono);font-weight:700;color:#38bdf8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{escape(t_ist)}</div>'
-            '</div></div></div>'
-        )
-        st.markdown(card_timing, unsafe_allow_html=True)
-
-        # 3. 3-Tier Escalation Hierarchy Lineage
-        t1_name = matching_esc.get("tier1_name") or "Abhijit Vajja / Sreekanth Veluguleti"
-        t1_title = matching_esc.get("tier1_title") or "Offshore Team Lead (TL/TM)"
-        t2_name = matching_esc.get("tier2_name") or "Anil Tankala / Kishore Nagarajan"
-        t2_title = matching_esc.get("tier2_title") or "Service Delivery Manager (SDM)"
-        t3_name = matching_esc.get("tier3_name") or "Nagarajan Kochunni / Radhakanta Samantara"
-        t3_title = matching_esc.get("tier3_title") or "Project Director (PD)"
-
-        # Check if currently filtered SDM matches Tier 2
-        is_sdm_focused = clean_sdm_name and clean_sdm_name.lower() in t2_name.lower()
-        t2_border = "border-left:3px solid #10b981;background:rgba(16,185,129,0.08);" if is_sdm_focused else "border-left:3px solid #f59e0b;background:#141619;"
-        t2_badge = '<span style="font-size:8px;color:#10b981;font-weight:700;">● FILTER FOCUS</span>' if is_sdm_focused else '<span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">SDM Lead</span>'
-
-        # Tier 1 badge label (Correct TL for PS, TM for Non-Core)
-        if cur_div == "Production Support 24x7" or eng_div == "Production Support":
-            t1_badge_label = "Offshore TL"
-        elif cur_div == "Non-Core Dev" or eng_div == "Non-Core Dev":
-            t1_badge_label = "Tech Mgr (TM)"
-        else:
-            t1_badge_label = "Lead TL"
-
-        card_esc_t1 = (
-            '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #38bdf8;">'
-            '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#38bdf8;width:42px;">TIER 1</span>'
-            '<div style="min-width:0;flex:1;">'
-            f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t1_name)}</div>'
-            f'<div style="font-size:8.5px;color:var(--slate);">{escape(t1_title)} &bull; SLA: &le;15 mins</div>'
-            f'</div><span style="font-size:8.5px;color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:1px 4px;border-radius:2px;">{t1_badge_label}</span></div>'
-        )
-        # Tier 2 (SDM)
-        t2_badge_label = "State SDM" if "State Specific" in t2_name else "SDM Lead"
-        t2_badge = '<span style="font-size:8px;color:#10b981;font-weight:700;">● FILTER FOCUS</span>' if is_sdm_focused else f'<span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">{t2_badge_label}</span>'
-        card_esc_t2 = (
-            f'<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:3px;{t2_border}">'
-            '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#f59e0b;width:42px;">TIER 2</span>'
-            '<div style="min-width:0;flex:1;">'
-            f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t2_name)}</div>'
-            f'<div style="font-size:8.5px;color:var(--slate);">{escape(t2_title)} &bull; SLA: &le;30 mins</div>'
-            f'</div>{t2_badge}</div>'
-        )
-        # Tier 3
-        card_esc_t3 = (
-            '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #ef4444;">'
-            '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#ef4444;width:42px;">TIER 3</span>'
-            '<div style="min-width:0;flex:1;">'
-            f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t3_name)}</div>'
-            f'<div style="font-size:8.5px;color:var(--slate);">{escape(t3_title)} &bull; Executive Escalation</div>'
-            '</div><span style="font-size:8.5px;color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:1px 4px;border-radius:2px;">Director</span></div>'
-        )
-
-        card_esc = (
-            '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
-            '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">'
-            '<span>3-Tier Escalation Hierarchy</span>'
-            '<span style="font-size:8px;color:#10b981;font-weight:600;">● Active Lineage</span>'
-            '</div>'
-            f'<div style="display:flex;flex-direction:column;gap:5px;">{card_esc_t1}{card_esc_t2}{card_esc_t3}</div>'
-            '</div>'
-        )
-        st.markdown(card_esc, unsafe_allow_html=True)
-
-        # 4. Weekly Schedule Strip for this Engineer
-        if matching_ps:
-            today_bull = " <b style='color:#f59e0b;'>&bull;</b>"
-            sched_chips = "".join(
-                f"<div style='text-align:center;padding:2px 4px;border-radius:3px;"
-                f"{'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);' if p['shift_date'] == today_str else ''}'>"
-                f"<div style='font-size:8.5px;color:var(--mute);'>{p['day_name'][:3]}"
-                f"{today_bull if p['shift_date'] == today_str else ''}</div>"
-                f"<div style='margin-top:2px;'>{ui.on_call_status_chip(p['shift_window'])}</div></div>"
-                for p in matching_ps
+            card_esc_t1 = (
+                '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #38bdf8;">'
+                '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#38bdf8;width:42px;">TIER 1</span>'
+                '<div style="min-width:0;flex:1;">'
+                f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t1_name)}</div>'
+                f'<div style="font-size:8.5px;color:var(--slate);">{escape(t1_title)} &bull; SLA: &le;15 mins</div>'
+                f'</div><span style="font-size:8.5px;color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:1px 4px;border-radius:2px;">{t1_badge_label}</span></div>'
             )
-            card_weekly = (
-                '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 10px;margin-bottom:8px;">'
-                '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:4px;display:flex;justify-content:space-between;">'
-                '<span>Weekly Schedule Horizon</span>'
-                f'<span style="color:var(--mute);font-size:8.5px;">Today: {today_str}</span>'
+            # Tier 2 (SDM)
+            t2_badge_label = "State SDM" if "State Specific" in t2_name else "SDM Lead"
+            t2_badge = '<span style="font-size:8px;color:#10b981;font-weight:700;">● FILTER FOCUS</span>' if is_sdm_focused else f'<span style="font-size:8.5px;color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:1px 4px;border-radius:2px;">{t2_badge_label}</span>'
+            card_esc_t2 = (
+                f'<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:3px;{t2_border}">'
+                '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#f59e0b;width:42px;">TIER 2</span>'
+                '<div style="min-width:0;flex:1;">'
+                f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t2_name)}</div>'
+                f'<div style="font-size:8.5px;color:var(--slate);">{escape(t2_title)} &bull; SLA: &le;30 mins</div>'
+                f'</div>{t2_badge}</div>'
+            )
+            # Tier 3
+            card_esc_t3 = (
+                '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#141619;border-radius:3px;border-left:3px solid #ef4444;">'
+                '<span style="font-size:9px;font-weight:800;font-family:var(--mono);color:#ef4444;width:42px;">TIER 3</span>'
+                '<div style="min-width:0;flex:1;">'
+                f'<div style="font-size:10.5px;font-weight:700;color:var(--ink);">{escape(t3_name)}</div>'
+                f'<div style="font-size:8.5px;color:var(--slate);">{escape(t3_title)} &bull; Executive Escalation</div>'
+                '</div><span style="font-size:8.5px;color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:1px 4px;border-radius:2px;">Director</span></div>'
+            )
+
+            card_esc = (
+                '<div style="background:#181b1f;border:1px solid #22252b;border-radius:3px;padding:8px 10px;margin-bottom:8px;">'
+                '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">'
+                '<span>3-Tier Escalation Hierarchy</span>'
+                '<span style="font-size:8px;color:#10b981;font-weight:600;">● Active Lineage</span>'
                 '</div>'
-                f'<div style="display:flex;align-items:center;justify-content:space-between;overflow-x:auto;gap:4px;">{sched_chips}</div>'
+                f'<div style="display:flex;flex-direction:column;gap:5px;">{card_esc_t1}{card_esc_t2}{card_esc_t3}</div>'
                 '</div>'
             )
-            st.markdown(card_weekly, unsafe_allow_html=True)
-        elif matching_shifts:
-            active_dates = sorted(list(set((s.get('day_name', 'Day')[:3], s.get('shift_date', '')) for s in matching_shifts)), key=lambda x: x[1])
-            today_bull = " <b style='color:#f59e0b;'>&bull;</b>"
-            dom_chips = "".join(
-                f"<div style='text-align:center;padding:3px 6px;border-radius:3px;"
-                f"{'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);' if d[1] == today_str else 'background:#141619;border:1px solid #22252b;'}' title='On-Call on {d[1]}'>"
-                f"<div style='font-size:8.5px;color:var(--mute);'>{d[0]}{today_bull if d[1] == today_str else ''}</div>"
-                f"<div style='margin-top:2px;'><span class='shift-badge-m'>ON-CALL</span></div></div>"
-                for d in active_dates
-            )
-            card_weekly = (
-                '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 10px;margin-bottom:8px;">'
-                '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:4px;display:flex;justify-content:space-between;">'
-                '<span>Weekly Rotation Schedule</span>'
-                f'<span style="color:var(--mute);font-size:8.5px;">{len(active_dates)} Days Assigned</span>'
-                '</div>'
-                f'<div style="display:flex;align-items:center;justify-content:flex-start;overflow-x:auto;gap:6px;">{dom_chips}</div>'
-                '</div>'
-            )
-            st.markdown(card_weekly, unsafe_allow_html=True)
-        else:
-            st.markdown(
-                '<div style="background:#141619;border:1px dashed #2c3235;border-radius:3px;padding:10px;text-align:center;color:var(--mute);font-size:10px;margin-bottom:8px;">'
-                'Resource assigned to domain shift rotations. See Master pane for shift hours.'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(card_esc, unsafe_allow_html=True)
 
-        # 5. Quick Dispatch Actions & 1-Click Clipboard Ready Block
-        act_c1, act_c2 = st.columns(2)
-        with act_c1:
-            if st.button("📧 Dispatch Notice", key=f"oncall_disp_btn_{sel_name}", type="primary", use_container_width=True):
-                st.success(f"✓ Dispatch notice queued to {sel_name} and {t1_name} ({t1_title}).")
-        with act_c2:
-            copy_clicked = st.button("📋 Copy Escalation", key=f"oncall_copy_btn_{sel_name}", type="secondary", use_container_width=True)
-            if copy_clicked:
-                ss["oncall_copy_target"] = sel_name if ss.get("oncall_copy_target") != sel_name else None
+            # 4. Weekly Schedule Strip for this Engineer
+            if matching_ps:
+                today_bull = " <b style='color:#f59e0b;'>&bull;</b>"
+                sched_chips = "".join(
+                    f"<div style='text-align:center;padding:2px 4px;border-radius:3px;"
+                    f"{'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);' if p['shift_date'] == today_str else ''}'>"
+                    f"<div style='font-size:8.5px;color:var(--mute);'>{p['day_name'][:3]}"
+                    f"{today_bull if p['shift_date'] == today_str else ''}</div>"
+                    f"<div style='margin-top:2px;'>{ui.on_call_status_chip(p['shift_window'])}</div></div>"
+                    for p in matching_ps
+                )
+                card_weekly = (
+                    '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 10px;margin-bottom:8px;">'
+                    '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:4px;display:flex;justify-content:space-between;">'
+                    '<span>Weekly Schedule Horizon</span>'
+                    f'<span style="color:var(--mute);font-size:8.5px;">Today: {today_str}</span>'
+                    '</div>'
+                    f'<div style="display:flex;align-items:center;justify-content:space-between;overflow-x:auto;gap:4px;">{sched_chips}</div>'
+                    '</div>'
+                )
+                st.markdown(card_weekly, unsafe_allow_html=True)
+            elif matching_shifts:
+                active_dates = sorted(list(set((s.get('day_name', 'Day')[:3], s.get('shift_date', '')) for s in matching_shifts)), key=lambda x: x[1])
+                today_bull = " <b style='color:#f59e0b;'>&bull;</b>"
+                dom_chips = "".join(
+                    f"<div style='text-align:center;padding:3px 6px;border-radius:3px;"
+                    f"{'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);' if d[1] == today_str else 'background:#141619;border:1px solid #22252b;'}' title='On-Call on {d[1]}'>"
+                    f"<div style='font-size:8.5px;color:var(--mute);'>{d[0]}{today_bull if d[1] == today_str else ''}</div>"
+                    f"<div style='margin-top:2px;'><span class='shift-badge-m'>ON-CALL</span></div></div>"
+                    for d in active_dates
+                )
+                card_weekly = (
+                    '<div style="background:#141619;border:1px solid #22252b;border-radius:3px;padding:6px 10px;margin-bottom:8px;">'
+                    '<div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:4px;display:flex;justify-content:space-between;">'
+                    '<span>Weekly Rotation Schedule</span>'
+                    f'<span style="color:var(--mute);font-size:8.5px;">{len(active_dates)} Days Assigned</span>'
+                    '</div>'
+                    f'<div style="display:flex;align-items:center;justify-content:flex-start;overflow-x:auto;gap:6px;">{dom_chips}</div>'
+                    '</div>'
+                )
+                st.markdown(card_weekly, unsafe_allow_html=True)
+            else:
+                st.markdown(
+                    '<div style="background:#141619;border:1px dashed #2c3235;border-radius:3px;padding:10px;text-align:center;color:var(--mute);font-size:10px;margin-bottom:8px;">'
+                    'Resource assigned to domain shift rotations. See Master pane for shift hours.'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
 
-        if ss.get("oncall_copy_target") == sel_name:
-            copy_txt = (
-                f"[ON-CALL ESCALATION] — {sel_name} ({eng_div} · {eng_domain})\n"
-                f"• Scheduled Shift: {t_ist}\n"
-                f"• Tier 1 ({t1_badge_label}, ≤15m): {t1_name} ({t1_title})\n"
-                f"• Tier 2 (SDM Lead, ≤30m): {t2_name} ({t2_title})\n"
-                f"• Tier 3 (Executive Escalation): {t3_name} ({t3_title})"
-            )
-            st.code(copy_txt, language="text")
+            # 5. Quick Dispatch Actions & 1-Click Clipboard Ready Block
+            act_c1, act_c2 = st.columns(2)
+            with act_c1:
+                if st.button("📧 Dispatch Notice", key=f"oncall_disp_btn_{sel_name}", type="primary", use_container_width=True):
+                    st.success(f"✓ Dispatch notice queued to {sel_name} and {t1_name} ({t1_title}).")
+            with act_c2:
+                copy_clicked = st.button("📋 Copy Escalation", key=f"oncall_copy_btn_{sel_name}", type="secondary", use_container_width=True)
+                if copy_clicked:
+                    ss["oncall_copy_target"] = sel_name if ss.get("oncall_copy_target") != sel_name else None
 
-        st.markdown("""
-        <div style="background:#141619;border:1px solid #2c3235;border-radius:3px;padding:8px 10px;margin-top:8px;">
-          <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
-            <span>🛡️ Incident Response &amp; Handover Protocols</span>
-            <span style="color:#10b981;font-weight:700;">ACTIVE ROTATION</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;">
-            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-              <span style="color:#38bdf8;font-weight:700;">T1 Ack SLA:</span> <span style="color:var(--text);">&le; 15 mins</span>
-              <div style="font-size:9px;color:var(--mute);margin-top:2px;">Primary responder initial triage</div>
+            if ss.get("oncall_copy_target") == sel_name:
+                copy_txt = (
+                    f"[ON-CALL ESCALATION] — {sel_name} ({eng_div} · {eng_domain})\n"
+                    f"• Scheduled Shift: {t_ist}\n"
+                    f"• Tier 1 ({t1_badge_label}, ≤15m): {t1_name} ({t1_title})\n"
+                    f"• Tier 2 (SDM Lead, ≤30m): {t2_name} ({t2_title})\n"
+                    f"• Tier 3 (Executive Escalation): {t3_name} ({t3_title})"
+                )
+                st.code(copy_txt, language="text")
+
+            st.markdown("""
+            <div style="background:#141619;border:1px solid #2c3235;border-radius:3px;padding:8px 10px;margin-top:8px;">
+              <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--slate);letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
+                <span>🛡️ Incident Response &amp; Handover Protocols</span>
+                <span style="color:#10b981;font-weight:700;">ACTIVE ROTATION</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;">
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                  <span style="color:#38bdf8;font-weight:700;">T1 Ack SLA:</span> <span style="color:var(--text);">&le; 15 mins</span>
+                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">Primary responder initial triage</div>
+                </div>
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                  <span style="color:#f59e0b;font-weight:700;">T2 SDM SLA:</span> <span style="color:var(--text);">&le; 30 mins</span>
+                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">Service delivery manager escalation</div>
+                </div>
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                  <span style="color:#f2495c;font-weight:700;">T3 Exec SLA:</span> <span style="color:var(--text);">&le; 45 mins</span>
+                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">Director / VP outage briefing</div>
+                </div>
+                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                  <span style="color:#10b981;font-weight:700;">Bridge Sync:</span> <span style="color:var(--text);">MS Teams Incident</span>
+                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">War-room audio bridge active</div>
+                </div>
+              </div>
             </div>
-            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-              <span style="color:#f59e0b;font-weight:700;">T2 SDM SLA:</span> <span style="color:var(--text);">&le; 30 mins</span>
-              <div style="font-size:9px;color:var(--mute);margin-top:2px;">Service delivery manager escalation</div>
-            </div>
-            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-              <span style="color:#f2495c;font-weight:700;">T3 Exec SLA:</span> <span style="color:var(--text);">&le; 45 mins</span>
-              <div style="font-size:9px;color:var(--mute);margin-top:2px;">Director / VP outage briefing</div>
-            </div>
-            <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-              <span style="color:#10b981;font-weight:700;">Bridge Sync:</span> <span style="color:var(--text);">MS Teams Incident</span>
-              <div style="font-size:9px;color:var(--mute);margin-top:2px;">War-room audio bridge active</div>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
