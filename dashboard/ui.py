@@ -417,8 +417,33 @@ div[data-testid="stMarkdownContainer"] > *:last-child {{
   border: 1px solid #2c3235 !important;
   background: #141619 !important;
   border-radius: 4px !important;
-  padding: 6px 6px !important;
+  padding: 4px 6px !important;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #38bdf8 #181b1f !important;
+}}
+
+/* Clear, high-contrast internal scrollbar for Grid & Tree containers */
+.st-key-op_grid_box::-webkit-scrollbar,
+.st-key-op_tree_box::-webkit-scrollbar {{
+  width: 8px !important;
+  height: 8px !important;
+  display: block !important;
+}}
+.st-key-op_grid_box::-webkit-scrollbar-track,
+.st-key-op_tree_box::-webkit-scrollbar-track {{
+  background: #181b1f !important;
+  border-left: 1px solid #2c3235 !important;
+}}
+.st-key-op_grid_box::-webkit-scrollbar-thumb,
+.st-key-op_tree_box::-webkit-scrollbar-thumb {{
+  background: #38bdf8 !important;
+  border-radius: 4px !important;
+  border: 1px solid #0284c7 !important;
+}}
+.st-key-op_grid_box::-webkit-scrollbar-thumb:hover,
+.st-key-op_tree_box::-webkit-scrollbar-thumb:hover {{
+  background: #60a5fa !important;
 }}
 
 .st-key-op_grid_box [data-testid="stVerticalBlock"],
@@ -428,9 +453,9 @@ div[data-testid="stMarkdownContainer"] > *:last-child {{
 
 .st-key-op_grid_box button,
 .st-key-op_tree_box button {{
-  min-height: 28px !important;
-  height: 28px !important;
-  padding: 2px 6px !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  padding: 1px 6px !important;
   font-size: 11px !important;
 }}
 

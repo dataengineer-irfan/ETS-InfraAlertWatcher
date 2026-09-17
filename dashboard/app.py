@@ -1188,7 +1188,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
 
             # Clean box with borders and internal scroll
-            with st.container(height=340, border=True, key="op_grid_box"):
+            with st.container(height=265, border=True, key="op_grid_box"):
                 page_records = pg_work.iloc[cur_page * PAGE_SIZE : (cur_page + 1) * PAGE_SIZE]
                 for r in page_records.itertuples():
                     is_act = (r.id == selected_id)
@@ -1331,7 +1331,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
 
             # Hierarchical Matrix Tree inside a clean, bordered, scrollable box
-            with st.container(height=340, border=True, key="op_tree_box"):
+            with st.container(height=265, border=True, key="op_tree_box"):
                 for st_val in filtered["state"].unique():
                     st_sub = filtered[filtered["state"] == st_val]
                     st_path = str(st_val)
@@ -1551,39 +1551,39 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     )
 
             panel_scope_lbl = f"{len(selected_entity_ids)} Selected Entities" if selected_entity_ids else "Selected Scope"
-            st.markdown(f"""
-            <div class="panel" style="margin-top:8px;">
-              <div class="panel-head"><span class="panel-title">Severity by Component — {panel_scope_lbl}</span><span class="panel-menu">⋮</span></div>
-              <div class="dist-body">
-                {''.join(dist_rows)}
-              </div>
-            </div>
+            with st.expander(f"📊 Severity by Component & Fleet SLA ({panel_scope_lbl})", expanded=False):
+                st.markdown(f"""
+                <div class="panel" style="margin-top:2px;border:none;background:transparent;padding:0;">
+                  <div class="dist-body" style="padding:4px 0;">
+                    {''.join(dist_rows)}
+                  </div>
+                </div>
 
-            <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px 10px;margin-top:8px;">
-              <div style="font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;justify-content:space-between;">
-                <span>🛡️ Fleet SLA Compliance &amp; Asset Integrity</span>
-                <span style="color:#10b981;font-weight:700;">100% INVENTORY SYNC</span>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;">
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                  <span style="color:#10b981;font-weight:700;">PROD Resiliency:</span> <span style="color:var(--text);">100% (0 Breaches)</span>
-                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">Production SLA intact across states</div>
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;margin-top:4px;">
+                  <div style="font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;display:flex;justify-content:space-between;">
+                    <span>🛡️ Fleet SLA Compliance &amp; Asset Integrity</span>
+                    <span style="color:#10b981;font-weight:700;">100% INVENTORY SYNC</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:9.5px;">
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
+                      <span style="color:#10b981;font-weight:700;">PROD Resiliency:</span> <span style="color:var(--text);">100%</span>
+                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">0 breaches</div>
+                    </div>
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
+                      <span style="color:#38bdf8;font-weight:700;">Fleet Scope:</span> <span style="color:var(--text);">{len(df)} Assets</span>
+                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">AK, ND, NH</div>
+                    </div>
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
+                      <span style="color:#ff9830;font-weight:700;">Governance Leads:</span> <span style="color:var(--text);">5 Teams</span>
+                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">Assigned</div>
+                    </div>
+                    <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:4px 6px;">
+                      <span style="color:#73bf69;font-weight:700;">Batch Console:</span> <span style="color:var(--text);">Ready</span>
+                      <div style="font-size:8.5px;color:var(--mute);margin-top:1px;">Active</div>
+                    </div>
+                  </div>
                 </div>
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                  <span style="color:#38bdf8;font-weight:700;">Fleet Scope:</span> <span style="color:var(--text);">{len(df)} Managed Assets</span>
-                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">AK, ND, NH enterprise inventory</div>
-                </div>
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                  <span style="color:#ff9830;font-weight:700;">Governance Leads:</span> <span style="color:var(--text);">5 Teams Assigned</span>
-                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">Core, Letters, Cognos, Infa, AppSrv</div>
-                </div>
-                <div style="background:#181b1f;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                  <span style="color:#73bf69;font-weight:700;">Batch Console:</span> <span style="color:var(--text);">Active &amp; Ready</span>
-                  <div style="font-size:9px;color:var(--mute);margin-top:2px;">Multi-entity renewal available</div>
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
     with right_col:
         if selected_id is None:

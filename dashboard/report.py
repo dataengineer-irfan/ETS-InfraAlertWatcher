@@ -2303,9 +2303,22 @@ function renderTriageDeck(S, rs){
   // 2. Identify Top 3 Action Triage Clusters
   const clusters = [];
 
+  // Helper to extract dominant state, component, and team from an item array
+  function getClusterMeta(items) {
+    if (!items || !items.length) return { state: S.state || "Fleet", comp: "Core", team: "Core" };
+    const sorted = [...items].sort((a, b) => a.days - b.days);
+    const top = sorted[0];
+    return {
+      state: top.state,
+      comp: top.component,
+      team: top.team || "Core"
+    };
+  }
+
   // Cluster 1: Overdue Debt
   const expItems = rs.filter(r => r.days < 0);
   if (expItems.length > 0){
+    const meta = getClusterMeta(expItems);
     const drCnt = expItems.filter(r => r.environment === "DR").length;
     const moCnt = expItems.filter(r => r.environment === "MO").length;
     const othCnt = expItems.length - (drCnt + moCnt);
@@ -2315,45 +2328,47 @@ function renderTriageDeck(S, rs){
       badge: "OVERDUE DEBT",
       badgeBg: "rgba(239,68,68,0.2)",
       badgeColor: "var(--critical)",
-      title: "State ND · Software Versions & N-1 (Core)",
+      title: "State " + meta.state + " · " + (CODE[meta.comp] || meta.comp) + " (" + meta.team + ")",
       detail: expItems.length + " Overdue Credentials (" + scopeStr + ")",
       action: "PROD SLA 100% Intact · Non-Prod Rotation Scheduled",
-      state: "ND",
-      comp: "Software Versions & N-1 Tracking"
+      state: meta.state,
+      comp: meta.comp
     });
   }
 
   // Cluster 2: Imminent Critical Cutoff (<=15d)
   const critItems = rs.filter(r => r.days >= 0 && r.days <= 15);
   if (critItems.length > 0){
+    const meta = getClusterMeta(critItems);
     const soonestDays = Math.min(...critItems.map(r => r.days));
     clusters.push({
       type: "urgent",
       badge: "IMMINENT CUTOFF",
       badgeBg: "rgba(249,115,22,0.2)",
       badgeColor: "var(--critical)",
-      title: "State AK · Database Passwords (DBA)",
+      title: "State " + meta.state + " · " + (CODE[meta.comp] || meta.comp) + " (" + meta.team + ")",
       detail: critItems.length + " Service Accounts expire in " + soonestDays + " days",
-      action: "Scheduled DBA Rotation Window Active",
-      state: "AK",
-      comp: "Database Password Expiry"
+      action: "Scheduled " + meta.team + " Rotation Window Active",
+      state: meta.state,
+      comp: meta.comp
     });
   }
 
   // Cluster 3: Warning Horizon (<=30d)
   const warnItems = rs.filter(r => r.days > 15 && r.days <= 30);
   if (warnItems.length > 0){
+    const meta = getClusterMeta(warnItems);
     const soonestWarn = Math.min(...warnItems.map(r => r.days));
     clusters.push({
       type: "notice",
       badge: "WARNING HORIZON",
       badgeBg: "rgba(245,158,11,0.2)",
       badgeColor: "var(--warning)",
-      title: "State NH · Crypto Keys & CA Certs",
+      title: "State " + meta.state + " · " + (CODE[meta.comp] || meta.comp) + " (" + meta.team + ")",
       detail: warnItems.length + " Certificates expire in " + soonestWarn + " days",
-      action: "Automated PKI Reissue Ticket Dispatched",
-      state: "NH",
-      comp: "Crypto Keys & CA Certificates"
+      action: "Automated " + meta.team + " Renewal Ticket Dispatched",
+      state: meta.state,
+      comp: meta.comp
     });
   }
 

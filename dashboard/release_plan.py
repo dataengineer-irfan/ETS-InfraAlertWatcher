@@ -331,72 +331,9 @@ def render_release_plan_workspace(db_path: str) -> None:
     avg_readiness = (sum(r.get("readiness_pct", 0) for r in monitored_pool) / len(monitored_pool)) if monitored_pool else 100.0
 
     # --------------------------------------------------------------------------
-    # 4. Strict Grafana Metric Ribbon (ui.grafana_stat_card)
+    # 4. Strict Grafana Metric Ribbon — Removed per UX direction to enlarge 3 Releases
     # --------------------------------------------------------------------------
-    kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
 
-    cur_label = curr_r["release_id"] if curr_r else "None"
-    cur_dev_s = curr_r.get("dev_start_date", "—") if curr_r else "—"
-    cur_dev_e = curr_r.get("dev_end_date", "—") if curr_r else "—"
-    cur_date = curr_r.get("prod_deploy_date", "—") if curr_r else "—"
-    cur_state = curr_r.get("state", "") if curr_r else ""
-
-    days_to_dev_freeze = 0
-    try:
-        days_to_dev_freeze = (datetime.strptime(cur_dev_e, "%Y-%m-%d").date() - datetime.strptime(now_iso, "%Y-%m-%d").date()).days
-    except Exception:
-        pass
-
-    with kpi_col1:
-        st.markdown(ui.grafana_stat_card(
-            label="Active Dev Target",
-            value=cur_label,
-            color="#38bdf8",
-            subtext=f"DEV: {cur_dev_s} → {cur_dev_e} · {cur_state} MMIS",
-            badge=f"D-{days_to_dev_freeze} DEV FREEZE" if days_to_dev_freeze > 0 else ("DEV FREEZE TODAY" if days_to_dev_freeze == 0 else "DEV PASSED"),
-            sparkline_vals=[60, 75, 85, 90, 95],
-            delta=f"Cutover: {cur_date}",
-            state="ok",
-        ), unsafe_allow_html=True)
-
-    with kpi_col2:
-        st.markdown(ui.grafana_stat_card(
-            label="Active In-Flight Pipeline",
-            value=f"{active_count} Active",
-            color="#5794f2",
-            subtext=f"{uat_count} in UAT · {sit_count} in SIT · {dev_count} in DEV",
-            badge="LIVE TESTING",
-            sparkline_vals=[dev_count, sit_count, uat_count, active_count],
-            delta="DEV➔SIT➔UAT Flow",
-            state="ok",
-        ), unsafe_allow_html=True)
-
-    with kpi_col3:
-        next_dev = next_r.get("dev_start_date", "—") if next_r else "—"
-        next_date = next_r.get("prod_deploy_date", "—") if next_r else "—"
-        next_label = next_r.get("release_id", "None") if next_r else "None"
-        st.markdown(ui.grafana_stat_card(
-            label="Scheduled Roadmap",
-            value=f"{upcoming_count} Planned",
-            color="#73bf69",
-            subtext=f"Next: {next_label} (DEV: {next_dev})",
-            badge="ROADMAP",
-            sparkline_vals=[upcoming_count, max(0, upcoming_count - 1), upcoming_count],
-            delta=f"Cutover: {next_date}",
-            state="ok",
-        ), unsafe_allow_html=True)
-
-    with kpi_col4:
-        st.markdown(ui.grafana_stat_card(
-            label="Pipeline Gate Readiness",
-            value=f"{avg_readiness:.0f}%",
-            color="#73bf69" if avg_readiness >= 80 else "#ff9830",
-            subtext=f"{len(monitored_pool)} release gates monitored",
-            badge="ON SCHEDULE" if avg_readiness >= 80 else "ATTENTION",
-            donut_pct=avg_readiness,
-            delta="✓ Gate Exit Score",
-            state="ok" if avg_readiness >= 80 else "pending",
-        ), unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
     # 5. RELEASE CUTOFF ALERT STRIP (Compact Ticker)
@@ -626,42 +563,42 @@ def render_release_plan_workspace(db_path: str) -> None:
         s_prd = _fmt_md(pd_date)
 
         card_html = f'''
-        <div class="story-deck" style="background:#181b1f;{active_border}{card_opacity}border-radius:2px;padding:4px 8px;min-height:72px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+        <div class="story-deck" style="background:#181b1f;{active_border}{card_opacity}border-radius:3px;padding:8px 12px;min-height:108px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-              <span style="font-size:13px;font-weight:700;color:#d8d9da;font-family:var(--mono);">{st_c}.{c_rid}</span>
-              <span style="font-size:9px;color:#9fa7b3;margin-left:4px;">{state_mmis} Scope</span>
+              <span style="font-size:15px;font-weight:800;color:#f8fafc;font-family:var(--mono);">{st_c}.{c_rid}</span>
+              <span style="font-size:10.5px;color:#94a3b8;margin-left:6px;font-weight:500;">{state_mmis} Scope</span>
             </div>
             <div style="display:flex;align-items:center;">
               {badge_html}
             </div>
           </div>
 
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:1px;">
-            <div style="font-size:10px;color:#9fa7b3;">Gate: <b style="color:#8fb8f8;font-size:11px;">{readiness:.0f}%</b></div>
-            <div style="font-size:9px;color:#6e7681;">DEV: <span style="font-family:var(--mono);color:#d8d9da;font-weight:600;">{dev_s} &rarr; {dev_f}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 2px 0;">
+            <div style="font-size:11px;color:#94a3b8;">Gate Readiness: <b style="color:#38bdf8;font-size:12.5px;font-family:var(--mono);">{readiness:.0f}%</b></div>
+            <div style="font-size:10px;color:#94a3b8;">DEV: <span style="font-family:var(--mono);color:#f1f5f9;font-weight:600;">{dev_s} &rarr; {dev_f}</span></div>
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:3px;">
-            <div style="background:#212429;border-radius:2px;padding:2px 2px;text-align:center;" title="DEV Freeze: {dev_f}">
-              <div style="font-size:8px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Dev</div>
-              <div style="font-size:10px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_dev}</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:4px;">
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="DEV Freeze: {dev_f}">
+              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Dev</div>
+              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_dev}</div>
             </div>
-            <div style="background:#212429;border-radius:2px;padding:2px 2px;text-align:center;" title="SIT Gate: {sit_f}">
-              <div style="font-size:8px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Sit</div>
-              <div style="font-size:10px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_sit}</div>
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="SIT Gate: {sit_f}">
+              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Sit</div>
+              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_sit}</div>
             </div>
-            <div style="background:#212429;border-radius:2px;padding:2px 2px;text-align:center;border:1px solid rgba(87,148,242,0.25);" title="Regression Gate: {reg_f}">
-              <div style="font-size:8px;color:#8fb8f8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">Regress</div>
-              <div style="font-size:10px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_reg}</div>
+            <div style="background:#212429;border-radius:2px;padding:4px 2px;text-align:center;border:1px solid rgba(56,189,248,0.35);background:rgba(56,189,248,0.06);" title="Regression Gate: {reg_f}">
+              <div style="font-size:8.5px;color:#38bdf8;text-transform:uppercase;letter-spacing:0.03em;font-weight:700;">Regress</div>
+              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_reg}</div>
             </div>
-            <div style="background:#212429;border-radius:2px;padding:2px 2px;text-align:center;" title="UAT Gate: {uat_f}">
-              <div style="font-size:8px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Uat</div>
-              <div style="font-size:10px;font-weight:600;margin-top:1px;font-family:var(--mono);color:#d8d9da;">{s_uat}</div>
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="UAT Gate: {uat_f}">
+              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Uat</div>
+              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_uat}</div>
             </div>
-            <div style="background:#212429;border-radius:2px;padding:2px 2px;text-align:center;" title="PROD Cutover: {pd_date}">
-              <div style="font-size:8px;color:#6e7681;text-transform:uppercase;letter-spacing:0.02em;">Prod</div>
-              <div style="font-size:10px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#8fb8f8;">{s_prd}</div>
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="PROD Cutover: {pd_date}">
+              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Prod</div>
+              <div style="font-size:11px;font-weight:800;margin-top:1px;font-family:var(--mono);color:#38bdf8;">{s_prd}</div>
             </div>
           </div>
         </div>
@@ -671,16 +608,16 @@ def render_release_plan_workspace(db_path: str) -> None:
     st.markdown('''
     <style>
     div[class*="st-key-btn_card_"] button {
-        height: 22px !important;
-        min-height: 22px !important;
-        padding: 0 6px !important;
-        font-size: 10px !important;
+        height: 26px !important;
+        min-height: 26px !important;
+        padding: 0 8px !important;
+        font-size: 11px !important;
         font-weight: 700 !important;
         font-family: var(--mono) !important;
-        margin-top: 2px !important;
+        margin-top: 3px !important;
         margin-bottom: 2px !important;
-        border-radius: 2px !important;
-        line-height: 20px !important;
+        border-radius: 3px !important;
+        line-height: 24px !important;
     }
     div[class*="st-key-btn_card_"] button[data-testid*="stBaseButton-primary"],
     div[class*="st-key-btn_card_"] button[kind="primary"] {
