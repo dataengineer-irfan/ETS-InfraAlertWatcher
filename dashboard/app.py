@@ -844,57 +844,48 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             pass
         del st.query_params["op_act_id"]
 
+    qp_subtab = st.query_params.get("op_subtab")
+    if qp_subtab:
+        if qp_subtab == "insp":
+            st.session_state["op_target_tab"] = "🔍 Entity Detail Inspector"
+        elif qp_subtab == "batch":
+            st.session_state["op_target_tab"] = "⚡ Batch Grid Editor"
+        elif qp_subtab == "tree":
+            st.session_state["op_target_tab"] = "🌳 Hierarchy Tree Explorer"
+        elif qp_subtab == "rev":
+            st.session_state["op_target_tab"] = "↩️ Rollback Ledger"
+        del st.query_params["op_subtab"]
+
     active_scope = st.session_state.get("_override_canvas_state")
     op_st_key = f"op_state_{reset_idx}"
     if active_scope and active_scope in STATES and op_st_key not in st.session_state:
         st.session_state[op_st_key] = active_scope
 
-    # Universal Executive Header
-    h_col1, h_col2 = st.columns([7.2, 2.8])
-    with h_col1:
-        st.markdown(ui.render_universal_header(
-            title="Portfolio Operations Hub",
-            subtitle="Cross-Tab Multi-Team Expiry & Asset Inventory",
-            badge_text="LIVE INVENTORY",
-            badge_color="#10b981",
-            state_scope=active_scope if active_scope in STATES else None,
-        ), unsafe_allow_html=True)
-    with h_col2:
-        btn_c1, btn_c2 = st.columns([1.2, 0.8])
-        with btn_c1:
-            st.markdown(
-                ui.csv_download_button(
-                    df=df,
-                    filename=f"expiry_operations_{date.today().isoformat()}.csv",
-                    label="📥 Export CSV",
-                    key=f"op_export_csv_{reset_idx}",
-                ),
-                unsafe_allow_html=True,
-            )
-        with btn_c2:
-            if st.button("↺ Reset", key="op_sc_reset", use_container_width=True, type="secondary"):
-                st.session_state["op_reset_idx"] = reset_idx + 1
-                st.session_state["op_kpi_filter"] = "All"
-                st.session_state["op_cell_filter"] = None
-                st.session_state["op_tree_open"] = set()
-                st.session_state["op_selected_entity_ids"] = set()
-                st.session_state["op_batch_page_no"] = 0
-                rerun()
-
-    # 1. Top Slicer Command Bar (5 clean columns)
-    f1, f2, f3, f4, f5 = st.columns([1.8, 0.9, 0.9, 1.1, 0.9])
-    q = f1.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="Search schema, env...", label_visibility="collapsed")
-    state_opts = ["All States"] + STATES
-    state_filter = f2.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
-    team_filter = f3.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
-    comp_filter = f4.selectbox(
-        "Component",
-        ["All Components"] + COMPONENT_ORDER,
-        key=f"op_comp_{reset_idx}",
-        label_visibility="collapsed",
-        format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
+    # --------------------------------------------------------------------------
+    # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | 5 Slicers | Telemetry & Actions)
+    # --------------------------------------------------------------------------
+    c_brand, c_f1, c_f2, c_f3, c_f4, c_f5, c_acts = st.columns(
+        [2.1, 1.6, 0.95, 0.95, 1.15, 0.95, 2.3],
+        gap="small"
     )
-    health_filter = f5.selectbox("Health", ["All Health"] + ui.BANDS, key=f"op_health_{reset_idx}", label_visibility="collapsed")
+
+    with c_f1:
+        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search...", label_visibility="collapsed")
+    with c_f2:
+        state_opts = ["All States"] + STATES
+        state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
+    with c_f3:
+        team_filter = st.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
+    with c_f4:
+        comp_filter = st.selectbox(
+            "Component",
+            ["All Components"] + COMPONENT_ORDER,
+            key=f"op_comp_{reset_idx}",
+            label_visibility="collapsed",
+            format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
+        )
+    with c_f5:
+        health_filter = st.selectbox("Health", ["All Health"] + ui.BANDS, key=f"op_health_{reset_idx}", label_visibility="collapsed")
 
     filtered = df.copy()
     if q:
@@ -924,7 +915,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     filtered = filtered.sort_values("days_left")
 
-    # Scope Determination
+    # Scope & Telemetry Determination
     is_scoped = (
         bool(q) or
         state_filter != "All States" or
@@ -937,55 +928,60 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         len(selected_entity_ids) > 0
     )
 
-    # 2. Scope Ribbon (Ultra-thin 18px single-line telemetry)
-    scope_parts = []
-    if cell_filter:
-        c_st, c_cp = cell_filter
-        scope_parts.append(f"{c_st} × {ui.COMPONENT_CODE.get(c_cp, c_cp) if c_cp else 'All'}")
-    if state_filter != "All States": scope_parts.append(f"State {state_filter}")
-    if team_filter != "All Teams": scope_parts.append(f"Team {team_filter}")
-    if comp_filter != "All Components": scope_parts.append(ui.COMPONENT_CODE.get(comp_filter, comp_filter))
-    if health_filter != "All Health": scope_parts.append(f"Health: {health_filter}")
-    elif cur_kpi != "All": scope_parts.append(f"KPI: {cur_kpi}")
-    if q: scope_parts.append(f'"{q}"')
-    if len(tree_open) > 0: scope_parts.append(f"{len(tree_open)} {'branch' if len(tree_open) == 1 else 'branches'} drilled")
-    if len(selected_entity_ids) > 0: scope_parts.append(f"{len(selected_entity_ids)} entity batch")
-
-    scope_name = "All Teams & Portfolios" if not scope_parts else " · ".join(scope_parts)
-    _utc_now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+    _utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
 
     # Production SLA Exposure & Operational Debt Breakdown
     sc_prod_exp = int(((filtered["days_left"] < 0) & (filtered["env_label"] == "PROD")).sum())
     sc_dr_exp = int(((filtered["days_left"] < 0) & (filtered["env_label"] == "DR")).sum())
     sc_mo_exp = int(((filtered["days_left"] < 0) & (filtered["env_label"] == "MO")).sum())
-    sc_oth_exp = int(((filtered["days_left"] < 0) & (~filtered["env_label"].isin(["PROD", "DR", "MO"]))).sum())
 
     if sc_prod_exp == 0:
-        sla_callout = '<span style="font-size:9px;font-weight:700;background:rgba(115,191,105,0.16);color:#73bf69;border:1px solid rgba(115,191,105,0.3);padding:1px 6px;border-radius:2px;">🛡️ PROD SLA: 100% RESILIENT (0 Breaches)</span>'
+        sla_callout = '<span style="font-size:8px;font-weight:700;background:rgba(115,191,105,0.16);color:#73bf69;border:1px solid rgba(115,191,105,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">🛡️ PROD 100%</span>'
     else:
-        sla_callout = f'<span style="font-size:9px;font-weight:700;background:rgba(242,73,92,0.18);color:#f2495c;border:1px solid rgba(242,73,92,0.4);padding:1px 6px;border-radius:2px;">⚠️ PROD SLA BREACH: {sc_prod_exp} Overdue</span>'
+        sla_callout = f'<span style="font-size:8px;font-weight:700;background:rgba(242,73,92,0.18);color:#f2495c;border:1px solid rgba(242,73,92,0.4);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">⚠️ PROD: {sc_prod_exp} Overdue</span>'
 
-    debt_sub = []
-    if sc_dr_exp > 0: debt_sub.append(f"{sc_dr_exp} DR")
-    if sc_mo_exp > 0: debt_sub.append(f"{sc_mo_exp} MO")
-    if sc_oth_exp > 0: debt_sub.append(f"{sc_oth_exp} Other")
-    debt_callout = f'<span style="font-size:9px;color:var(--warning);font-weight:600;">(Overdue Debt: {" · ".join(debt_sub)})</span>' if debt_sub else '<span style="font-size:9px;color:var(--healthy);font-weight:600;">(Debt Free)</span>'
+    debt_cnt = sc_dr_exp + sc_mo_exp
+    debt_callout = f'<span style="font-size:8px;font-weight:700;background:rgba(255,152,48,0.15);color:#ff9830;border:1px solid rgba(255,152,48,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">⚠️ Debt: {debt_cnt}</span>' if debt_cnt > 0 else ''
 
-    st.markdown(f"""
-    <div class="scope-line" style="margin-top:2px;margin-bottom:4px;padding:4px 10px;">
-      <div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;">
-        <span class="scope-label">SCOPE</span>
-        <span class="scope-val">{scope_name}</span>
-        <span class="scope-muted">({len(filtered)} of {len(df)} total managed assets)</span>
-        {sla_callout}
-        {debt_callout}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-        <div class="live-dot"></div>
-        <span class="scope-muted" style="font-variant-numeric:tabular-nums;font-size:11px;">Live Data Sync · {_utc_now}</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with c_brand:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:6px;height:30px;padding-top:2px;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">
+            <div style="width:3px;height:18px;background:#f59e0b;border-radius:1px;flex:none;"></div>
+            <span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">OPERATIONS HUB</span>
+            <span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;">LIVE</span>
+            <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;">({len(filtered)}/{len(df)})</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_acts:
+        a_c1, a_c2, a_c3 = st.columns([1.0, 0.7, 1.7], gap="small")
+        with a_c1:
+            st.markdown(
+                ui.csv_download_button(
+                    df=filtered,
+                    filename=f"expiry_operations_{date.today().isoformat()}.csv",
+                    label="📥 CSV",
+                    key=f"op_export_csv_{reset_idx}",
+                ),
+                unsafe_allow_html=True,
+            )
+        with a_c2:
+            if st.button("↺", key="op_sc_reset", use_container_width=True, type="secondary", help="Reset all filters"):
+                st.session_state["op_reset_idx"] = reset_idx + 1
+                st.session_state["op_kpi_filter"] = "All"
+                st.session_state["op_cell_filter"] = None
+                st.session_state["op_tree_open"] = set()
+                st.session_state["op_selected_entity_ids"] = set()
+                st.session_state["op_batch_page_no"] = 0
+                rerun()
+        with a_c3:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:30px;line-height:1;">
+                {sla_callout}
+                {debt_callout}
+                <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
     # 3. Executive Metric Ribbon — Clickable Grafana stat cards (Single 48px row)
     tot_cnt = len(df)
@@ -1363,8 +1359,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: 250px;
-        max-height: 250px;
+        height: 330px;
+        max-height: 330px;
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
     }
@@ -1385,13 +1381,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     </style>
     ''', unsafe_allow_html=True)
 
-    op_tab_inv, op_tab_insp, op_tab_tree, op_tab_batch, op_tab_rev = st.tabs([
+    target_tab = st.session_state.pop("op_target_tab", None)
+    valid_subtabs = [
         "📋 Master Asset Inventory",
         "🔍 Entity Detail Inspector",
         "🌳 Hierarchy Tree Explorer",
         "⚡ Batch Grid Editor",
         "↩️ Rollback Ledger"
-    ])
+    ]
+    default_subtab = target_tab if target_tab in valid_subtabs else valid_subtabs[0]
+
+    op_tab_inv, op_tab_insp, op_tab_tree, op_tab_batch, op_tab_rev = st.tabs(
+        valid_subtabs,
+        default=default_subtab,
+        key=f"op_subtabs_bar_{reset_idx}"
+    )
 
     with op_tab_inv:
         if selected_id is not None and not cur_scope_df.empty:
@@ -1401,20 +1405,20 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             conf = st.session_state.get("confirm_action")
             cur_dt = rec["exp_dt"].date()
 
-            f_col_info, f_col_acts = st.columns([2.5, 1.5])
+            f_col_info, f_col_acts = st.columns([2.7, 1.3], gap="small")
             with f_col_info:
                 st.markdown(f"""
-                <div style="display:flex;align-items:center;gap:6px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:3px 8px;border-radius:2px;margin-bottom:3px;">
-                  <span style="font-family:var(--mono);font-size:11px;font-weight:800;color:#f8fafc;">#{rec['id']} {rec['schema_name']}</span>
-                  <span class="env-tag" style="font-size:8.5px;">{rec['env_label']}</span>
-                  <span style="font-size:9px;color:#94a3b8;">State {rec['state']} · {rec['team']} · {rec['component']}</span>
-                  <span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
-                  <span style="font-size:8.5px;color:#8fb8f8;font-family:var(--mono);">{ui.fmt_days(rec['days_left'])}</span>
+                <div style="display:flex;align-items:center;gap:6px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:24px;box-sizing:border-box;">
+                  <span style="font-family:var(--mono);font-size:10px;font-weight:800;color:#f8fafc;">🎯 #{rec['id']} {rec['schema_name']}</span>
+                  <span class="env-tag" style="font-size:8px;padding:0 3px;">{rec['env_label']}</span>
+                  <span style="font-size:8.5px;color:#94a3b8;">State {rec['state']} · {rec['team']}</span>
+                  <span style="font-size:7.5px;font-weight:700;padding:0 4px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+                  <span style="font-size:8px;color:#8fb8f8;font-family:var(--mono);">{ui.fmt_days(rec['days_left'])}</span>
                 </div>
                 """, unsafe_allow_html=True)
             with f_col_acts:
                 if conf and conf.get("id") == rec["id"]:
-                    st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:9px;color:var(--warning);font-weight:700;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
                     cf_y, cf_n = st.columns(2)
                     with cf_y:
                         if st.button("✓ Confirm", key=f"inv_cf_yes_{rec['id']}", type="primary", use_container_width=True):
@@ -1428,7 +1432,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             rerun()
                 else:
                     n_act = 4 if rec["edited"] else 3
-                    act_cols = st.columns(n_act)
+                    act_cols = st.columns(n_act, gap="small")
                     if act_cols[0].button("+90d", key=f"inv_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
                         st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
                         rerun()
@@ -1452,7 +1456,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                     rerun()
                     if rec["edited"] and len(act_cols) > 3:
                         with act_cols[3]:
-                            if st.button("↩ Rev", key=f"inv_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                            if act_cols[3].button("↩ Rev", key=f"inv_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
                                 conn = get_connection(DB_PATH)
                                 try:
                                     revert_component_exp_date(conn, int(rec["id"]))
@@ -1472,7 +1476,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             sla_badge_str = ui.sla_badge(r.env_label)
             days_str = ui.fmt_days(r.days_left)
             badge_html = f'<span style="font-size:8.5px;font-weight:700;padding:1.5px 5px;border-radius:2px;background:{r_meta["tint"]};color:{r_meta["color"]};">{r_meta["symbol"]} {r.band}</span>'
-            action_btn_html = f'<a href="?op_act_id={r.id}{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:2px;font-size:9.5px;font-weight:700;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;">Focus ↗</a>'
+            action_btn_html = f'<a href="?op_act_id={r.id}&op_subtab=insp{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:2px;font-size:9.5px;font-weight:700;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;">Inspect ↗</a>'
 
             inv_table_rows.append(f'''
             <tr style="{row_bg}">
@@ -1622,7 +1626,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 "band": rec["band"],
                 "edited_at": str(rec["edited_at"]),
             }
-            with st.expander("Technical Diagnostics & Database Query", expanded=True):
+            with st.expander("Technical Diagnostics & Database Query", expanded=False):
                 if hasattr(st, "code"):
                     st.caption("Technical Diagnostics & Database Query")
                     st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
@@ -1730,10 +1734,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             n_sel = len(selected_entity_ids)
             btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
             if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
-                st.session_state["op_target_tab"] = "batch"
+                st.session_state["op_target_tab"] = "⚡ Batch Grid Editor"
                 rerun()
 
-        with st.container(height=215, border=True, key="op_tree_box"):
+        with st.container(height=310, border=True, key="op_tree_box"):
             for st_val in filtered["state"].unique():
                 st_sub = filtered[filtered["state"] == st_val]
                 st_path = str(st_val)
@@ -1906,7 +1910,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             batch_work = filtered.copy()
 
         total_batch_n = len(batch_work)
-        b_per_page = 4
+        b_per_page = 15
         b_pages = max(1, (total_batch_n + b_per_page - 1) // b_per_page)
         b_page = st.session_state.setdefault("op_batch_page_no", 0)
         b_page = max(0, min(b_page, b_pages - 1))
@@ -1918,6 +1922,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         all_filtered_ids = set(filtered["id"].tolist())
         is_all_filtered_selected = (len(all_filtered_ids) > 0 and all_filtered_ids.issubset(selected_entity_ids))
 
+        # ── Toolbar row 1: selection + pagination ──────────────────────────────
         bg_c1, bg_c2, bg_c3, bg_c4 = st.columns([1.6, 1.3, 0.9, 0.6])
         with bg_c1:
             if selected_entity_ids:
@@ -1948,6 +1953,34 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     st.session_state["op_batch_page_no"] = 0
                     rerun()
 
+        # ── Toolbar row 2: 1-click bulk date actions ────────────────────────────
+        if not page_slice.empty:
+            bulk_c1, bulk_c2, bulk_c3, bulk_note = st.columns([0.8, 0.8, 1.1, 2.3])
+            with bulk_c1:
+                if st.button("+90d All", key="op_batch_bulk_90d", use_container_width=True, help="Extend every item on this page by 90 days"):
+                    today = pd.Timestamp.today().normalize()
+                    changes = [(int(row.id), (row.exp_dt + pd.Timedelta(days=90)).date()) for row in page_slice.itertuples()]
+                    apply_edits(changes)
+                    st.success(f"+90d applied to {len(changes)} items.")
+                    rerun()
+            with bulk_c2:
+                if st.button("+1yr All", key="op_batch_bulk_1yr", use_container_width=True, help="Extend every item on this page by 1 year"):
+                    changes = [(int(row.id), (row.exp_dt + pd.Timedelta(days=365)).date()) for row in page_slice.itertuples()]
+                    apply_edits(changes)
+                    st.success(f"+1yr applied to {len(changes)} items.")
+                    rerun()
+            with bulk_c3:
+                if hasattr(st, "popover"):
+                    with st.popover("📅 Set Common Date", use_container_width=True):
+                        c_common_dt = st.date_input("Set all to date", key="op_batch_common_dt_pick")
+                        if st.button("Apply to Page", type="primary", key="op_batch_common_dt_apply", use_container_width=True):
+                            changes = [(int(row.id), c_common_dt) for row in page_slice.itertuples()]
+                            apply_edits(changes)
+                            st.success(f"Set {len(changes)} items to {c_common_dt}.")
+                            rerun()
+            with bulk_note:
+                st.markdown(f"<div style='font-size:9.5px;color:#475569;padding-top:5px;'>Bulk actions apply to the <b>{len(page_slice)}</b> rows on this page</div>", unsafe_allow_html=True)
+
         if hasattr(st, "data_editor") and hasattr(st, "column_config") and not page_slice.empty:
             b_view = page_slice[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
             b_view["exp_dt"] = b_view["exp_dt"].dt.date
@@ -1956,7 +1989,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
             b_edited = st.data_editor(
                 b_view, key=f"op_batch_editor_p{b_page}", hide_index=True, use_container_width=True,
-                num_rows="fixed", height=min(180, 36 + len(page_slice) * 35),
+                num_rows="fixed", height=min(300, 36 + len(page_slice) * 35),
                 column_config={
                     "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width=175),
                     "env_label": st.column_config.TextColumn("Env", disabled=True, width=55),
@@ -1986,6 +2019,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         elif page_slice.empty:
             st.markdown("<div style='font-size:11px;color:#94a3b8;padding:12px 0;'>No entities selected. Select items from the tree or filters.</div>", unsafe_allow_html=True)
 
+
     with op_tab_rev:
         active_edits = df[df["edited"]].copy()
         if active_edits.empty:
@@ -1997,18 +2031,44 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             """, unsafe_allow_html=True)
         else:
             n_ovr = len(active_edits)
-            st.markdown(ui.note(f"<b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'}:"), unsafe_allow_html=True)
-            for er in active_edits.itertuples():
-                ec1, ec2 = st.columns([3, 1])
-                ec1.markdown(f"<span style='font-size:11px;'><b>{er.schema_name}</b> ({er.state}) — <code>{er.exp_date}</code></span>", unsafe_allow_html=True)
-                if ec2.button("Revert", key=f"op_rev_ledger_{er.id}", use_container_width=True):
+            rev_hdr_c1, rev_hdr_c2 = st.columns([2.5, 1.5])
+            with rev_hdr_c1:
+                st.markdown(ui.note(f"<b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'} — source dates shown below each entry:"), unsafe_allow_html=True)
+            with rev_hdr_c2:
+                if st.button(f"↩ Revert All to Source ({n_ovr})", key="op_rev_all_btn", type="primary", use_container_width=True):
                     conn = get_connection(DB_PATH)
-                    revert_component_exp_date(conn, int(er.id))
-                    conn.close()
+                    try:
+                        for er in active_edits.itertuples():
+                            revert_component_exp_date(conn, int(er.id))
+                    finally:
+                        conn.close()
                     bust_cache()
-                    st.success(f"Reverted {er.schema_name}")
+                    st.success(f"Reverted all {n_ovr} overrides to source workbook dates.")
                     rerun()
 
+            with st.container(height=280, border=True):
+                for er in active_edits.itertuples():
+                    src_dt = str(er.source_exp_date) if hasattr(er, "source_exp_date") else "—"
+                    cur_dt = str(er.exp_date)
+                    delta_days = er.days_left if hasattr(er, "days_left") else 0
+                    arrow_color = "#10b981" if delta_days > 0 else "#f2495c"
+                    ec1, ec2 = st.columns([3, 1])
+                    ec1.markdown(
+                        f"<div style='font-size:10.5px;padding:2px 0;'>"
+                        f"<b>{er.schema_name}</b> <span style='color:#64748b;font-size:9.5px;'>({er.state} · {er.team})</span><br>"
+                        f"<span style='color:#64748b;font-size:9px;'>Source: <code style='color:#94a3b8;'>{src_dt}</code>"
+                        f" <span style='color:{arrow_color};font-weight:700;'>➔</span>"
+                        f" Override: <code style='color:#38bdf8;font-weight:600;'>{cur_dt}</code></span>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+                    if ec2.button("↩ Revert", key=f"op_rev_ledger_{er.id}", use_container_width=True):
+                        conn = get_connection(DB_PATH)
+                        revert_component_exp_date(conn, int(er.id))
+                        conn.close()
+                        bust_cache()
+                        st.success(f"Reverted {er.schema_name}")
+                        rerun()
 
 
 # ==========================================================================
