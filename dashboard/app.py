@@ -864,8 +864,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     # --------------------------------------------------------------------------
     # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | 5 Slicers | Telemetry & Actions)
     # --------------------------------------------------------------------------
-    c_brand, c_f1, c_f2, c_f3, c_f4, c_f5, c_acts = st.columns(
-        [2.1, 1.6, 0.95, 0.95, 1.15, 0.95, 2.3],
+    c_brand, c_f1, c_f2, c_f3, c_f4, c_f5, c_telem, c_csv, c_reset = st.columns(
+        [1.8, 1.25, 0.85, 0.85, 0.95, 0.85, 1.7, 0.55, 0.35],
         gap="small"
     )
 
@@ -953,35 +953,35 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-    with c_acts:
-        a_c1, a_c2, a_c3 = st.columns([1.0, 0.7, 1.7], gap="small")
-        with a_c1:
-            st.markdown(
-                ui.csv_download_button(
-                    df=filtered,
-                    filename=f"expiry_operations_{date.today().isoformat()}.csv",
-                    label="📥 CSV",
-                    key=f"op_export_csv_{reset_idx}",
-                ),
-                unsafe_allow_html=True,
-            )
-        with a_c2:
-            if st.button("↺", key="op_sc_reset", use_container_width=True, type="secondary", help="Reset all filters"):
-                st.session_state["op_reset_idx"] = reset_idx + 1
-                st.session_state["op_kpi_filter"] = "All"
-                st.session_state["op_cell_filter"] = None
-                st.session_state["op_tree_open"] = set()
-                st.session_state["op_selected_entity_ids"] = set()
-                st.session_state["op_batch_page_no"] = 0
-                rerun()
-        with a_c3:
-            st.markdown(f"""
-            <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:30px;line-height:1;">
-                {sla_callout}
-                {debt_callout}
-                <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
-            </div>
-            """, unsafe_allow_html=True)
+    with c_telem:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:30px;line-height:1;box-sizing:border-box;">
+            {sla_callout}
+            {debt_callout}
+            <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_csv:
+        st.markdown(
+            ui.csv_download_button(
+                df=filtered,
+                filename=f"expiry_operations_{date.today().isoformat()}.csv",
+                label="📥 CSV",
+                key=f"op_export_csv_{reset_idx}",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    with c_reset:
+        if st.button("↺", key="op_sc_reset", use_container_width=True, type="secondary", help="Reset all filters"):
+            st.session_state["op_reset_idx"] = reset_idx + 1
+            st.session_state["op_kpi_filter"] = "All"
+            st.session_state["op_cell_filter"] = None
+            st.session_state["op_tree_open"] = set()
+            st.session_state["op_selected_entity_ids"] = set()
+            st.session_state["op_batch_page_no"] = 0
+            rerun()
 
     # 3. Executive Metric Ribbon — Clickable Grafana stat cards (Single 48px row)
     tot_cnt = len(df)
@@ -1359,8 +1359,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: 330px;
-        max-height: 330px;
+        height: 350px;
+        max-height: 350px;
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
     }
@@ -1378,93 +1378,147 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         border-radius: 3px;
         border: 1px solid #0284c7;
     }
+    div.st-key-op_workspace_subtabs_box div[data-testid="stTabs"] {
+        position: relative !important;
+    }
+    div.st-key-op_workspace_subtabs_box div[data-baseweb="tab-list"] {
+        width: fit-content !important;
+        max-width: 46% !important;
+        border-bottom: 1px solid #2c3235 !important;
+        gap: 2px !important;
+        height: 36px !important;
+    }
+    div.st-key-op_workspace_subtabs_box div[data-baseweb="tab-list"] button[role="tab"] {
+        padding: 3px 7px !important;
+        font-size: 10.5px !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+    }
+    div[class*="st-key-tab_actions_"] {
+        position: absolute !important;
+        top: 2px !important;
+        right: 0 !important;
+        width: 53% !important;
+        height: 32px !important;
+        z-index: 99 !important;
+        background: transparent !important;
+        border: none !important;
+    }
+    div[class*="st-key-tab_actions_"] div[data-testid="stHorizontalBlock"] {
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    div[class*="st-key-tab_actions_"] button {
+        padding: 2px 6px !important;
+        font-size: 9.5px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+    }
     </style>
     ''', unsafe_allow_html=True)
 
     target_tab = st.session_state.pop("op_target_tab", None)
     valid_subtabs = [
-        "📋 Master Asset Inventory",
-        "🔍 Entity Detail Inspector",
-        "🌳 Hierarchy Tree Explorer",
-        "⚡ Batch Grid Editor",
+        "📋 Master Inventory",
+        "🔍 Detail Inspector",
+        "🌳 Hierarchy Tree",
+        "⚡ Batch Grid",
         "↩️ Rollback Ledger"
     ]
+    # Backward compatibility for tab targeting
+    tab_aliases = {
+        "📋 Master Asset Inventory": "📋 Master Inventory",
+        "🔍 Entity Detail Inspector": "🔍 Detail Inspector",
+        "🌳 Hierarchy Tree Explorer": "🌳 Hierarchy Tree",
+        "⚡ Batch Grid Editor": "⚡ Batch Grid",
+        "batch": "⚡ Batch Grid",
+        "insp": "🔍 Detail Inspector",
+        "inv": "📋 Master Inventory",
+        "tree": "🌳 Hierarchy Tree",
+        "rev": "↩️ Rollback Ledger"
+    }
+    if target_tab in tab_aliases:
+        target_tab = tab_aliases[target_tab]
     default_subtab = target_tab if target_tab in valid_subtabs else valid_subtabs[0]
 
-    op_tab_inv, op_tab_insp, op_tab_tree, op_tab_batch, op_tab_rev = st.tabs(
-        valid_subtabs,
-        default=default_subtab,
-        key=f"op_subtabs_bar_{reset_idx}"
-    )
+    with st.container(key="op_workspace_subtabs_box"):
+        op_tab_inv, op_tab_insp, op_tab_tree, op_tab_batch, op_tab_rev = st.tabs(
+            valid_subtabs,
+            default=default_subtab,
+            key=f"op_subtabs_bar_{reset_idx}"
+        )
 
     with op_tab_inv:
-        if selected_id is not None and not cur_scope_df.empty:
-            rec = df[df["id"] == selected_id].iloc[0]
-            meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
-            team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
-            conf = st.session_state.get("confirm_action")
-            cur_dt = rec["exp_dt"].date()
+        with st.container(key=f"tab_actions_inv_{reset_idx}"):
+            if selected_id is not None and not cur_scope_df.empty:
+                rec = df[df["id"] == selected_id].iloc[0]
+                meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
+                team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
+                conf = st.session_state.get("confirm_action")
+                cur_dt = rec["exp_dt"].date()
 
-            f_col_info, f_col_acts = st.columns([2.7, 1.3], gap="small")
-            with f_col_info:
-                st.markdown(f"""
-                <div style="display:flex;align-items:center;gap:6px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:24px;box-sizing:border-box;">
-                  <span style="font-family:var(--mono);font-size:10px;font-weight:800;color:#f8fafc;">🎯 #{rec['id']} {rec['schema_name']}</span>
-                  <span class="env-tag" style="font-size:8px;padding:0 3px;">{rec['env_label']}</span>
-                  <span style="font-size:8.5px;color:#94a3b8;">State {rec['state']} · {rec['team']}</span>
-                  <span style="font-size:7.5px;font-weight:700;padding:0 4px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
-                  <span style="font-size:8px;color:#8fb8f8;font-family:var(--mono);">{ui.fmt_days(rec['days_left'])}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            with f_col_acts:
-                if conf and conf.get("id") == rec["id"]:
-                    st.markdown(f"<div style='font-size:9px;color:var(--warning);font-weight:700;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
-                    cf_y, cf_n = st.columns(2)
-                    with cf_y:
-                        if st.button("✓ Confirm", key=f"inv_cf_yes_{rec['id']}", type="primary", use_container_width=True):
-                            apply_edits([(conf["id"], conf["new_dt"])])
-                            del st.session_state["confirm_action"]
-                            st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
-                            rerun()
-                    with cf_n:
-                        if st.button("Cancel", key=f"inv_cf_no_{rec['id']}", use_container_width=True):
-                            del st.session_state["confirm_action"]
-                            rerun()
-                else:
-                    n_act = 4 if rec["edited"] else 3
-                    act_cols = st.columns(n_act, gap="small")
-                    if act_cols[0].button("+90d", key=f"inv_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
-                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
-                        rerun()
-                    if act_cols[1].button("+1yr", key=f"inv_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
-                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
-                        rerun()
-                    with act_cols[2]:
-                        if hasattr(st, "popover"):
-                            with st.popover("📅 Date"):
-                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
-                                if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
-                                    apply_edits([(rec["id"], c_date)])
-                                    st.success(f"Updated to {c_date}")
-                                    rerun()
-                        else:
-                            with st.expander("📅 Date"):
-                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
-                                if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
-                                    apply_edits([(rec["id"], c_date)])
-                                    st.success(f"Updated to {c_date}")
-                                    rerun()
-                    if rec["edited"] and len(act_cols) > 3:
-                        with act_cols[3]:
-                            if act_cols[3].button("↩ Rev", key=f"inv_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
-                                conn = get_connection(DB_PATH)
-                                try:
-                                    revert_component_exp_date(conn, int(rec["id"]))
-                                finally:
-                                    conn.close()
-                                bust_cache()
-                                st.success("Reverted to source workbook.")
+                f_col_info, f_col_acts = st.columns([2.9, 1.3], gap="small")
+                with f_col_info:
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:5px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;">
+                      <span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">🎯 #{rec['id']} {rec['schema_name']}</span>
+                      <span class="env-tag" style="font-size:8px;padding:0 3px;">{rec['env_label']}</span>
+                      <span style="font-size:8.5px;color:#94a3b8;">State {rec['state']} · {rec['team']}</span>
+                      <span style="font-size:7.5px;font-weight:700;padding:0 4px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+                      <span style="font-size:8px;color:#8fb8f8;font-family:var(--mono);">{ui.fmt_days(rec['days_left'])}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with f_col_acts:
+                    if conf and conf.get("id") == rec["id"]:
+                        st.markdown(f"<div style='font-size:8.5px;color:var(--warning);font-weight:700;'>⚠️ {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                        cf_y, cf_n = st.columns(2)
+                        with cf_y:
+                            if st.button("✓ Yes", key=f"inv_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                                apply_edits([(conf["id"], conf["new_dt"])])
+                                del st.session_state["confirm_action"]
+                                st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
                                 rerun()
+                        with cf_n:
+                            if st.button("✕ No", key=f"inv_cf_no_{rec['id']}", use_container_width=True):
+                                del st.session_state["confirm_action"]
+                                rerun()
+                    else:
+                        n_act = 4 if rec["edited"] else 3
+                        act_cols = st.columns(n_act, gap="small")
+                        if act_cols[0].button("+90d", key=f"inv_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+                            st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                            rerun()
+                        if act_cols[1].button("+1yr", key=f"inv_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+                            st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                            rerun()
+                        with act_cols[2]:
+                            if hasattr(st, "popover"):
+                                with st.popover("📅 Date"):
+                                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
+                                    if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
+                                        apply_edits([(rec["id"], c_date)])
+                                        st.success(f"Updated to {c_date}")
+                                        rerun()
+                            else:
+                                with st.expander("📅 Date"):
+                                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
+                                    if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
+                                        apply_edits([(rec["id"], c_date)])
+                                        st.success(f"Updated to {c_date}")
+                                        rerun()
+                        if rec["edited"] and len(act_cols) > 3:
+                            with act_cols[3]:
+                                if act_cols[3].button("↩ Rev", key=f"inv_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                                    conn = get_connection(DB_PATH)
+                                    try:
+                                        revert_component_exp_date(conn, int(rec["id"]))
+                                    finally:
+                                        conn.close()
+                                    bust_cache()
+                                    st.success("Reverted to source workbook.")
+                                    rerun()
+            else:
+                st.markdown("<div style='font-size:9.5px;color:#64748b;padding-top:6px;text-align:right;'>Select an entity row to quick-extend</div>", unsafe_allow_html=True)
 
         # Build Master Table Rows
         inv_table_rows = []
@@ -1520,77 +1574,85 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         ''')
 
     with op_tab_insp:
+        with st.container(key=f"tab_actions_insp_{reset_idx}"):
+            if selected_id is not None and not cur_scope_df.empty:
+                rec = df[df["id"] == selected_id].iloc[0]
+                meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
+                team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
+                cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
+                conf = st.session_state.get("confirm_action")
+                cur_dt = rec["exp_dt"].date()
+
+                head_c1, head_c2 = st.columns([2.9, 1.3], gap="small")
+                with head_c1:
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:5px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;">
+                      <span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">ENTITY #{rec['id']} {rec['schema_name']}</span>
+                      <span class="env-tag" style="font-size:8px;padding:0 3px;">{rec['env_label']}</span>
+                      <span style="font-size:8.5px;color:#94a3b8;">State {rec['state']} · {rec['team']} · {cp_icon} {rec['component']}</span>
+                      <span style="font-size:7.5px;font-weight:700;padding:0 4px;border-radius:2px;background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with head_c2:
+                    if conf and conf.get("id") == rec["id"]:
+                        st.markdown(f"<div style='font-size:8.5px;color:var(--warning);font-weight:700;'>⚠️ {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                        cf_y, cf_n = st.columns(2)
+                        with cf_y:
+                            if st.button("✓ Yes", key=f"insp_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                                apply_edits([(conf["id"], conf["new_dt"])])
+                                del st.session_state["confirm_action"]
+                                st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
+                                rerun()
+                        with cf_n:
+                            if st.button("✕ No", key=f"insp_cf_no_{rec['id']}", use_container_width=True):
+                                del st.session_state["confirm_action"]
+                                rerun()
+                    else:
+                        n_act = 4 if rec["edited"] else 3
+                        act_cols = st.columns(n_act, gap="small")
+                        if act_cols[0].button("+90d", key=f"insp_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+                            st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                            rerun()
+                        if act_cols[1].button("+1yr", key=f"insp_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+                            st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                            rerun()
+                        with act_cols[2]:
+                            if hasattr(st, "popover"):
+                                with st.popover("📅 Date"):
+                                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
+                                    if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
+                                        apply_edits([(rec["id"], c_date)])
+                                        st.success(f"Updated to {c_date}")
+                                        rerun()
+                            else:
+                                with st.expander("📅 Date"):
+                                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
+                                    if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
+                                        apply_edits([(rec["id"], c_date)])
+                                        st.success(f"Updated to {c_date}")
+                                        rerun()
+                        if rec["edited"] and len(act_cols) > 3:
+                            with act_cols[3]:
+                                if act_cols[3].button("↩ Rev", key=f"insp_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                                    conn = get_connection(DB_PATH)
+                                    try:
+                                        revert_component_exp_date(conn, int(rec["id"]))
+                                    finally:
+                                        conn.close()
+                                    bust_cache()
+                                    st.success("Reverted to source workbook.")
+                                    rerun()
+            else:
+                st.markdown("<div style='font-size:9.5px;color:#64748b;padding-top:6px;text-align:right;'>Select an entity row to inspect</div>", unsafe_allow_html=True)
+
         if selected_id is None or cur_scope_df.empty:
             st.markdown(ui.empty("Select a record", "Choose an item from the master inventory table to inspect."), unsafe_allow_html=True)
         else:
             rec = df[df["id"] == selected_id].iloc[0]
             meta = ui.BAND_META.get(rec["band"], ui.BAND_META["Healthy"])
             team_meta = ui.TEAM_META.get(rec["team"], ui.TEAM_META["Core"])
-            cp_icon = ui.COMPONENT_ICONS.get(rec["component"], "📦")
-            conf = st.session_state.get("confirm_action")
             cur_dt = rec["exp_dt"].date()
-
-            head_c1, head_c2 = st.columns([2.5, 1.5])
-            with head_c1:
-                st.markdown(f"""
-                <div class="entity-head" style="border-left:3px solid {meta['color']};margin-bottom:6px;">
-                  <div class="entity-crumb">
-                    <span>ENTITY #{rec['id']} · <b style="color:var(--text);letter-spacing:0.04em;">State {rec['state']}</b> · <span style="color:{team_meta['color']};font-weight:600;">{rec['team']}</span> · {cp_icon} {rec['component']}</span>
-                    <span class="status-pill" style="background:{meta['tint']};color:{meta['color']};">{meta['symbol']} {rec['band']}</span>
-                  </div>
-                  <div class="entity-name">{rec['schema_name']} <span class="env-tag">{rec['env_label']}</span></div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with head_c2:
-                if conf and conf.get("id") == rec["id"]:
-                    st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;padding-top:2px;'>⚠️ Extend to {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
-                    cf_y, cf_n = st.columns(2)
-                    with cf_y:
-                        if st.button("✓ Confirm", key=f"insp_cf_yes_{rec['id']}", type="primary", use_container_width=True):
-                            apply_edits([(conf["id"], conf["new_dt"])])
-                            del st.session_state["confirm_action"]
-                            st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
-                            rerun()
-                    with cf_n:
-                        if st.button("Cancel", key=f"insp_cf_no_{rec['id']}", use_container_width=True):
-                            del st.session_state["confirm_action"]
-                            rerun()
-                else:
-                    n_act = 4 if rec["edited"] else 3
-                    act_cols = st.columns(n_act)
-                    if act_cols[0].button("+90d", key=f"insp_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
-                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
-                        rerun()
-                    if act_cols[1].button("+1yr", key=f"insp_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
-                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
-                        rerun()
-                    with act_cols[2]:
-                        if hasattr(st, "popover"):
-                            with st.popover("📅 Date"):
-                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
-                                if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
-                                    apply_edits([(rec["id"], c_date)])
-                                    st.success(f"Updated to {c_date}")
-                                    rerun()
-                        else:
-                            with st.expander("📅 Date"):
-                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
-                                if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
-                                    apply_edits([(rec["id"], c_date)])
-                                    st.success(f"Updated to {c_date}")
-                                    rerun()
-                    if rec["edited"] and len(act_cols) > 3:
-                        with act_cols[3]:
-                            if st.button("↩ Rev", key=f"insp_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
-                                conn = get_connection(DB_PATH)
-                                try:
-                                    revert_component_exp_date(conn, int(rec["id"]))
-                                finally:
-                                    conn.close()
-                                bust_cache()
-                                st.success("Reverted to source workbook.")
-                                rerun()
 
             exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
             _life_gauge = ui.life_gauge(int(rec['days_left']))
@@ -1700,42 +1762,43 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.3])
-        with tc1:
-            if st.button("Expand All", key="tree_exp_all", use_container_width=True):
-                for s_val in filtered["state"].unique():
-                    tree_open.add(str(s_val))
-                    st_sub = filtered[filtered["state"] == s_val]
-                    for t_val in st_sub["team"].unique():
-                        tree_open.add(f"{s_val}/{t_val}")
-                        tm_sub = st_sub[st_sub["team"] == t_val]
-                        for c_val in tm_sub["component"].unique():
-                            tree_open.add(f"{s_val}/{t_val}/{c_val}")
-                            cp_sub = tm_sub[tm_sub["component"] == c_val]
-                            for e_val in cp_sub["env_label"].unique():
-                                tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
-                rerun()
-        with tc2:
-            if st.button("Collapse All", key="tree_col_all", use_container_width=True):
-                tree_open.clear()
-                rerun()
-        with tc3:
-            all_f_ids = set(filtered["id"].tolist())
-            n_sel = len(selected_entity_ids)
-            if n_sel > 0:
-                if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
-                    selected_entity_ids.clear()
+        with st.container(key=f"tab_actions_tree_{reset_idx}"):
+            tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.3], gap="small")
+            with tc1:
+                if st.button("Expand All", key="tree_exp_all", use_container_width=True):
+                    for s_val in filtered["state"].unique():
+                        tree_open.add(str(s_val))
+                        st_sub = filtered[filtered["state"] == s_val]
+                        for t_val in st_sub["team"].unique():
+                            tree_open.add(f"{s_val}/{t_val}")
+                            tm_sub = st_sub[st_sub["team"] == t_val]
+                            for c_val in tm_sub["component"].unique():
+                                tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                                cp_sub = tm_sub[tm_sub["component"] == c_val]
+                                for e_val in cp_sub["env_label"].unique():
+                                    tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
                     rerun()
-            else:
-                if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
-                    selected_entity_ids.update(all_f_ids)
+            with tc2:
+                if st.button("Collapse All", key="tree_col_all", use_container_width=True):
+                    tree_open.clear()
                     rerun()
-        with tc4:
-            n_sel = len(selected_entity_ids)
-            btn_txt = f"Batch ({n_sel})" if n_sel > 0 else "Batch Editor"
-            if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
-                st.session_state["op_target_tab"] = "⚡ Batch Grid Editor"
-                rerun()
+            with tc3:
+                all_f_ids = set(filtered["id"].tolist())
+                n_sel = len(selected_entity_ids)
+                if n_sel > 0:
+                    if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
+                        selected_entity_ids.clear()
+                        rerun()
+                else:
+                    if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
+                        selected_entity_ids.update(all_f_ids)
+                        rerun()
+            with tc4:
+                n_sel = len(selected_entity_ids)
+                btn_txt = f"⚡ Batch ({n_sel})" if n_sel > 0 else "⚡ Batch Grid"
+                if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
+                    st.session_state["op_target_tab"] = "⚡ Batch Grid"
+                    rerun()
 
         with st.container(height=310, border=True, key="op_tree_box"):
             for st_val in filtered["state"].unique():
@@ -1922,64 +1985,48 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         all_filtered_ids = set(filtered["id"].tolist())
         is_all_filtered_selected = (len(all_filtered_ids) > 0 and all_filtered_ids.issubset(selected_entity_ids))
 
-        # ── Toolbar row 1: selection + pagination ──────────────────────────────
-        bg_c1, bg_c2, bg_c3, bg_c4 = st.columns([1.6, 1.3, 0.9, 0.6])
-        with bg_c1:
-            if selected_entity_ids:
-                st.markdown(f"<div style='font-size:10px;color:#38bdf8;font-weight:700;padding-top:4px;'>⚡ {len(selected_entity_ids)} selected · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<div style='font-size:10px;color:#cbd5e1;font-weight:600;padding-top:4px;'>Scope: {total_batch_n} items · Page {b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
-        with bg_c2:
-            if is_all_filtered_selected:
-                st.button("✓ All In Filter Selected", key="op_batch_sel_all_flt", use_container_width=True, disabled=True)
-            else:
-                if st.button(f"Select All {len(filtered)} in Filter", key="op_batch_sel_all_flt", type="primary", use_container_width=True):
-                    selected_entity_ids.update(all_filtered_ids)
-                    st.session_state["op_batch_page_no"] = 0
-                    rerun()
-        with bg_c3:
-            if b_pages > 1:
-                p_c1, p_c2 = st.columns(2)
-                if p_c1.button("‹", key="op_batch_p_prev", disabled=(b_page == 0), use_container_width=True):
-                    st.session_state["op_batch_page_no"] = b_page - 1
-                    rerun()
-                if p_c2.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
-                    st.session_state["op_batch_page_no"] = b_page + 1
-                    rerun()
-        with bg_c4:
-            if selected_entity_ids:
-                if st.button("Clear", key="op_batch_clear_sel", use_container_width=True):
-                    selected_entity_ids.clear()
-                    st.session_state["op_batch_page_no"] = 0
-                    rerun()
-
-        # ── Toolbar row 2: 1-click bulk date actions ────────────────────────────
-        if not page_slice.empty:
-            bulk_c1, bulk_c2, bulk_c3, bulk_note = st.columns([0.8, 0.8, 1.1, 2.3])
-            with bulk_c1:
+        # ── Unified same-line toolbar: selection status, pagination, and 1-click bulk date actions ──
+        with st.container(key=f"tab_actions_batch_{reset_idx}"):
+            bg_c1, bg_c2, bg_c3, bg_c4, bg_c5 = st.columns([1.5, 0.7, 0.7, 0.7, 1.0], gap="small")
+            with bg_c1:
+                if selected_entity_ids:
+                    st.markdown(f"<div style='font-size:9.5px;color:#38bdf8;font-weight:700;padding-top:4px;white-space:nowrap;'>⚡ {len(selected_entity_ids)} sel · P{b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='font-size:9.5px;color:#cbd5e1;font-weight:600;padding-top:4px;white-space:nowrap;'>Scope: {total_batch_n} · P{b_page + 1}/{b_pages}</div>", unsafe_allow_html=True)
+            with bg_c2:
+                if b_pages > 1:
+                    p_c1, p_c2 = st.columns(2)
+                    if p_c1.button("‹", key="op_batch_p_prev", disabled=(b_page == 0), use_container_width=True):
+                        st.session_state["op_batch_page_no"] = b_page - 1
+                        rerun()
+                    if p_c2.button("›", key="op_batch_p_next", disabled=(b_page >= b_pages - 1), use_container_width=True):
+                        st.session_state["op_batch_page_no"] = b_page + 1
+                        rerun()
+                elif not is_all_filtered_selected and len(all_filtered_ids) > 0:
+                    if st.button("All", key="op_batch_sel_all_flt", type="primary", use_container_width=True, help=f"Select all {len(filtered)} items in current filter"):
+                        selected_entity_ids.update(all_filtered_ids)
+                        rerun()
+            with bg_c3:
                 if st.button("+90d All", key="op_batch_bulk_90d", use_container_width=True, help="Extend every item on this page by 90 days"):
-                    today = pd.Timestamp.today().normalize()
                     changes = [(int(row.id), (row.exp_dt + pd.Timedelta(days=90)).date()) for row in page_slice.itertuples()]
                     apply_edits(changes)
                     st.success(f"+90d applied to {len(changes)} items.")
                     rerun()
-            with bulk_c2:
+            with bg_c4:
                 if st.button("+1yr All", key="op_batch_bulk_1yr", use_container_width=True, help="Extend every item on this page by 1 year"):
                     changes = [(int(row.id), (row.exp_dt + pd.Timedelta(days=365)).date()) for row in page_slice.itertuples()]
                     apply_edits(changes)
                     st.success(f"+1yr applied to {len(changes)} items.")
                     rerun()
-            with bulk_c3:
+            with bg_c5:
                 if hasattr(st, "popover"):
-                    with st.popover("📅 Set Common Date", use_container_width=True):
+                    with st.popover("📅 Date", use_container_width=True):
                         c_common_dt = st.date_input("Set all to date", key="op_batch_common_dt_pick")
-                        if st.button("Apply to Page", type="primary", key="op_batch_common_dt_apply", use_container_width=True):
+                        if st.button("Apply", type="primary", key="op_batch_common_dt_apply", use_container_width=True):
                             changes = [(int(row.id), c_common_dt) for row in page_slice.itertuples()]
                             apply_edits(changes)
                             st.success(f"Set {len(changes)} items to {c_common_dt}.")
                             rerun()
-            with bulk_note:
-                st.markdown(f"<div style='font-size:9.5px;color:#475569;padding-top:5px;'>Bulk actions apply to the <b>{len(page_slice)}</b> rows on this page</div>", unsafe_allow_html=True)
 
         if hasattr(st, "data_editor") and hasattr(st, "column_config") and not page_slice.empty:
             b_view = page_slice[["schema_name", "env_label", "exp_dt", "band", "days_left"]].copy()
@@ -1989,7 +2036,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
             b_edited = st.data_editor(
                 b_view, key=f"op_batch_editor_p{b_page}", hide_index=True, use_container_width=True,
-                num_rows="fixed", height=min(300, 36 + len(page_slice) * 35),
+                num_rows="fixed", height=min(320, 36 + len(page_slice) * 35),
                 column_config={
                     "schema_name": st.column_config.TextColumn("Schema Name", disabled=True, width=175),
                     "env_label": st.column_config.TextColumn("Env", disabled=True, width=55),
@@ -2019,34 +2066,37 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         elif page_slice.empty:
             st.markdown("<div style='font-size:11px;color:#94a3b8;padding:12px 0;'>No entities selected. Select items from the tree or filters.</div>", unsafe_allow_html=True)
 
-
     with op_tab_rev:
         active_edits = df[df["edited"]].copy()
+        with st.container(key=f"tab_actions_rev_{reset_idx}"):
+            if active_edits.empty:
+                st.markdown("<div style='font-size:9.5px;color:#10b981;font-weight:700;padding-top:6px;text-align:right;'>✓ Fleet 100% In Sync with Workbooks</div>", unsafe_allow_html=True)
+            else:
+                n_ovr = len(active_edits)
+                rev_hdr_c1, rev_hdr_c2 = st.columns([2.5, 1.5], gap="small")
+                with rev_hdr_c1:
+                    st.markdown(f"<div style='font-size:9.5px;color:#cbd5e1;padding-top:5px;'><b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'}</div>", unsafe_allow_html=True)
+                with rev_hdr_c2:
+                    if st.button(f"↩ Revert All ({n_ovr})", key="op_rev_all_btn", type="primary", use_container_width=True):
+                        conn = get_connection(DB_PATH)
+                        try:
+                            for er in active_edits.itertuples():
+                                revert_component_exp_date(conn, int(er.id))
+                        finally:
+                            conn.close()
+                        bust_cache()
+                        st.success(f"Reverted all {n_ovr} overrides to source workbook dates.")
+                        rerun()
+
         if active_edits.empty:
             st.markdown("""
-            <div class="card" style="font-size:11px;color:#94a3b8;padding:6px 10px;">
-              <div style="font-weight:700;color:#10b981;margin-bottom:2px;">✓ Fleet 100% In Sync with Workbooks</div>
-              All 500 records match source Excel files. Local overrides appear here for 1-click rollback.
+            <div class="card" style="font-size:11px;color:#94a3b8;padding:12px 14px;margin-top:8px;">
+              <div style="font-weight:700;color:#10b981;margin-bottom:4px;font-size:12px;">✓ Fleet 100% In Sync with Workbooks</div>
+              All 500 records match source Excel files. Local overrides made in the inventory, inspector, or batch editor appear here for 1-click rollback.
             </div>
             """, unsafe_allow_html=True)
         else:
-            n_ovr = len(active_edits)
-            rev_hdr_c1, rev_hdr_c2 = st.columns([2.5, 1.5])
-            with rev_hdr_c1:
-                st.markdown(ui.note(f"<b>{n_ovr}</b> local {'override' if n_ovr == 1 else 'overrides'} — source dates shown below each entry:"), unsafe_allow_html=True)
-            with rev_hdr_c2:
-                if st.button(f"↩ Revert All to Source ({n_ovr})", key="op_rev_all_btn", type="primary", use_container_width=True):
-                    conn = get_connection(DB_PATH)
-                    try:
-                        for er in active_edits.itertuples():
-                            revert_component_exp_date(conn, int(er.id))
-                    finally:
-                        conn.close()
-                    bust_cache()
-                    st.success(f"Reverted all {n_ovr} overrides to source workbook dates.")
-                    rerun()
-
-            with st.container(height=280, border=True):
+            with st.container(height=320, border=True):
                 for er in active_edits.itertuples():
                     src_dt = str(er.source_exp_date) if hasattr(er, "source_exp_date") else "—"
                     cur_dt = str(er.exp_date)

@@ -237,37 +237,85 @@ def render_release_plan_workspace(db_path: str) -> None:
                 reset_idx = st.session_state.get("op_reset_idx", 0)
                 st.session_state[f"op_state_{reset_idx}"] = st_code
 
+    # Query releases for effective scope first so we can build the 1-line command bar with alerts
+    all_releases = get_cached_release_schedules(db_path, state=effective_state)
+
+    if not all_releases:
+        st.info("No release schedule records found.")
+        return
+
+    # Sort chronologically by dev_start_date (fallback prod_deploy_date)
+    all_releases.sort(key=lambda x: (x.get("dev_start_date") or "9999-12-31", x.get("prod_deploy_date") or "9999-12-31"))
+
     # --------------------------------------------------------------------------
-    # 2. Header & State Selection (Compact Single-Row Header)
+    # 2. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | Active Gate Alerts Ticker | State Filter & Reset)
     # --------------------------------------------------------------------------
+    alert_chips = _build_alert_chips(all_releases, now_iso)
+    ticker_html = ""
+    if alert_chips:
+        seen = {}
+        for a in alert_chips:
+            key = f"{a['release_id']}_{a['phase']}"
+            if key not in seen or a["chip_cls"] == "firing":
+                seen[key] = a
+        deduped = list(seen.values())
+        deduped.sort(key=lambda x: (0 if x["chip_cls"] == "firing" else 1, x["days"]))
+
+        chips_html = []
+        for a in deduped[:3]:
+            border_c = "#f2495c" if a["chip_cls"] == "firing" else "#ff9830"
+            bg_c = "rgba(242, 73, 92, 0.12)" if a["chip_cls"] == "firing" else "rgba(255, 152, 48, 0.12)"
+            st_c = a.get('state', '')
+            rid = a.get('release_id', '')
+            c_rid = rid[len(st_c)+1:] if rid.startswith(f"{st_c}.") else rid
+            chips_html.append(
+                f"<span style='background:{bg_c};border:1px solid {border_c};border-radius:2px;padding:1.5px 6px;font-size:9px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;'>"
+                f"<b style='color:var(--ink);'>{st_c}.{c_rid}</b>"
+                f"<span style='color:{border_c};font-weight:700;'>{a['label']}</span>"
+                f"</span>"
+            )
+
+        n_firing = sum(1 for a in deduped if a["chip_cls"] == "firing")
+        dot_color = "#f2495c" if n_firing else "#ff9830"
+        ticker_html = f"""
+        <div style="display:flex;align-items:center;gap:6px;background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 8px;height:30px;line-height:1;box-sizing:border-box;">
+            <span style="width:6px;height:6px;border-radius:50%;background:{dot_color};box-shadow:0 0 5px {dot_color};display:inline-block;flex:none;"></span>
+            <span style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap;flex:none;">Active Gate Alerts:</span>
+            <div style="display:flex;align-items:center;gap:5px;overflow:hidden;white-space:nowrap;min-width:0;">
+                {''.join(chips_html)}
+            </div>
+            <span style="font-size:8px;color:var(--mute);white-space:nowrap;margin-left:auto;flex:none;">Horizon: &le;7d Cutoff</span>
+        </div>
+        """
+    else:
+        ticker_html = """
+        <div style="display:flex;align-items:center;gap:6px;background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 8px;height:30px;line-height:1;box-sizing:border-box;">
+            <span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;flex:none;"></span>
+            <span style="font-size:9px;color:#10b981;font-weight:600;">All Gate Cutoffs On Schedule</span>
+            <span style="font-size:8px;color:var(--mute);margin-left:auto;">Gate Horizon: &le;7d to Cutoff</span>
+        </div>
+        """
+
     has_active_filter = bool(active_scope or st.session_state.get("global_release_selection"))
     if has_active_filter and is_enterprise_admin:
-        h_col1, h_col_reset, h_col2 = st.columns([6.8, 1.2, 2.0])
+        h_col1, h_col_ticker, h_col2, h_col_reset = st.columns([2.6, 5.0, 1.5, 0.5], gap="small")
     else:
-        h_col1, h_col2 = st.columns([7.8, 2.2])
+        h_col1, h_col_ticker, h_col2 = st.columns([2.6, 5.7, 1.7], gap="small")
         h_col_reset = None
 
     with h_col1:
-        st.markdown(ui.render_universal_header(
-            title="Schedule Release Plan",
-            subtitle="Enterprise Milestones & Pipeline Health",
-            badge_text="ENTERPRISE PIPELINE",
-            badge_color="#38bdf8",
-            state_scope=active_scope if active_scope != "All" else None,
-        ), unsafe_allow_html=True)
+        state_pill = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:8px;font-weight:700;">{active_scope}</span>' if active_scope and active_scope != "All" else ""
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:6px;height:30px;line-height:1;" title="Schedule Release Plan · Enterprise Milestones & Pipeline Health">
+            <div style="width:3px;height:18px;background:#38bdf8;border-radius:1px;flex:none;"></div>
+            <span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;">RELEASE PLAN</span>
+            <span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;">ENTERPRISE</span>
+            {state_pill}
+        </div>
+        """, unsafe_allow_html=True)
 
-    if h_col_reset is not None:
-        with h_col_reset:
-            if st.button("↺ Reset Scope", key="btn_rp_reset_scope", use_container_width=True, help="Reset to All States"):
-                st.session_state["_override_canvas_state"] = None
-                st.session_state["global_release_selection"] = None
-                st.session_state["gov_state_filter"] = "All"
-                reset_idx = st.session_state.get("op_reset_idx", 0)
-                st.session_state[f"op_state_{reset_idx}"] = "All States"
-                st.session_state["sl_state_clean"] = "All States"
-                if "rp_target_rel_picker" in st.session_state:
-                    del st.session_state["rp_target_rel_picker"]
-                st.rerun()
+    with h_col_ticker:
+        st.markdown(ticker_html, unsafe_allow_html=True)
 
     with h_col2:
         if is_enterprise_admin:
@@ -285,15 +333,18 @@ def render_release_plan_workspace(db_path: str) -> None:
                 label_visibility="collapsed"
             )
 
-    # Query releases for effective scope
-    all_releases = get_cached_release_schedules(db_path, state=effective_state)
-
-    if not all_releases:
-        st.info("No release schedule records found.")
-        return
-
-    # Sort chronologically by dev_start_date (fallback prod_deploy_date)
-    all_releases.sort(key=lambda x: (x.get("dev_start_date") or "9999-12-31", x.get("prod_deploy_date") or "9999-12-31"))
+    if h_col_reset is not None:
+        with h_col_reset:
+            if st.button("↺", key="btn_rp_reset_scope", use_container_width=True, help="Reset to All States"):
+                st.session_state["_override_canvas_state"] = None
+                st.session_state["global_release_selection"] = None
+                st.session_state["gov_state_filter"] = "All"
+                reset_idx = st.session_state.get("op_reset_idx", 0)
+                st.session_state[f"op_state_{reset_idx}"] = "All States"
+                st.session_state["sl_state_clean"] = "All States"
+                if "rp_target_rel_picker" in st.session_state:
+                    del st.session_state["rp_target_rel_picker"]
+                st.rerun()
 
     # --------------------------------------------------------------------------
     # 3. Categorize into: Previous, Current, Upcoming based on DEV Date Window
@@ -329,58 +380,6 @@ def render_release_plan_workspace(db_path: str) -> None:
 
     monitored_pool = [r for r in (prev_r, curr_r, next_r) if r is not None]
     avg_readiness = (sum(r.get("readiness_pct", 0) for r in monitored_pool) / len(monitored_pool)) if monitored_pool else 100.0
-
-    # --------------------------------------------------------------------------
-    # 4. Strict Grafana Metric Ribbon — Removed per UX direction to enlarge 3 Releases
-    # --------------------------------------------------------------------------
-
-
-    # --------------------------------------------------------------------------
-    # 5. RELEASE CUTOFF ALERT STRIP (Compact Ticker)
-    # --------------------------------------------------------------------------
-    alert_chips = _build_alert_chips(all_releases, now_iso)
-    if alert_chips:
-        seen = {}
-        for a in alert_chips:
-            key = f"{a['release_id']}_{a['phase']}"
-            if key not in seen or a["chip_cls"] == "firing":
-                seen[key] = a
-        deduped = list(seen.values())
-        deduped.sort(key=lambda x: (0 if x["chip_cls"] == "firing" else 1, x["days"]))
-
-        chips_html = []
-        for a in deduped[:4]:
-            border_c = "#f2495c" if a["chip_cls"] == "firing" else "#ff9830"
-            bg_c = "rgba(242, 73, 92, 0.12)" if a["chip_cls"] == "firing" else "rgba(255, 152, 48, 0.12)"
-            st_c = a.get('state', '')
-            rid = a.get('release_id', '')
-            c_rid = rid[len(st_c)+1:] if rid.startswith(f"{st_c}.") else rid
-            chips_html.append(
-                f"<span style='background:{bg_c};border:1px solid {border_c};border-radius:2px;padding:2px 8px;font-size:10px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;'>"
-                f"<b style='color:var(--ink);'>{st_c}.{c_rid}</b>"
-                f"<span style='color:{border_c};font-weight:700;'>{a['label']}</span>"
-                f"</span>"
-            )
-
-        n_firing = sum(1 for a in deduped if a["chip_cls"] == "firing")
-        dot_color = "#f2495c" if n_firing else "#ff9830"
-
-        render_html(f"""
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 10px;background:#141619;border:1px solid #22252b;border-radius:2px;margin-top:2px;margin-bottom:4px;box-sizing:border-box;">
-          <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;">
-            <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-              <span style="width:7px;height:7px;border-radius:50%;background:{dot_color};box-shadow:0 0 6px {dot_color};display:inline-block;"></span>
-              <span style="font-size:9.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:0.04em;">Active Gate Alerts:</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
-              {''.join(chips_html)}
-            </div>
-          </div>
-          <div style="font-size:9px;color:var(--mute);flex-shrink:0;letter-spacing:0.02em;margin-left:12px;">
-            Gate Horizon: &le; 7d to Cutoff
-          </div>
-        </div>
-        """)
 
     # --------------------------------------------------------------------------
     # 5b. Milestone Extraction & Formatting Helpers
