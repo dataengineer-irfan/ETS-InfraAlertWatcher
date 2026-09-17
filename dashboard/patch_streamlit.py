@@ -351,29 +351,15 @@ def patch_iframe_util() -> bool:
         sp = pathlib.Path(streamlit.__file__).parent / "static" / "static" / "js"
         if not sp.exists():
             return False
-        bad_features = [
-            'ambient-light-sensor',
-            'battery',
-            'document-domain',
-            'layout-animations',
-            'legacy-image-formats',
-            'oversized-images',
-            'vr',
-            'wake-lock'
-        ]
+        clean_content = "var e=void 0,t=void 0;export{e as n,t};"
         count = 0
         for f in sp.glob("IFrameUtil*.js"):
             txt = f.read_text(encoding="utf-8")
-            orig = txt
-            for b in bad_features:
-                txt = txt.replace(f"`{b}`,", "")
-                txt = txt.replace(f",`{b}`", "")
-                txt = txt.replace(f"`{b}`", "")
-            if txt != orig:
-                f.write_text(txt, encoding="utf-8")
+            if txt != clean_content:
+                f.write_text(clean_content, encoding="utf-8")
                 count += 1
         if count > 0:
-            print(f"[+] Cleaned deprecated iframe feature policies from {count} files.")
+            print(f"[+] Cleaned deprecated iframe feature and sandbox policies from {count} files.")
         return True
     except Exception as e:
         print(f"[!] Error patching IFrameUtil: {e}", file=sys.stderr)
