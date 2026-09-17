@@ -638,26 +638,30 @@ def render_release_plan_workspace(db_path: str) -> None:
         border: 1px solid #2c3235;
         border-radius: 4px;
         box-sizing: border-box;
-        overflow-y: auto;
+        overflow-y: scroll !important;
         overflow-x: auto;
-        height: 245px;
-        max-height: 255px;
+        height: calc(100vh - 435px);
+        min-height: 330px;
+        max-height: 520px;
         scrollbar-width: thin;
-        scrollbar-color: #38bdf8 #181b1f;
+        scrollbar-color: #38bdf8 #141619;
     }
     .rp-table-container::-webkit-scrollbar {
-        width: 7px;
-        height: 7px;
-        display: block;
+        width: 8px;
+        height: 8px;
+        display: block !important;
     }
     .rp-table-container::-webkit-scrollbar-track {
-        background: #181b1f;
+        background: #141619;
         border-left: 1px solid #2c3235;
     }
     .rp-table-container::-webkit-scrollbar-thumb {
         background: #38bdf8;
-        border-radius: 3px;
+        border-radius: 4px;
         border: 1px solid #0284c7;
+    }
+    .rp-table-container::-webkit-scrollbar-thumb:hover {
+        background: #7dd3fc;
     }
     </style>
     ''', unsafe_allow_html=True)

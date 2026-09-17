@@ -1238,7 +1238,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             ''')
 
         _render_html(f'''
-        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:144px;display:flex;flex-direction:column;justify-content:space-between;">
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
             <div style="font-size:9.5px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.04em;">
               Severity Heatmap — State × Component ({mat_scope_lbl})
@@ -1314,7 +1314,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 )
 
         _render_html(f"""
-        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:144px;display:flex;flex-direction:column;justify-content:space-between;">
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
             <div style="font-size:9.5px;font-weight:700;color:#10b981;text-transform:uppercase;letter-spacing:0.04em;">
               Component Severity &amp; Fleet SLA ({mat_scope_lbl})
@@ -1408,11 +1408,30 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         align-items: center !important;
         gap: 4px !important;
     }
-    div[class*="st-key-tab_actions_"] button {
-        padding: 2px 6px !important;
+    div[class*="st-key-tab_actions_"] button,
+    div[class*="st-key-tab_actions_"] div[data-testid="stPopover"] > button {
+        padding: 0 6px !important;
         font-size: 9.5px !important;
+        font-weight: 700 !important;
         height: 28px !important;
         min-height: 28px !important;
+        white-space: nowrap !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+        border-radius: 2px !important;
+    }
+    div[class*="st-key-tab_actions_"] div[data-testid="stPopover"] {
+        width: 100% !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    div[class*="st-key-tab_actions_"] div[data-testid="stPopover"] > button > div {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        line-height: 1 !important;
     }
     </style>
     ''', unsafe_allow_html=True)
@@ -1457,7 +1476,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 conf = st.session_state.get("confirm_action")
                 cur_dt = rec["exp_dt"].date()
 
-                f_col_info, f_col_acts = st.columns([2.9, 1.3], gap="small")
+                f_col_info, f_col_acts = st.columns([2.6, 1.6], gap="small")
                 with f_col_info:
                     st.markdown(f"""
                     <div style="display:flex;align-items:center;gap:5px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;">
@@ -1483,8 +1502,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 del st.session_state["confirm_action"]
                                 rerun()
                     else:
-                        n_act = 4 if rec["edited"] else 3
-                        act_cols = st.columns(n_act, gap="small")
+                        act_cols = st.columns([1.0, 1.0, 1.1, 1.1] if rec["edited"] else [1.0, 1.0, 1.1], gap="small")
                         if act_cols[0].button("+90d", key=f"inv_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
                             st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
                             rerun()
@@ -1493,7 +1511,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             rerun()
                         with act_cols[2]:
                             if hasattr(st, "popover"):
-                                with st.popover("📅 Date"):
+                                with st.popover("📅", help="Pick custom expiry date", use_container_width=True):
                                     c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"inv_pop_dt_{rec['id']}")
                                     if st.button("Commit Date", type="primary", key=f"inv_pop_btn_{rec['id']}", use_container_width=True):
                                         apply_edits([(rec["id"], c_date)])
@@ -1583,7 +1601,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                 conf = st.session_state.get("confirm_action")
                 cur_dt = rec["exp_dt"].date()
 
-                head_c1, head_c2 = st.columns([2.9, 1.3], gap="small")
+                head_c1, head_c2 = st.columns([2.6, 1.6], gap="small")
                 with head_c1:
                     st.markdown(f"""
                     <div style="display:flex;align-items:center;gap:5px;background:#141619;border:1px solid #2c3235;border-left:3px solid {meta['color']};padding:2px 6px;border-radius:2px;height:26px;box-sizing:border-box;white-space:nowrap;overflow:hidden;">
@@ -1609,8 +1627,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                                 del st.session_state["confirm_action"]
                                 rerun()
                     else:
-                        n_act = 4 if rec["edited"] else 3
-                        act_cols = st.columns(n_act, gap="small")
+                        act_cols = st.columns([1.0, 1.0, 1.1, 1.1] if rec["edited"] else [1.0, 1.0, 1.1], gap="small")
                         if act_cols[0].button("+90d", key=f"insp_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
                             st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
                             rerun()
@@ -1619,7 +1636,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             rerun()
                         with act_cols[2]:
                             if hasattr(st, "popover"):
-                                with st.popover("📅 Date"):
+                                with st.popover("📅", help="Pick custom expiry date", use_container_width=True):
                                     c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
                                     if st.button("Commit Date", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
                                         apply_edits([(rec["id"], c_date)])
@@ -1763,44 +1780,64 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         """, unsafe_allow_html=True)
 
         with st.container(key=f"tab_actions_tree_{reset_idx}"):
-            tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.3], gap="small")
-            with tc1:
-                if st.button("Expand All", key="tree_exp_all", use_container_width=True):
-                    for s_val in filtered["state"].unique():
-                        tree_open.add(str(s_val))
-                        st_sub = filtered[filtered["state"] == s_val]
-                        for t_val in st_sub["team"].unique():
-                            tree_open.add(f"{s_val}/{t_val}")
-                            tm_sub = st_sub[st_sub["team"] == t_val]
-                            for c_val in tm_sub["component"].unique():
-                                tree_open.add(f"{s_val}/{t_val}/{c_val}")
-                                cp_sub = tm_sub[tm_sub["component"] == c_val]
-                                for e_val in cp_sub["env_label"].unique():
-                                    tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
-                    rerun()
-            with tc2:
-                if st.button("Collapse All", key="tree_col_all", use_container_width=True):
-                    tree_open.clear()
-                    rerun()
-            with tc3:
-                all_f_ids = set(filtered["id"].tolist())
-                n_sel = len(selected_entity_ids)
-                if n_sel > 0:
-                    if st.button(f"Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True):
+            n_sel = len(selected_entity_ids)
+            if n_sel > 0:
+                tc1, tc2, tc3, tc4 = st.columns([1.0, 1.0, 1.2, 1.4], gap="small")
+                with tc1:
+                    if st.button("⊞ Expand", key="tree_exp_all", use_container_width=True, help="Expand all tree nodes"):
+                        for s_val in filtered["state"].unique():
+                            tree_open.add(str(s_val))
+                            st_sub = filtered[filtered["state"] == s_val]
+                            for t_val in st_sub["team"].unique():
+                                tree_open.add(f"{s_val}/{t_val}")
+                                tm_sub = st_sub[st_sub["team"] == t_val]
+                                for c_val in tm_sub["component"].unique():
+                                    tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                                    cp_sub = tm_sub[tm_sub["component"] == c_val]
+                                    for e_val in cp_sub["env_label"].unique():
+                                        tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+                        rerun()
+                with tc2:
+                    if st.button("⊟ Collapse", key="tree_col_all", use_container_width=True, help="Collapse all tree nodes"):
+                        tree_open.clear()
+                        rerun()
+                with tc3:
+                    if st.button(f"☐ Clear ({n_sel})", key="tree_clear_sel_btn", use_container_width=True, help="Deselect all items"):
                         selected_entity_ids.clear()
                         rerun()
-                else:
-                    if st.button("Select All", key="tree_select_all_btn", use_container_width=True):
+                with tc4:
+                    if st.button(f"⚡ Batch ({n_sel}) ›", key="tree_send_to_batch", type="primary", use_container_width=True, help="Send selected items to Batch Grid Editor"):
+                        st.session_state["op_target_tab"] = "⚡ Batch Grid"
+                        rerun()
+            else:
+                tc1, tc2, tc3, tc_stat = st.columns([1.0, 1.0, 1.2, 0.9], gap="small")
+                with tc1:
+                    if st.button("⊞ Expand", key="tree_exp_all", use_container_width=True, help="Expand all tree nodes"):
+                        for s_val in filtered["state"].unique():
+                            tree_open.add(str(s_val))
+                            st_sub = filtered[filtered["state"] == s_val]
+                            for t_val in st_sub["team"].unique():
+                                tree_open.add(f"{s_val}/{t_val}")
+                                tm_sub = st_sub[st_sub["team"] == t_val]
+                                for c_val in tm_sub["component"].unique():
+                                    tree_open.add(f"{s_val}/{t_val}/{c_val}")
+                                    cp_sub = tm_sub[tm_sub["component"] == c_val]
+                                    for e_val in cp_sub["env_label"].unique():
+                                        tree_open.add(f"{s_val}/{t_val}/{c_val}/{e_val}")
+                        rerun()
+                with tc2:
+                    if st.button("⊟ Collapse", key="tree_col_all", use_container_width=True, help="Collapse all tree nodes"):
+                        tree_open.clear()
+                        rerun()
+                with tc3:
+                    if st.button("☑ Select All", key="tree_select_all_btn", use_container_width=True, help="Select all items in view"):
+                        all_f_ids = set(filtered["id"].tolist())
                         selected_entity_ids.update(all_f_ids)
                         rerun()
-            with tc4:
-                n_sel = len(selected_entity_ids)
-                btn_txt = f"⚡ Batch ({n_sel})" if n_sel > 0 else "⚡ Batch Grid"
-                if st.button(btn_txt, key="tree_send_to_batch", disabled=(n_sel == 0), type="primary" if n_sel > 0 else "secondary", use_container_width=True):
-                    st.session_state["op_target_tab"] = "⚡ Batch Grid"
-                    rerun()
+                with tc_stat:
+                    st.markdown('<div style="height:28px;display:flex;align-items:center;justify-content:center;font-size:9.5px;color:#64748b;background:#141619;border:1px solid #22252b;border-radius:2px;font-family:var(--mono);">0 sel</div>', unsafe_allow_html=True)
 
-        with st.container(height=310, border=True, key="op_tree_box"):
+        with st.container(height=350, border=True, key="op_tree_box"):
             for st_val in filtered["state"].unique():
                 st_sub = filtered[filtered["state"] == st_val]
                 st_path = str(st_val)
@@ -2020,7 +2057,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     rerun()
             with bg_c5:
                 if hasattr(st, "popover"):
-                    with st.popover("📅 Date", use_container_width=True):
+                    with st.popover("📅 Set", help="Set common expiry date for all items on page", use_container_width=True):
                         c_common_dt = st.date_input("Set all to date", key="op_batch_common_dt_pick")
                         if st.button("Apply", type="primary", key="op_batch_common_dt_apply", use_container_width=True):
                             changes = [(int(row.id), c_common_dt) for row in page_slice.itertuples()]
