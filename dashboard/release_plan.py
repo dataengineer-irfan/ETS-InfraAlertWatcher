@@ -429,8 +429,15 @@ def render_release_plan_workspace(db_path: str) -> None:
     def _fmt_md(dt_str: str | None) -> str:
         if not dt_str or dt_str in ("TBD", "None", ""):
             return "None" if dt_str == "None" else "TBD"
-        parts = dt_str.split("-")
-        return f"{parts[1]}-{parts[2]}" if len(parts) == 3 else dt_str
+        try:
+            parts = dt_str.split("-")
+            if len(parts) == 3:
+                months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                m_idx = int(parts[1])
+                return f"{months[m_idx]} {parts[2]}"
+        except Exception:
+            pass
+        return dt_str
 
     def _fmt_date_clean(d_str: str | None) -> str:
         if not d_str or d_str in ("TBD", "None", "", None):
@@ -563,7 +570,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         s_prd = _fmt_md(pd_date)
 
         card_html = f'''
-        <div class="story-deck" style="background:#181b1f;{active_border}{card_opacity}border-radius:3px;padding:8px 12px;min-height:108px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+        <div class="story-deck" style="background:#181b1f;{active_border}{card_opacity}border-radius:3px;padding:6px 10px;min-height:98px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
               <span style="font-size:15px;font-weight:800;color:#f8fafc;font-family:var(--mono);">{st_c}.{c_rid}</span>
@@ -574,31 +581,31 @@ def render_release_plan_workspace(db_path: str) -> None:
             </div>
           </div>
 
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 2px 0;">
-            <div style="font-size:11px;color:#94a3b8;">Gate Readiness: <b style="color:#38bdf8;font-size:12.5px;font-family:var(--mono);">{readiness:.0f}%</b></div>
-            <div style="font-size:10px;color:#94a3b8;">DEV: <span style="font-family:var(--mono);color:#f1f5f9;font-weight:600;">{dev_s} &rarr; {dev_f}</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin:3px 0 2px 0;">
+            <div style="font-size:10.5px;color:#94a3b8;">Gate Readiness: <b style="color:#38bdf8;font-size:12px;font-family:var(--mono);">{readiness:.0f}%</b></div>
+            <div style="font-size:9.5px;color:#94a3b8;">DEV: <span style="font-family:var(--mono);color:#f1f5f9;font-weight:600;">{dev_s} &rarr; {dev_f}</span></div>
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:4px;">
-            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="DEV Freeze: {dev_f}">
-              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Dev</div>
-              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_dev}</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:3px;">
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:3px 2px;text-align:center;" title="DEV Freeze: {dev_f}">
+              <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">Dev Exit</div>
+              <div style="font-size:10.5px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_dev}</div>
             </div>
-            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="SIT Gate: {sit_f}">
-              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Sit</div>
-              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_sit}</div>
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:3px 2px;text-align:center;" title="SIT Gate: {sit_f}">
+              <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">SIT Exit</div>
+              <div style="font-size:10.5px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_sit}</div>
             </div>
-            <div style="background:#212429;border-radius:2px;padding:4px 2px;text-align:center;border:1px solid rgba(56,189,248,0.35);background:rgba(56,189,248,0.06);" title="Regression Gate: {reg_f}">
-              <div style="font-size:8.5px;color:#38bdf8;text-transform:uppercase;letter-spacing:0.03em;font-weight:700;">Regress</div>
-              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_reg}</div>
+            <div style="background:#212429;border-radius:2px;padding:3px 2px;text-align:center;border:1px solid rgba(56,189,248,0.35);background:rgba(56,189,248,0.06);" title="Regression Gate: {reg_f}">
+              <div style="font-size:8px;color:#38bdf8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">Regression</div>
+              <div style="font-size:10.5px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_reg}</div>
             </div>
-            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="UAT Gate: {uat_f}">
-              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Uat</div>
-              <div style="font-size:11px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_uat}</div>
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:3px 2px;text-align:center;" title="UAT Gate: {uat_f}">
+              <div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">State UAT</div>
+              <div style="font-size:10.5px;font-weight:700;margin-top:1px;font-family:var(--mono);color:#f8fafc;">{s_uat}</div>
             </div>
-            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:4px 2px;text-align:center;" title="PROD Cutover: {pd_date}">
-              <div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.03em;font-weight:600;">Prod</div>
-              <div style="font-size:11px;font-weight:800;margin-top:1px;font-family:var(--mono);color:#38bdf8;">{s_prd}</div>
+            <div style="background:#212429;border:1px solid #2c3235;border-radius:2px;padding:3px 2px;text-align:center;" title="PROD Cutover: {pd_date}">
+              <div style="font-size:8px;color:#38bdf8;text-transform:uppercase;letter-spacing:0.02em;font-weight:700;">PROD Live</div>
+              <div style="font-size:10.5px;font-weight:800;margin-top:1px;font-family:var(--mono);color:#38bdf8;">{s_prd}</div>
             </div>
           </div>
         </div>
@@ -608,16 +615,16 @@ def render_release_plan_workspace(db_path: str) -> None:
     st.markdown('''
     <style>
     div[class*="st-key-btn_card_"] button {
-        height: 26px !important;
-        min-height: 26px !important;
+        height: 24px !important;
+        min-height: 24px !important;
         padding: 0 8px !important;
-        font-size: 11px !important;
+        font-size: 10.5px !important;
         font-weight: 700 !important;
         font-family: var(--mono) !important;
-        margin-top: 3px !important;
+        margin-top: 2px !important;
         margin-bottom: 2px !important;
         border-radius: 3px !important;
-        line-height: 24px !important;
+        line-height: 22px !important;
     }
     div[class*="st-key-btn_card_"] button[data-testid*="stBaseButton-primary"],
     div[class*="st-key-btn_card_"] button[kind="primary"] {
@@ -625,6 +632,33 @@ def render_release_plan_workspace(db_path: str) -> None:
         border-color: #38bdf8 !important;
         color: #ffffff !important;
         box-shadow: 0 0 8px rgba(56, 189, 248, 0.3) !important;
+    }
+    /* Master Pipeline Roadmap Table Container with High-Contrast Cyan Scrollbar */
+    .rp-table-container {
+        background: #181b1f;
+        border: 1px solid #2c3235;
+        border-radius: 4px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: auto;
+        height: 245px;
+        max-height: 255px;
+        scrollbar-width: thin;
+        scrollbar-color: #38bdf8 #181b1f;
+    }
+    .rp-table-container::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+        display: block;
+    }
+    .rp-table-container::-webkit-scrollbar-track {
+        background: #181b1f;
+        border-left: 1px solid #2c3235;
+    }
+    .rp-table-container::-webkit-scrollbar-thumb {
+        background: #38bdf8;
+        border-radius: 3px;
+        border: 1px solid #0284c7;
     }
     </style>
     ''', unsafe_allow_html=True)
@@ -693,42 +727,42 @@ def render_release_plan_workspace(db_path: str) -> None:
     }
 
     render_html(f'''
-    <div style="margin: 10px 0 6px 0; padding: 0; box-sizing: border-box;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;padding:0 2px;">
-            <div style="font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;">
+    <div style="margin: 5px 0 3px 0; padding: 0; box-sizing: border-box;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;padding:0 2px;">
+            <div style="font-size:10px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;">
                 🎯 Target Release Deep-Dive &amp; Milestone Ledger
             </div>
-            <div style="font-size:9.5px;color:#9fa7b3;">
+            <div style="font-size:9px;color:#9fa7b3;">
                 Target: <span style="color:#38bdf8;font-family:var(--mono);font-weight:700;background:rgba(56,189,248,0.12);padding:1px 6px;border-radius:2px;border:1px solid rgba(56,189,248,0.3);">🎯 {clean_tag}</span>
             </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;align-items:stretch;box-sizing:border-box;">
             <!-- Left Card: Selected Target Release -->
-            <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:4px;padding:8px 10px;min-height:124px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
+            <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid {status_color};border-radius:4px;padding:6px 10px;min-height:108px;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div style="font-size:9px;color:#9fa7b3;text-transform:uppercase;font-weight:700;">Selected Target Release</div>
+                    <div style="font-size:8.5px;color:#9fa7b3;text-transform:uppercase;font-weight:700;">Selected Target Release</div>
                     <span style="font-size:8px;font-weight:700;color:{status_color};background:rgba(255,255,255,0.05);border:1px solid {status_color}40;padding:1px 5px;border-radius:2px;">{status_text}</span>
                 </div>
                 <div>
-                    <div style="font-size:13px;font-weight:800;color:#d8d9da;font-family:var(--mono);">{disp_title}</div>
-                    <div style="font-size:9.5px;color:#9fa7b3;margin-top:2px;line-height:1.35;">
+                    <div style="font-size:12.5px;font-weight:800;color:#d8d9da;font-family:var(--mono);">{disp_title}</div>
+                    <div style="font-size:9px;color:#9fa7b3;margin-top:2px;line-height:1.3;">
                         <b>DEV Window:</b> <span style="font-family:var(--mono);color:#d8d9da;">{_fmt_range_clean(d_s, d_e)}</span><br/>
                         <b>Target PROD:</b> <span style="color:#8fb8f8;font-weight:700;">{prod_env}</span> ({_fmt_date_clean(rel_data.get('prod_deploy_date', 'TBD'))})<br/>
                         <b>RM:</b> {rel_data.get('state_rm_name', 'Unassigned')} &bull; <b>Lead:</b> {rel_data.get('tech_lead_name', 'Unassigned')}
                     </div>
                 </div>
-                <div style="font-size:9.5px;font-family:var(--mono);color:#9fa7b3;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #22252b;padding-top:3px;">
+                <div style="font-size:9px;font-family:var(--mono);color:#9fa7b3;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #22252b;padding-top:2px;">
                     <span>Readiness: <b style="color:{status_color};background:{status_color}18;padding:1px 5px;border-radius:2px;border:1px solid {status_color}33;">{rel_data.get('readiness_pct', 0):.0f}%</b></span>
                     <span style="color:#8fb8f8;font-weight:700;">PROD: {_fmt_date_clean(rel_data.get('prod_deploy_date', 'TBD'))}</span>
                 </div>
             </div>
             <!-- Right Card: Milestone Execution Ledger -->
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:4px;padding:6px 10px;min-height:124px;overflow-y:auto;box-sizing:border-box;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-                    <div style="font-size:9.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.03em;">Milestone Execution Ledger (5-Phase Pipeline)</div>
-                    <div style="font-size:9px;color:#6e7681;font-family:var(--mono);">Standard Gate Policy</div>
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:4px;padding:5px 8px;min-height:108px;overflow-y:auto;box-sizing:border-box;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <div style="font-size:9px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.03em;">Milestone Execution Ledger (5-Phase Pipeline)</div>
+                    <div style="font-size:8.5px;color:#6e7681;font-family:var(--mono);">Standard Gate Policy</div>
                 </div>
-                <table class="tblx" style="width:100%;font-size:9.5px;line-height:1.25;">
+                <table class="tblx" style="width:100%;font-size:9px;line-height:1.2;">
                     <thead>
                         <tr style="border-bottom:1px solid #2c3235;color:#6e7681;">
                             <th style="text-align:left;padding:2px 4px;">Phase</th>
@@ -784,12 +818,12 @@ def render_release_plan_workspace(db_path: str) -> None:
     scheduled_count = total_fleet_count - active_count - deployed_count
 
     render_html(f'''
-    <div style='display:flex;align-items:center;justify-content:space-between;margin:8px 0 4px 0;padding:0 2px;'>
-        <div style='font-size:10.5px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;'>
+    <div style='display:flex;align-items:center;justify-content:space-between;margin:6px 0 3px 0;padding:0 2px;'>
+        <div style='font-size:10px;font-weight:700;color:#d8d9da;text-transform:uppercase;letter-spacing:0.04em;'>
             📋 Multi-Release Pipeline Roadmap &amp; Gate Matrix
-            <span style='font-size:9px;color:#6e7681;font-weight:400;text-transform:none;margin-left:6px;'>· Click any Release to filter flight deck</span>
+            <span style='font-size:8.5px;color:#6e7681;font-weight:400;text-transform:none;margin-left:6px;'>· Click any Release to filter flight deck</span>
         </div>
-        <div style='font-size:9.5px;color:#9fa7b3;font-family:var(--mono);'>
+        <div style='font-size:9px;color:#9fa7b3;font-family:var(--mono);'>
             Fleet Total: <b style='color:#38bdf8;'>{total_fleet_count} Releases</b> 
             <span style='color:#6e7681;'>({active_count} Active &bull; {scheduled_count} Scheduled &bull; {deployed_count} Deployed)</span>
         </div>
@@ -847,36 +881,36 @@ def render_release_plan_workspace(db_path: str) -> None:
 
         table_rows.append(f'''
         <tr style="{row_bg}">
-            <td style="padding:3.5px 6px;"><span style="font-weight:700;color:#9fa7b3;">{r["state"]}</span></td>
-            <td style="padding:3.5px 6px;">
+            <td style="padding:3px 6px;"><span style="font-weight:700;color:#9fa7b3;">{r["state"]}</span></td>
+            <td style="padding:3px 6px;">
                 <a href="?target_rel={r['id']}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 5px;border-radius:2px;font-family:var(--mono);font-size:10px;font-weight:700;background:{badge_bg};border:1px solid {badge_border};color:{badge_color};{badge_shadow}">
                     {target_icon}{r["clean_id"]}
                 </a>
             </td>
-            <td style="padding:3.5px 6px;font-family:var(--mono);color:#d8d9da;">{r["dev_window"]}</td>
-            <td style="padding:3.5px 6px;font-family:var(--mono);">{r["sit"]}</td>
-            <td style="padding:3.5px 6px;font-family:var(--mono);color:#8fb8f8;font-weight:600;">{r["reg"]}</td>
-            <td style="padding:3.5px 6px;font-family:var(--mono);">{r["uat"]}</td>
-            <td style="padding:3.5px 6px;font-family:var(--mono);font-weight:700;color:#d8d9da;">{r["prod"]}</td>
-            <td style="padding:3.5px 6px;font-size:9px;color:#8fb8f8;">{r["prod_env"]}</td>
-            <td style="padding:3.5px 6px;text-align:right;">{r["status_badge"]}</td>
+            <td style="padding:3px 6px;font-family:var(--mono);color:#d8d9da;">{r["dev_window"]}</td>
+            <td style="padding:3px 6px;font-family:var(--mono);">{r["sit"]}</td>
+            <td style="padding:3px 6px;font-family:var(--mono);color:#8fb8f8;font-weight:600;">{r["reg"]}</td>
+            <td style="padding:3px 6px;font-family:var(--mono);">{r["uat"]}</td>
+            <td style="padding:3px 6px;font-family:var(--mono);font-weight:700;color:#d8d9da;">{r["prod"]}</td>
+            <td style="padding:3px 6px;font-size:9px;color:#8fb8f8;">{r["prod_env"]}</td>
+            <td style="padding:3px 6px;text-align:right;">{r["status_badge"]}</td>
         </tr>
         ''')
 
     render_html(f'''
-    <div style="background:#181b1f;border:1px solid #2c3235;border-radius:4px;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;height:405px;max-height:410px;">
-        <table style="width:100%;border-collapse:collapse;font-size:10px;color:#d8d9da;">
+    <div class="rp-table-container">
+        <table style="width:100%;min-width:850px;border-collapse:collapse;font-size:10px;color:#d8d9da;">
             <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
                 <tr style="color:#6e7681;text-transform:uppercase;font-size:9px;font-weight:600;letter-spacing:0.03em;">
-                    <th style="padding:5px 6px;text-align:left;">State</th>
-                    <th style="padding:5px 6px;text-align:left;">Release (Click to Filter)</th>
-                    <th style="padding:5px 6px;text-align:left;">DEV Window</th>
-                    <th style="padding:5px 6px;text-align:left;">SIT Gate</th>
-                    <th style="padding:5px 6px;text-align:left;color:#8fb8f8;font-weight:700;">Regression</th>
-                    <th style="padding:5px 6px;text-align:left;">UAT Gate</th>
-                    <th style="padding:5px 6px;text-align:left;">PROD Cutover</th>
-                    <th style="padding:5px 6px;text-align:left;">Production Env</th>
-                    <th style="padding:5px 6px;text-align:right;">Status</th>
+                    <th style="padding:4px 6px;text-align:left;">State</th>
+                    <th style="padding:4px 6px;text-align:left;">Release (Click to Filter)</th>
+                    <th style="padding:4px 6px;text-align:left;">DEV Window</th>
+                    <th style="padding:4px 6px;text-align:left;">SIT Gate</th>
+                    <th style="padding:4px 6px;text-align:left;color:#8fb8f8;font-weight:700;">Regression</th>
+                    <th style="padding:4px 6px;text-align:left;">UAT Gate</th>
+                    <th style="padding:4px 6px;text-align:left;">PROD Cutover</th>
+                    <th style="padding:4px 6px;text-align:left;">Production Env</th>
+                    <th style="padding:4px 6px;text-align:right;">Status</th>
                 </tr>
             </thead>
             <tbody>
