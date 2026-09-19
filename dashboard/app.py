@@ -2473,8 +2473,8 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: 310px;
-        max-height: 310px;
+        height: 432px;
+        max-height: 432px;
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
     }
@@ -2497,7 +2497,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
     }
     div.st-key-gov_workspace_subtabs_box div[data-baseweb="tab-list"] {
         width: fit-content !important;
-        max-width: 490px !important;
+        max-width: 540px !important;
         border-bottom: 1px solid #2c3235 !important;
         gap: 2px !important;
         height: 36px !important;
@@ -2514,7 +2514,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         right: 0 !important;
         left: auto !important;
         width: auto !important;
-        max-width: calc(100% - 500px) !important;
+        max-width: calc(100% - 550px) !important;
         height: 32px !important;
         z-index: 99 !important;
         background: transparent !important;
@@ -2585,14 +2585,17 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         del st.query_params["gov_st"]
 
     qp_tm = st.query_params.get("gov_tm")
-    if qp_tm and qp_tm in ui.TEAMS:
-        st.session_state[f"gov_team_{reset_idx}"] = qp_tm
+    if qp_tm:
+        if qp_tm in ui.TEAMS:
+            st.session_state[f"gov_team_{reset_idx}"] = qp_tm
+        elif qp_tm in ["All Teams", "all", "clear"]:
+            st.session_state[f"gov_team_{reset_idx}"] = "All Teams"
         del st.query_params["gov_tm"]
 
     qp_subtab = st.query_params.get("gov_subtab")
     if qp_subtab:
-        if qp_subtab in ["risk", "queue"]:
-            st.session_state["gov_target_tab"] = "⚡ Risk Queue"
+        if qp_subtab in ["risk", "queue", "master", "detail"]:
+            st.session_state["gov_target_tab"] = "⚡ Risk Master-Detail"
         elif qp_subtab in ["disp", "mail", "dispatch"]:
             st.session_state["gov_target_tab"] = "📧 Alert Dispatch"
         elif qp_subtab in ["cad", "cadence"]:
@@ -2777,160 +2780,22 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
     st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
     # --------------------------------------------------------------------------
-    # 4. BALANCED DUAL MIDDLE TIER (160px Height Side-by-Side Cards)
-    # --------------------------------------------------------------------------
-    col_team_gov, col_gate_radar = st.columns([1, 1], gap="small")
-
-    with col_team_gov:
-        team_profiles = list(TEAM_GOVERNANCE_PROFILES.values())
-        t_rows = []
-        for p in team_profiles:
-            t_rows.append(
-                f"<tr style='border-bottom:1px solid #22252b;'>"
-                f"<td style='padding:2.5px 6px;font-weight:700;color:#f8fafc;'><a href='?gov_tm={p['team']}{auth_suffix}' target='_self' style='color:#38bdf8;text-decoration:none;'>{p['team']}</a></td>"
-                f"<td style='padding:2.5px 6px;color:#cbd5e1;'><span style='color:#e2e8f0;font-weight:600;'>{p['lead']}</span> <code style='font-size:8px;color:#64748b;'>{p['channel']}</code></td>"
-                f"<td style='padding:2.5px 6px;text-align:right;font-family:var(--mono);font-weight:700;'>{p['assets']}</td>"
-                f"<td style='padding:2.5px 6px;'><span style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:8px;padding:1px 4px;border-radius:2px;'>{p.get('symbol', '●')} {p['status']}</span></td>"
-                f"<td style='padding:2.5px 6px;color:#94a3b8;font-size:8.5px;'>{p['cadence']}</td>"
-                f"</tr>"
-            )
-
-        st.markdown(f"""
-        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
-            <div style="font-size:9.5px;font-weight:700;color:#ff9830;text-transform:uppercase;letter-spacing:0.04em;">
-              Team Governance &amp; Risk Distribution Matrix
-            </div>
-            <span style="font-size:8px;color:#94a3b8;font-weight:600;">5 Teams Live</span>
-          </div>
-          <div style="overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:none;">
-            <table style="font-size:9.5px;width:100%;border-collapse:collapse;color:#d8d9da;">
-              <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;color:#6e7681;text-transform:uppercase;font-size:8px;letter-spacing:0.03em;">
-                <tr><th style="padding:2px 6px;text-align:left;">Team</th><th style="padding:2px 6px;text-align:left;">Owner &amp; Channel</th><th style="padding:2px 6px;text-align:right;">Assets</th><th style="padding:2px 6px;text-align:left;">Risk Posture</th><th style="padding:2px 6px;text-align:left;">Cadence</th></tr>
-              </thead>
-              <tbody>
-                {''.join(t_rows)}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col_gate_radar:
-        conn_rel = get_connection(DB_PATH)
-        rel_all = get_release_schedules(conn_rel, state=None)
-        conn_rel.close()
-
-        today_date = date.today()
-        milestone_items = []
-        for r in rel_all:
-            st_code = r.get("state", "")
-            rid = r.get("release_id", "")
-            rm_name = r.get("state_rm_name", f"{st_code} RM")
-            rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
-
-            gates = [
-                ("DEV Freeze", r.get("dev_end_date"), "ENV52" if st_code == "NH" else "Build-76"),
-                ("SIT QA Gate", r.get("sit_end_date"), "ENV57" if st_code == "NH" else "SIT QA"),
-                ("State UAT Gate", r.get("uat_end_date"), "ENV04" if st_code == "NH" else "UAT"),
-                ("PROD Cutover", r.get("prod_deploy_date"), "ENV05" if st_code == "NH" else "PROD"),
-            ]
-            for g_name, g_date, g_env in gates:
-                if g_date:
-                    try:
-                        diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
-                        if -7 <= diff <= 30:
-                            milestone_items.append({
-                                "state": st_code,
-                                "release_id": rid,
-                                "phase": g_name,
-                                "env": g_env,
-                                "cutoff_date": g_date,
-                                "days_left": diff,
-                                "rm_name": rm_name,
-                                "rm_email": rm_email,
-                            })
-                    except Exception:
-                        pass
-
-        milestone_items.sort(key=lambda m: (m["days_left"] if m["days_left"] >= 0 else 999, abs(m["days_left"])))
-
-        gate_rows = []
-        for m in milestone_items[:3]:
-            d = m["days_left"]
-            if d < 0:
-                chip_html = f'<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">{abs(d)}d OVERDUE</span>'
-            elif d == 0:
-                chip_html = '<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">TODAY</span>'
-            elif d <= 3:
-                chip_html = f'<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
-            elif d <= 7:
-                chip_html = f'<span style="font-size:8px;font-weight:700;color:#ff9830;background:rgba(255,152,48,0.18);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
-            else:
-                chip_html = f'<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.16);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
-
-            gate_rows.append(
-                f"<div style='display:flex;align-items:center;justify-content:space-between;background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 6px;font-size:9.5px;margin-bottom:2px;'>"
-                f"<div style='display:flex;align-items:center;gap:5px;'>"
-                f"<span style='font-family:var(--mono);font-weight:700;color:#38bdf8;font-size:8.5px;'>{m['state']}</span>"
-                f"<span style='font-family:var(--mono);font-weight:600;color:#f8fafc;font-size:9px;'>{m['release_id']}</span>"
-                f"<span style='color:#94a3b8;font-size:8.5px;'>{m['phase']}</span>"
-                f"</div>"
-                f"<div style='display:flex;align-items:center;gap:6px;'>"
-                f"<span style='font-family:var(--mono);color:#cbd5e1;font-size:8.5px;'>{m['cutoff_date']}</span>"
-                f"{chip_html}"
-                f"</div>"
-                f"</div>"
-            )
-
-        st.markdown(f"""
-        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
-            <div style="font-size:9.5px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.04em;">
-              Release Gate Cutoff Radar &amp; Telemetry
-            </div>
-            <span style="font-size:8px;color:#94a3b8;font-weight:600;">Upcoming Gates (≤30d)</span>
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:1.5px;">
-            {''.join(gate_rows) if gate_rows else '<div style="font-size:9px;color:#64748b;padding:6px 0;">No imminent gate cutoffs in next 30d</div>'}
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:8.5px;border-top:1px solid #22252b;padding-top:3px;">
-            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="color:#10b981;font-weight:700;">PROD Resiliency</span>
-              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">100% (0)</span>
-            </div>
-            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="color:#38bdf8;font-weight:700;">Fleet Scope</span>
-              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{len(base_df)} Assets</span>
-            </div>
-            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="color:#ff9830;font-weight:700;">Schedules</span>
-              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{stats.get('maintenance_schedules', 0)} Windows</span>
-            </div>
-            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="color:#73bf69;font-weight:700;">Audit Logs</span>
-              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{stats.get('reminder_log', 0)} Logged</span>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # --------------------------------------------------------------------------
-    # 5. MASTER ACTION & DISPATCH WORKSPACE (Full-Width, 310px Viewport Locked)
+    # 4. MASTER ACTION & DISPATCH WORKSPACE (Full-Width, 432px Viewport Locked)
     # --------------------------------------------------------------------------
     valid_gov_subtabs = [
-        "⚡ Risk Queue",
+        "⚡ Risk Master-Detail",
         "📧 Alert Dispatch",
         "🛠️ Cadence Console",
         "🚀 Cutoff Engine",
         "📋 Audit Ledger"
     ]
     gov_tab_aliases = {
-        "⚡ Risk Queue": "⚡ Risk Queue",
-        "risk": "⚡ Risk Queue",
-        "queue": "⚡ Risk Queue",
+        "⚡ Risk Master-Detail": "⚡ Risk Master-Detail",
+        "⚡ Risk Queue": "⚡ Risk Master-Detail",
+        "risk": "⚡ Risk Master-Detail",
+        "queue": "⚡ Risk Master-Detail",
+        "master": "⚡ Risk Master-Detail",
+        "detail": "⚡ Risk Master-Detail",
         "📧 Alert Dispatch": "📧 Alert Dispatch",
         "disp": "📧 Alert Dispatch",
         "dispatch": "📧 Alert Dispatch",
@@ -2940,6 +2805,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         "🚀 Cutoff Engine": "🚀 Cutoff Engine",
         "cut": "🚀 Cutoff Engine",
         "cutoffs": "🚀 Cutoff Engine",
+        "gates": "🚀 Cutoff Engine",
         "📋 Audit Ledger": "📋 Audit Ledger",
         "aud": "📋 Audit Ledger",
         "audit": "📋 Audit Ledger",
@@ -2956,12 +2822,13 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
             key=f"gov_subtabs_bar_{reset_idx}"
         )
 
-    # --- SUBTAB 1: RISK QUEUE & BULK REMEDIATION ---
+    # --- SUBTAB 1: INTEGRATED MASTER-DETAIL RISK COMMAND ---
     with gov_tab_risk:
+        scope_prefix = f"{team_filter} · " if team_filter != "All Teams" else ""
         with st.container(key=f"gov_tab_actions_risk_{reset_idx}"):
-            act_c1, act_c2, act_c3, act_c4 = st.columns([1.5, 0.9, 0.9, 0.8], gap="small")
+            act_c1, act_c2, act_c3, act_c4 = st.columns([1.6, 0.85, 0.85, 0.75], gap="small")
             with act_c1:
-                st.markdown(f"<div style='font-size:9.5px;color:#38bdf8;font-weight:700;padding-top:4px;white-space:nowrap;'>⚡ {len(urgent_records)} urgent items queued</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:9.5px;color:#38bdf8;font-weight:700;padding-top:4px;white-space:nowrap;'>⚡ {scope_prefix}{len(urgent_records)} urgent items queued</div>", unsafe_allow_html=True)
             with act_c2:
                 if st.button("+90d All", key=f"gov_risk_bulk_90d_{reset_idx}", use_container_width=True, help=f"Extend all {len(urgent_records)} items by 90 days"):
                     p90_dt = date.today() + timedelta(days=90)
@@ -2986,62 +2853,210 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
                             st.success(f"Updated {len(edits)} items to {c_dt}!")
                             rerun()
 
-        if urgent_records.empty:
-            st.markdown("""
-            <div style="padding:48px 16px;text-align:center;background:#181b1f;border:1px solid #2c3235;border-radius:3px;">
-              <div style="font-size:14px;font-weight:700;color:#10b981;">✓ Scope 100% In Compliance</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:4px;">No expired or critical debt entities found matching current filters.</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            q_rows = []
-            for ur in urgent_records.itertuples():
-                ur_meta = ui.BAND_META.get(ur.band, ui.BAND_META["Healthy"])
-                ur_code = ui.COMPONENT_CODE.get(ur.component, ur.component)
-                ur_icon = ui.COMPONENT_ICONS.get(ur.component, "📦")
-                ur_meta_color = ur_meta["color"]
-                ur_meta_tint = ur_meta["tint"]
-                days_color = "#f2495c" if ur.days_left < 0 else ("#ff9830" if ur.days_left <= 15 else "#73bf69")
-                action_btn_html = f'<a href="?op_act_id={ur.id}&op_subtab=insp{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:2px;font-size:9px;font-weight:700;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;">Inspect ↗</a>'
+        # MASTER-DETAIL 2-COLUMN SPLIT-PANE
+        col_master, col_detail = st.columns([3.8, 6.2], gap="small")
 
-                q_rows.append(
-                    f"<tr style='border-bottom:1px solid #22252b;'>"
-                    f"<td style='padding:3px 6px;font-family:var(--mono);'><span style='color:#f8fafc;font-weight:700;'>#{ur.id}</span></td>"
-                    f"<td style='padding:3px 6px;'><span style='color:{ur_meta_color};background:{ur_meta_tint};font-weight:700;font-size:8.5px;padding:1px 5px;border-radius:2px;'>{ur.band}</span></td>"
-                    f"<td style='padding:3px 6px;font-weight:700;color:#9fa7b3;'>{ur.state}</td>"
-                    f"<td style='padding:3px 6px;'><span class='env-tag'>{ur.env_label}</span></td>"
-                    f"<td style='padding:3px 6px;color:#cbd5e1;'>{ur.team}</td>"
-                    f"<td style='padding:3px 6px;color:#d8d9da;'>{ur_icon} {ur_code}</td>"
-                    f"<td style='padding:3px 6px;font-family:var(--mono);font-weight:600;color:#f8fafc;'>{ur.schema_name}</td>"
-                    f"<td style='padding:3px 6px;font-family:var(--mono);color:#cbd5e1;'>{ur.exp_date}</td>"
-                    f"<td style='padding:3px 6px;font-family:var(--mono);color:{days_color};font-weight:700;'>{ui.fmt_days(ur.days_left)}</td>"
-                    f"<td style='padding:3px 6px;text-align:right;'>{action_btn_html}</td>"
+        with col_master:
+            # 1. Team Governance & Risk Distribution Matrix (Master)
+            team_profiles = list(TEAM_GOVERNANCE_PROFILES.values())
+            t_rows = []
+            for p in team_profiles:
+                tm_name = p['team']
+                is_tm_active = (team_filter == tm_name)
+                tm_border = "border-left:3px solid #38bdf8;background:rgba(56,189,248,0.14);" if is_tm_active else "border-bottom:1px solid #22252b;"
+                tm_link_color = "#ffffff" if is_tm_active else "#38bdf8"
+                t_sub = scoped_records[scoped_records['team'] == tm_name] if team_filter == "All Teams" else base_df[(base_df['team'] == tm_name) & ((base_df['state'] == state_filter) if state_filter != "All States" else True)]
+                t_cnt = len(t_sub)
+                t_exp = int((t_sub['days_left'] < 0).sum())
+                t_crit = int((t_sub['days_left'].between(0, ui.CRITICAL_DAYS)).sum())
+                t_warn = int((t_sub['days_left'].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+
+                if t_exp > 0:
+                    status_badge = f"<span style='color:#f2495c;background:rgba(242,73,92,0.18);font-weight:700;font-size:8px;padding:1px 4px;border-radius:2px;'>● {t_exp} Exp</span>"
+                elif t_crit > 0:
+                    status_badge = f"<span style='color:#f2495c;background:rgba(242,73,92,0.18);font-weight:700;font-size:8px;padding:1px 4px;border-radius:2px;'>▲ {t_crit} Crit</span>"
+                elif t_warn > 0:
+                    status_badge = f"<span style='color:#ff9830;background:rgba(255,152,48,0.18);font-weight:700;font-size:8px;padding:1px 4px;border-radius:2px;'>{t_warn} Warn</span>"
+                else:
+                    status_badge = f"<span style='color:#10b981;background:rgba(16,185,129,0.16);font-weight:700;font-size:8px;padding:1px 4px;border-radius:2px;'>✓ OK</span>"
+
+                t_rows.append(
+                    f"<tr style='{tm_border}'>"
+                    f"<td style='padding:2.5px 5px;font-weight:700;'><a href='?gov_tm={tm_name}{auth_suffix}' target='_self' style='color:{tm_link_color};text-decoration:none;'>{tm_name}</a></td>"
+                    f"<td style='padding:2.5px 5px;color:#cbd5e1;'><span style='color:#e2e8f0;font-weight:600;'>{p['lead']}</span> <code style='font-size:8px;color:#64748b;'>{p['channel']}</code></td>"
+                    f"<td style='padding:2.5px 5px;text-align:right;font-family:var(--mono);font-weight:700;'>{t_cnt}</td>"
+                    f"<td style='padding:2.5px 5px;'>{status_badge}</td>"
+                    f"<td style='padding:2.5px 5px;color:#94a3b8;font-size:8.5px;'>{p['cadence']}</td>"
                     f"</tr>"
                 )
 
-            st.markdown(f"""
-            <div class="gov-table-container">
-              <table style="width:100%;min-width:920px;border-collapse:collapse;font-size:10px;color:#d8d9da;">
-                <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
-                  <tr style="color:#6e7681;text-transform:uppercase;font-size:9px;font-weight:600;letter-spacing:0.03em;">
-                    <th style="padding:4px 6px;text-align:left;">ID</th>
-                    <th style="padding:4px 6px;text-align:left;">Severity</th>
-                    <th style="padding:4px 6px;text-align:left;">State</th>
-                    <th style="padding:4px 6px;text-align:left;">Env</th>
-                    <th style="padding:4px 6px;text-align:left;">Team</th>
-                    <th style="padding:4px 6px;text-align:left;">Component</th>
-                    <th style="padding:4px 6px;text-align:left;">Schema / Asset</th>
-                    <th style="padding:4px 6px;text-align:left;">Current Expiry</th>
-                    <th style="padding:4px 6px;text-align:left;">Time Left</th>
-                    <th style="padding:4px 6px;text-align:right;">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {''.join(q_rows)}
-                </tbody>
-              </table>
-            </div>
-            """, unsafe_allow_html=True)
+            clear_tm_link = f'<a href="?gov_tm=All Teams{auth_suffix}" target="_self" style="font-size:8px;color:#f59e0b;font-weight:700;text-decoration:none;border:1px solid #f59e0b;padding:1px 4px;border-radius:2px;line-height:1;">✕ Clear</a>' if team_filter != "All Teams" else ''
+
+            st.markdown(f"""<div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:212px;min-height:212px;margin-bottom:8px;display:flex;flex-direction:column;justify-content:space-between;">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+<div style="font-size:9.5px;font-weight:700;color:#ff9830;text-transform:uppercase;letter-spacing:0.04em;">Team Governance &amp; Risk Distribution Matrix</div>
+<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:8px;color:#94a3b8;font-weight:600;">5 Teams Live</span>{clear_tm_link}</div>
+</div>
+<div style="overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:none;">
+<table style="font-size:9.5px;width:100%;border-collapse:collapse;color:#d8d9da;">
+<thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;color:#6e7681;text-transform:uppercase;font-size:8px;letter-spacing:0.03em;">
+<tr><th style="padding:2px 5px;text-align:left;">Team</th><th style="padding:2px 5px;text-align:left;">Owner &amp; Channel</th><th style="padding:2px 5px;text-align:right;">Assets</th><th style="padding:2px 5px;text-align:left;">Risk Posture</th><th style="padding:2px 5px;text-align:left;">Cadence</th></tr>
+</thead>
+<tbody>
+{''.join(t_rows)}
+</tbody>
+</table>
+</div>
+</div>""", unsafe_allow_html=True)
+
+            # 2. Release Gate Cutoff Radar & Telemetry (Master)
+            conn_rel = get_connection(DB_PATH)
+            rel_all = get_release_schedules(conn_rel, state=None)
+            conn_rel.close()
+
+            today_date = date.today()
+            milestone_items = []
+            for r in rel_all:
+                st_code = r.get("state", "")
+                rid = r.get("release_id", "")
+                rm_name = r.get("state_rm_name", f"{st_code} RM")
+                rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
+
+                gates = [
+                    ("DEV Freeze", r.get("dev_end_date"), "ENV52" if st_code == "NH" else "Build-76"),
+                    ("SIT QA Gate", r.get("sit_end_date"), "ENV57" if st_code == "NH" else "SIT QA"),
+                    ("State UAT Gate", r.get("uat_end_date"), "ENV04" if st_code == "NH" else "UAT"),
+                    ("PROD Cutover", r.get("prod_deploy_date"), "ENV05" if st_code == "NH" else "PROD"),
+                ]
+                for g_name, g_date, g_env in gates:
+                    if g_date:
+                        try:
+                            diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
+                            if -7 <= diff <= 30:
+                                milestone_items.append({
+                                    "state": st_code,
+                                    "release_id": rid,
+                                    "phase": g_name,
+                                    "env": g_env,
+                                    "cutoff_date": g_date,
+                                    "days_left": diff,
+                                    "rm_name": rm_name,
+                                    "rm_email": rm_email,
+                                    })
+                        except Exception:
+                            pass
+
+            milestone_items.sort(key=lambda m: (m["days_left"] if m["days_left"] >= 0 else 999, abs(m["days_left"])))
+
+            gate_rows = []
+            for m in milestone_items[:3]:
+                d = m["days_left"]
+                if d < 0:
+                    chip_html = f'<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">{abs(d)}d OVERDUE</span>'
+                elif d == 0:
+                    chip_html = '<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">TODAY</span>'
+                elif d <= 3:
+                    chip_html = f'<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
+                elif d <= 7:
+                    chip_html = f'<span style="font-size:8px;font-weight:700;color:#ff9830;background:rgba(255,152,48,0.18);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
+                else:
+                    chip_html = f'<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.16);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
+
+                gate_rows.append(
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 6px;font-size:9.5px;margin-bottom:2px;'>"
+                    f"<div style='display:flex;align-items:center;gap:5px;'>"
+                    f"<span style='font-family:var(--mono);font-weight:700;color:#38bdf8;font-size:8.5px;'>{m['state']}</span>"
+                    f"<span style='font-family:var(--mono);font-weight:600;color:#f8fafc;font-size:9px;'>{m['release_id']}</span>"
+                    f"<span style='color:#94a3b8;font-size:8.5px;'>{m['phase']}</span>"
+                    f"</div>"
+                    f"<div style='display:flex;align-items:center;gap:6px;'>"
+                    f"<span style='font-family:var(--mono);color:#cbd5e1;font-size:8.5px;'>{m['cutoff_date']}</span>"
+                    f"{chip_html}"
+                    f"</div>"
+                    f"</div>"
+                )
+
+            st.markdown(f"""<div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:212px;min-height:212px;display:flex;flex-direction:column;justify-content:space-between;">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+<div style="font-size:9.5px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.04em;">Release Gate Cutoff Radar &amp; Telemetry</div>
+<span style="font-size:8px;color:#94a3b8;font-weight:600;">Upcoming Gates (≤30d)</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:1.5px;">
+{''.join(gate_rows) if gate_rows else '<div style="font-size:9px;color:#64748b;padding:6px 0;">No imminent gate cutoffs in next 30d</div>'}
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:8.5px;border-top:1px solid #22252b;padding-top:3px;">
+<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+<span style="color:#10b981;font-weight:700;">PROD Resiliency</span>
+<span style="color:var(--text);font-family:var(--mono);font-weight:700;">100% (0)</span>
+</div>
+<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+<span style="color:#38bdf8;font-weight:700;">Fleet Scope</span>
+<span style="color:var(--text);font-family:var(--mono);font-weight:700;">{len(base_df)} Assets</span>
+</div>
+<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+<span style="color:#ff9830;font-weight:700;">Schedules</span>
+<span style="color:var(--text);font-family:var(--mono);font-weight:700;">{stats.get('maintenance_schedules', 0)} Windows</span>
+</div>
+<div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+<span style="color:#73bf69;font-weight:700;">Audit Logs</span>
+<span style="color:var(--text);font-family:var(--mono);font-weight:700;">{stats.get('reminder_log', 0)} Logged</span>
+</div>
+</div>
+</div>""", unsafe_allow_html=True)
+
+        with col_detail:
+            if urgent_records.empty:
+                st.markdown(f"""<div style="padding:48px 16px;text-align:center;background:#181b1f;border:1px solid #2c3235;border-radius:3px;height:432px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;">
+<div style="font-size:14px;font-weight:700;color:#10b981;">✓ {scope_prefix or 'Scope '}100% In Compliance</div>
+<div style="font-size:11px;color:#94a3b8;margin-top:4px;">No expired or critical debt entities found matching current filters.</div>
+</div>""", unsafe_allow_html=True)
+            else:
+                q_rows = []
+                for ur in urgent_records.itertuples():
+                    ur_meta = ui.BAND_META.get(ur.band, ui.BAND_META["Healthy"])
+                    ur_code = ui.COMPONENT_CODE.get(ur.component, ur.component)
+                    ur_icon = ui.COMPONENT_ICONS.get(ur.component, "📦")
+                    ur_meta_color = ur_meta["color"]
+                    ur_meta_tint = ur_meta["tint"]
+                    days_color = "#f2495c" if ur.days_left < 0 else ("#ff9830" if ur.days_left <= 15 else "#73bf69")
+                    action_btn_html = f'<a href="?op_act_id={ur.id}&op_subtab=insp{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:2px;font-size:9px;font-weight:700;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;">Inspect ↗</a>'
+
+                    q_rows.append(
+                        f"<tr style='border-bottom:1px solid #22252b;'>"
+                        f"<td style='padding:3px 5px;font-family:var(--mono);'><span style='color:#f8fafc;font-weight:700;'>#{ur.id}</span></td>"
+                        f"<td style='padding:3px 5px;'><span style='color:{ur_meta_color};background:{ur_meta_tint};font-weight:700;font-size:8.5px;padding:1px 4px;border-radius:2px;'>{ur.band}</span></td>"
+                        f"<td style='padding:3px 5px;font-weight:700;color:#9fa7b3;'>{ur.state}</td>"
+                        f"<td style='padding:3px 5px;'><span class='env-tag'>{ur.env_label}</span></td>"
+                        f"<td style='padding:3px 5px;color:#cbd5e1;'>{ur.team}</td>"
+                        f"<td style='padding:3px 5px;color:#d8d9da;'>{ur_icon} {ur_code}</td>"
+                        f"<td style='padding:3px 5px;font-family:var(--mono);font-weight:600;color:#f8fafc;'>{ur.schema_name}</td>"
+                        f"<td style='padding:3px 5px;font-family:var(--mono);color:#cbd5e1;'>{ur.exp_date}</td>"
+                        f"<td style='padding:3px 5px;font-family:var(--mono);color:{days_color};font-weight:700;'>{ui.fmt_days(ur.days_left)}</td>"
+                        f"<td style='padding:3px 5px;text-align:right;'>{action_btn_html}</td>"
+                        f"</tr>"
+                    )
+
+                st.markdown(f"""<div class="gov-table-container">
+<table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
+<thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
+<tr style="color:#6e7681;text-transform:uppercase;font-size:8.5px;font-weight:600;letter-spacing:0.03em;">
+<th style="padding:3px 5px;text-align:left;">ID</th>
+<th style="padding:3px 5px;text-align:left;">Severity</th>
+<th style="padding:3px 5px;text-align:left;">State</th>
+<th style="padding:3px 5px;text-align:left;">Env</th>
+<th style="padding:3px 5px;text-align:left;">Team</th>
+<th style="padding:3px 5px;text-align:left;">Component</th>
+<th style="padding:3px 5px;text-align:left;">Schema / Asset</th>
+<th style="padding:3px 5px;text-align:left;">Current Expiry</th>
+<th style="padding:3px 5px;text-align:left;">Time Left</th>
+<th style="padding:3px 5px;text-align:right;">Action</th>
+</tr>
+</thead>
+<tbody>
+{''.join(q_rows)}
+</tbody>
+</table>
+</div>""", unsafe_allow_html=True)
 
     # --- SUBTAB 2: ALERT DISPATCH (SIMULATION & LIVE SMTP) ---
     with gov_tab_disp:
@@ -3203,7 +3218,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
                   </div>
                   <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f8fafc;font-weight:600;"><b>Subject:</b> {email_subject}</div>
                 </div>
-                <div style="background:#ffffff;border:1px solid #2c3235;border-radius:2px;height:245px;overflow-y:auto;padding:6px;">
+                <div style="background:#ffffff;border:1px solid #2c3235;border-radius:2px;height:400px;overflow-y:auto;padding:6px;">
                   {email_html}
                 </div>
                 """, unsafe_allow_html=True)
@@ -3322,7 +3337,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
               </div>
               <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f8fafc;font-weight:600;"><b>Subject:</b> [CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick}</div>
             </div>
-            <div style="background:#ffffff;border:1px solid #2c3235;border-radius:2px;height:245px;overflow-y:auto;padding:6px;">
+            <div style="background:#ffffff;border:1px solid #2c3235;border-radius:2px;height:400px;overflow-y:auto;padding:6px;">
               {cad_email_html}
             </div>
             """, unsafe_allow_html=True)
@@ -3400,7 +3415,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
                     )
 
                 st.markdown(f"""
-                <div class="gov-table-container" style="height:280px;max-height:280px;">
+                <div class="gov-table-container" style="height:420px;max-height:420px;">
                   <table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
                     <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;color:#6e7681;text-transform:uppercase;font-size:8px;">
                       <tr><th style="padding:3px 6px;text-align:left;">State</th><th style="padding:3px 6px;text-align:left;">Release</th><th style="padding:3px 6px;text-align:left;">Phase</th><th style="padding:3px 6px;text-align:left;">Date</th><th style="padding:3px 6px;text-align:left;">Status</th></tr>
@@ -3435,7 +3450,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
                             st.error(f"Dispatch failed: {ex}")
 
                 st.markdown(f"""
-                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:10px;height:280px;box-sizing:border-box;overflow-y:auto;">
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:10px;height:420px;box-sizing:border-box;overflow-y:auto;">
                   <div style="color:#94a3b8;font-weight:700;margin-bottom:4px;">📧 Preview Release Cutoff Alert Email Template</div>
                   <div style="color:#cbd5e1;margin-bottom:2px;"><b style="color:#f8fafc;">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
                   <div style="color:#cbd5e1;margin-bottom:6px;"><b style="color:#f8fafc;">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
@@ -3469,7 +3484,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
 
         with aud_col_left:
             st.markdown(f"""
-            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;height:280px;box-sizing:border-box;overflow-y:auto;">
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;height:420px;box-sizing:border-box;overflow-y:auto;">
               <div style="font-size:9.5px;font-weight:700;color:#f8fafc;margin-bottom:6px;">Database Table Lineage Matrix</div>
               <table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
                 <tr style="border-bottom:1px solid #2c3235;color:#6e7681;font-size:8.5px;">
@@ -3514,7 +3529,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
                     for r in recent_logs
                 )
                 st.markdown(f"""
-                <div class="gov-table-container" style="height:280px;max-height:280px;">
+                <div class="gov-table-container" style="height:420px;max-height:420px;">
                   <table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
                     <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;color:#6e7681;text-transform:uppercase;font-size:8px;">
                       <tr><th style="padding:3px 6px;text-align:left;">State</th><th style="padding:3px 6px;text-align:left;">Entity Audited</th><th style="padding:3px 6px;text-align:left;">Last Audit Date</th><th style="padding:3px 6px;text-align:right;">Dispatches</th></tr>
