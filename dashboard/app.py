@@ -2241,7 +2241,109 @@ TEAM_GOVERNANCE_PROFILES = {
 }
 
 
-def render_governance_center() -> None:
+def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
+    st.markdown('''
+    <style>
+    .gov-table-container {
+        background: #181b1f;
+        border: 1px solid #2c3235;
+        border-radius: 3px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: auto;
+        height: 310px;
+        max-height: 310px;
+        scrollbar-width: thin;
+        scrollbar-color: #38bdf8 #181b1f;
+    }
+    .gov-table-container::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+        display: block;
+    }
+    .gov-table-container::-webkit-scrollbar-track {
+        background: #181b1f;
+        border-left: 1px solid #2c3235;
+    }
+    .gov-table-container::-webkit-scrollbar-thumb {
+        background: #38bdf8;
+        border-radius: 3px;
+        border: 1px solid #0284c7;
+    }
+    div.st-key-gov_workspace_subtabs_box div[data-testid="stTabs"] {
+        position: relative !important;
+    }
+    div.st-key-gov_workspace_subtabs_box div[data-baseweb="tab-list"] {
+        width: fit-content !important;
+        max-width: 490px !important;
+        border-bottom: 1px solid #2c3235 !important;
+        gap: 2px !important;
+        height: 36px !important;
+    }
+    div.st-key-gov_workspace_subtabs_box div[data-baseweb="tab-list"] button[role="tab"] {
+        padding: 3px 6px !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+    }
+    div[class*="st-key-gov_tab_actions_"] {
+        position: absolute !important;
+        top: 2px !important;
+        right: 0 !important;
+        left: auto !important;
+        width: auto !important;
+        max-width: calc(100% - 500px) !important;
+        height: 32px !important;
+        z-index: 99 !important;
+        background: transparent !important;
+        border: none !important;
+    }
+    div[class*="st-key-gov_tab_actions_risk_"] { min-width: 460px !important; }
+    div[class*="st-key-gov_tab_actions_disp_"] { min-width: 320px !important; }
+    div[class*="st-key-gov_tab_actions_cad_"] { min-width: 360px !important; }
+    div[class*="st-key-gov_tab_actions_cut_"] { min-width: 420px !important; }
+    div[class*="st-key-gov_tab_actions_aud_"] { min-width: 320px !important; }
+    div[class*="st-key-gov_tab_actions_"] div[data-testid="stHorizontalBlock"] {
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 4px !important;
+    }
+    div[class*="st-key-gov_tab_actions_"] button,
+    div[class*="st-key-gov_tab_actions_"] div[data-testid="stPopover"] > button {
+        padding: 0 6px !important;
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        white-space: nowrap !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+        border-radius: 2px !important;
+    }
+    div[class*="st-key-gov_tab_actions_"] button p {
+        font-size: 9.5px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    div[class*="st-key-gov_tab_actions_"] div[data-testid="stPopover"] {
+        width: 100% !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    div[class*="st-key-gov_tab_actions_"] div[data-testid="stPopover"] > button > div {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        line-height: 1 !important;
+    }
+    </style>
+    ''', unsafe_allow_html=True)
+
     conn = get_connection(DB_PATH)
     tables = ["component_records", "expiry_records", "maintenance_schedules", "owners", "reminder_log"]
     stats = {}
@@ -2252,123 +2354,169 @@ def render_governance_center() -> None:
             stats[t] = 0
     conn.close()
 
-    gov_drill = st.session_state.setdefault("gov_drill_scope", "all")
-    gov_team_filter = st.session_state.setdefault("gov_team_filter", "All")
+    reset_idx = st.session_state.setdefault("gov_reset_idx", 0)
+
+    # Reactive URL Query Parameter Handling
+    qp_st = st.query_params.get("gov_st")
+    if qp_st and qp_st in STATES:
+        st.session_state[f"gov_state_{reset_idx}"] = qp_st
+        del st.query_params["gov_st"]
+
+    qp_tm = st.query_params.get("gov_tm")
+    if qp_tm and qp_tm in ui.TEAMS:
+        st.session_state[f"gov_team_{reset_idx}"] = qp_tm
+        del st.query_params["gov_tm"]
+
+    qp_subtab = st.query_params.get("gov_subtab")
+    if qp_subtab:
+        if qp_subtab in ["risk", "queue"]:
+            st.session_state["gov_target_tab"] = "⚡ Risk Queue"
+        elif qp_subtab in ["disp", "mail", "dispatch"]:
+            st.session_state["gov_target_tab"] = "📧 Alert Dispatch"
+        elif qp_subtab in ["cad", "cadence"]:
+            st.session_state["gov_target_tab"] = "🛠️ Cadence Console"
+        elif qp_subtab in ["cut", "cutoff", "gates"]:
+            st.session_state["gov_target_tab"] = "🚀 Cutoff Engine"
+        elif qp_subtab in ["aud", "audit"]:
+            st.session_state["gov_target_tab"] = "📋 Audit Ledger"
+        del st.query_params["gov_subtab"]
+
+    active_user = st.session_state.get("active_user", "admin")
+    auth_suffix = f"&_auth_user={active_user}&tab=3"
+
+    # --------------------------------------------------------------------------
+    # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | Slicers | Telemetry & Actions)
+    # --------------------------------------------------------------------------
+    gov_st_key = f"gov_state_{reset_idx}"
+    gov_tm_key = f"gov_team_{reset_idx}"
+    gov_risk_key = f"gov_risk_{reset_idx}"
+    gov_srch_key = f"gov_srch_{reset_idx}"
+
     active_scope = st.session_state.get("_override_canvas_state")
-    if active_scope and active_scope in ["NH", "ND", "AK"]:
-        gov_state_filter = active_scope
-        st.session_state["gov_state_filter"] = active_scope
-    else:
-        gov_state_filter = st.session_state.setdefault("gov_state_filter", "All")
+    if active_scope and active_scope in STATES and gov_st_key not in st.session_state:
+        st.session_state[gov_st_key] = active_scope
 
+    c_brand, c_srch, c_st, c_tm, c_risk, c_telem, c_csv, c_reset = st.columns(
+        [1.9, 1.2, 0.85, 0.85, 0.95, 1.7, 0.55, 0.35],
+        gap="small"
+    )
 
+    with c_srch:
+        q = st.text_input("Filter", key=gov_srch_key, placeholder="🔍 Search...", label_visibility="collapsed")
+    with c_st:
+        state_opts = ["All States"] + STATES
+        state_filter = st.selectbox("State", state_opts, key=gov_st_key, label_visibility="collapsed")
+    with c_tm:
+        team_filter = st.selectbox("Team", ["All Teams"] + ui.TEAMS, key=gov_tm_key, label_visibility="collapsed")
+    with c_risk:
+        risk_filter = st.selectbox("Risk", ["All Risks", "Expired", "Critical (≤15d)", "Warning (≤30d)", "Healthy"], key=gov_risk_key, label_visibility="collapsed")
 
-    # Filter records based on active drill scope & team
-    scoped_records = records.copy()
-    if gov_state_filter != "All":
-        scoped_records = scoped_records[scoped_records["state"] == gov_state_filter]
-    if gov_team_filter != "All":
-        scoped_records = scoped_records[scoped_records["team"] == gov_team_filter]
+    base_df = records if records_df is None else records_df
+    scoped_records = base_df.copy()
+    if q:
+        scoped_records = search(scoped_records, q)
+    if state_filter != "All States":
+        scoped_records = scoped_records[scoped_records["state"] == state_filter]
+    if team_filter != "All Teams":
+        scoped_records = scoped_records[scoped_records["team"] == team_filter]
+    if risk_filter == "Expired":
+        scoped_records = scoped_records[scoped_records["band"] == "Expired"]
+    elif risk_filter == "Critical (≤15d)":
+        scoped_records = scoped_records[scoped_records["band"] == "Critical"]
+    elif risk_filter == "Warning (≤30d)":
+        scoped_records = scoped_records[scoped_records["band"] == "Warning"]
+    elif risk_filter == "Healthy":
+        scoped_records = scoped_records[scoped_records["band"] == "Healthy"]
+
+    scoped_records = scoped_records.sort_values("days_left")
 
     urgent_records = scoped_records[scoped_records["band"].isin(["Expired", "Critical", "Warning"])].copy()
     urgent_records.sort_values(by="days_left", ascending=True, inplace=True)
 
-    n_expired_fleet = (scoped_records["band"] == "Expired").sum()
-    n_critical_fleet = (scoped_records["band"] == "Critical").sum()
-    n_warning_fleet = (scoped_records["band"] == "Warning").sum()
+    n_expired_fleet = int((scoped_records["band"] == "Expired").sum())
+    n_critical_fleet = int((scoped_records["band"] == "Critical").sum())
+    n_warning_fleet = int((scoped_records["band"] == "Warning").sum())
     n_total_risk_fleet = n_expired_fleet + n_critical_fleet + n_warning_fleet
-    n_healthy_fleet = (scoped_records["band"] == "Healthy").sum()
+    n_healthy_fleet = int((scoped_records["band"] == "Healthy").sum())
     total_len = len(scoped_records) if len(scoped_records) > 0 else 1
     pct_healthy = (n_healthy_fleet / total_len) * 100.0
     pct_risk = (n_total_risk_fleet / total_len) * 100.0
 
-    scope_name = "All"
-    if gov_state_filter != "All":
-        scope_name = gov_state_filter
-    if gov_team_filter != "All":
-        scope_name += f" - {gov_team_filter}"
+    _utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
 
-    h_col1, h_col2 = st.columns([7.2, 2.8])
-    with h_col1:
-        st.markdown(ui.render_universal_header(
-            title="Governance & Alerts Center",
-            subtitle="Automated Policy Enforcement, Cadence Audits & Multi-Team Alerts",
-            badge_text="POLICY GOVERNANCE",
-            badge_color="#8b5cf6",
-            state_scope=active_scope if active_scope in STATES else (gov_state_filter if gov_state_filter != "All" else None),
-        ), unsafe_allow_html=True)
-    with h_col2:
-        if st.button("↺ Reset Scope", key="gov_reset_scope", use_container_width=True, type="secondary"):
-            st.session_state["gov_drill_scope"] = "all"
-            st.session_state["gov_team_filter"] = "All"
-            st.session_state["gov_state_filter"] = "All"
+    with c_brand:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:6px;height:30px;padding-top:2px;" title="Governance & Alerts Center · Automated Policy Enforcement & Multi-Team Alerts">
+            <div style="width:3px;height:18px;background:#8b5cf6;border-radius:1px;flex:none;"></div>
+            <span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">GOVERNANCE &amp; ALERTS</span>
+            <span style="font-size:7.5px;font-weight:800;background:rgba(139,92,246,0.18);color:#a78bfa;border:1px solid rgba(139,92,246,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;">POLICY</span>
+            <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;">({len(scoped_records)}/{len(base_df)})</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_telem:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:30px;line-height:1;box-sizing:border-box;">
+            <span style="font-size:8px;font-weight:700;background:rgba(115,191,105,0.16);color:#73bf69;border:1px solid rgba(115,191,105,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">🛡️ PROD 100%</span>
+            <span style="font-size:8px;font-weight:700;background:rgba(242,73,92,0.18);color:#f2495c;border:1px solid rgba(242,73,92,0.4);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">⚠️ {n_total_risk_fleet} Debt</span>
+            <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_csv:
+        st.markdown(
+            ui.csv_download_button(
+                df=scoped_records,
+                filename=f"governance_audit_{date.today().isoformat()}.csv",
+                label="📥 CSV",
+                key=f"gov_export_csv_{reset_idx}",
+            ),
+            unsafe_allow_html=True
+        )
+
+    with c_reset:
+        if st.button("↺", key=f"gov_reset_btn_{reset_idx}", help="Reset all filters and scope", use_container_width=True):
+            st.session_state["gov_reset_idx"] = reset_idx + 1
+            st.session_state.pop("gov_target_tab", None)
             rerun()
 
+    # --------------------------------------------------------------------------
+    # 2. ACTION DIRECTIVE TICKER (Compact 24px Bar)
+    # --------------------------------------------------------------------------
     st.markdown(f"""
-    <div class="scope-line" style="margin-top:2px;margin-bottom:6px;padding:6px 10px;">
-      <div style="display:flex;align-items:center;gap:8px;flex:1;">
-        <span class="scope-label">GOVERNANCE SCOPE</span>
-        <span class="scope-val">{scope_name}</span>
-        <span class="scope-muted">({len(scoped_records)} of {len(records)} total managed assets)</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <div class="live-dot"></div>
-        <span class="scope-muted" style="font-variant-numeric:tabular-nums;font-size:11px;">Live Data Sync · 08:00 UTC</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 2. Level 1: Authoritative Action Directive (Concise, High Impact)
-    st.markdown(f"""
-    <div class="panel" style="border-left:3px solid var(--expired);background:linear-gradient(90deg, rgba(242,73,92,0.12) 0%, rgba(24,27,31,0.95) 100%);padding:6px 12px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;border-radius:2px;">
-      <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;">
-        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#f2495c;box-shadow:0 0 6px #f2495c;flex:none;"></span>
-        <span style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:0.02em;white-space:nowrap;">ACTION DIRECTIVE:</span>
-        <span class="pill" style="color:var(--expired);background:var(--red-dim);font-size:8.5px;font-weight:700;border-radius:2px;padding:1px 5px;flex:none;">POLICY ESCALATION</span>
-        <span style="font-size:10.5px;color:var(--slate);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+    <div style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(90deg, rgba(242,73,92,0.12) 0%, rgba(24,27,31,0.95) 100%);border:1px solid #2c3235;border-left:3px solid #f2495c;border-radius:2px;padding:2px 8px;margin-bottom:6px;height:24px;box-sizing:border-box;">
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#f2495c;box-shadow:0 0 5px #f2495c;flex:none;"></span>
+        <span style="font-size:9.5px;font-weight:800;color:#f8fafc;letter-spacing:0.03em;white-space:nowrap;">ACTION DIRECTIVE:</span>
+        <span style="color:#f2495c;background:rgba(242,73,92,0.18);font-size:8px;font-weight:700;border-radius:2px;padding:0 4px;flex:none;">POLICY ESCALATION</span>
+        <span style="font-size:9px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           <b>Core (ND)</b> overdue &middot; <b>Letters (AK)</b> &amp; <b>Cognos (NH)</b> &le;15d renewals pending
         </span>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;flex:none;margin-left:12px;">
-        <div style="width:120px;">
-          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--mute);margin-bottom:2px;font-variant-numeric:tabular-nums;">
-            <span style="color:var(--healthy);font-weight:700;">{pct_healthy:.1f}% OK</span>
-            <span style="color:var(--expired);font-weight:700;">{pct_risk:.1f}% Risk</span>
-          </div>
-          <div style="height:4px;width:100%;background:#212429;border-radius:2px;overflow:hidden;display:flex;">
-            <div style="width:{pct_healthy:.1f}%;background:var(--healthy);"></div>
-            <div style="width:{pct_risk:.1f}%;background:var(--expired);"></div>
-          </div>
-        </div>
-        <div style="text-align:right;border-left:1px solid var(--rule);padding-left:10px;font-variant-numeric:tabular-nums;">
-          <span style="font-size:16px;font-weight:700;color:var(--expired);line-height:1;">{n_total_risk_fleet}</span>
-          <span style="font-size:8.5px;color:var(--mute);display:block;text-transform:uppercase;">Action Items</span>
-        </div>
+      <div style="display:flex;align-items:center;gap:10px;flex:none;">
+        <span style="font-size:8.5px;color:#10b981;font-weight:700;">{pct_healthy:.1f}% OK</span>
+        <span style="font-size:8.5px;color:#f2495c;font-weight:700;">{pct_risk:.1f}% Risk ({n_total_risk_fleet} Items)</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Level 7: Connected Risk & Impact Narrative Chain (Compact, Sleek KPI Cards)
-    kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
+    # --------------------------------------------------------------------------
+    # 3. COMPACT METRIC RIBBON (4 KPI Cards - Zero Secondary Buttons)
+    # --------------------------------------------------------------------------
+    kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4, gap="small")
 
     with kpi_c1:
-        is_active = (gov_drill == "urgent")
         st.markdown(ui.grafana_stat_card(
-            label="Actionable Risk Assets",
+            label="Governance Debt Assets",
             value=n_total_risk_fleet,
-            color="#f2495c",
+            color="#f2495c" if n_total_risk_fleet else "#10b981",
             subtext=f"{n_expired_fleet} Exp · {n_critical_fleet} Crit · {n_warning_fleet} Warn",
-            badge="FIRING" if n_total_risk_fleet else "CLEAR",
+            badge="FIRING" if n_total_risk_fleet else "COMPLIANT",
             sparkline_vals=[28, 26, 25, 25],
             state="firing" if n_total_risk_fleet else "ok",
-            is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button(f"✓ Active: Risk Assets ({n_total_risk_fleet})" if is_active else f"Filter: Risk Assets ({n_total_risk_fleet})", key="gov_kpi_risk", use_container_width=True, type="primary" if is_active else "secondary"):
-            st.session_state["gov_drill_scope"] = "urgent" if gov_drill != "urgent" else "all"
-            rerun()
 
     with kpi_c2:
-        is_active = (gov_team_filter != "All")
         st.markdown(ui.grafana_stat_card(
             label="Teams Impacted",
             value="3 / 5",
@@ -2377,14 +2525,9 @@ def render_governance_center() -> None:
             badge="ATTENTION",
             sparkline_vals=[4, 3, 3, 3],
             state="pending",
-            is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button(f"✓ Active: Team {gov_team_filter}" if is_active else "Filter: Impacted (3/5)", key="gov_kpi_teams", use_container_width=True, type="primary" if is_active else "secondary"):
-            st.session_state["gov_team_filter"] = "Core" if gov_team_filter == "All" else "All"
-            rerun()
 
     with kpi_c3:
-        is_active = (gov_drill == "maintenance")
         maint_cnt = stats.get('maintenance_schedules', 0)
         st.markdown(ui.grafana_stat_card(
             label="Maintenance Windows",
@@ -2394,16 +2537,11 @@ def render_governance_center() -> None:
             badge="SCHEDULE",
             sparkline_vals=[120, 122, 123, 123],
             state="ok",
-            is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button(f"✓ Active: Schedules ({maint_cnt})" if is_active else f"Filter: Schedules ({maint_cnt})", key="gov_kpi_maint", use_container_width=True, type="primary" if is_active else "secondary"):
-            st.session_state["gov_drill_scope"] = "maintenance" if gov_drill != "maintenance" else "all"
-            rerun()
 
     with kpi_c4:
-        is_active = (gov_drill == "reminders")
         smtp_live = bool(os.environ.get("SMTP_HOST"))
-        audit_cnt = stats['reminder_log']
+        audit_cnt = stats.get('reminder_log', 0)
         st.markdown(ui.grafana_stat_card(
             label="Alert Dispatch Audit",
             value=f"{audit_cnt} Logged",
@@ -2412,333 +2550,296 @@ def render_governance_center() -> None:
             badge="LIVE SMTP" if smtp_live else "SIMULATED",
             sparkline_vals=[1, 2, 2, 2],
             state="ok",
-            is_active=is_active,
         ), unsafe_allow_html=True)
-        if st.button(f"✓ Active: Audit Logs ({audit_cnt})" if is_active else f"Filter: Audit Logs ({audit_cnt})", key="gov_kpi_rem", use_container_width=True, type="primary" if is_active else "secondary"):
-            st.session_state["gov_drill_scope"] = "reminders" if gov_drill != "reminders" else "all"
-            rerun()
 
     st.markdown("<div style='margin-top:2px;'></div>", unsafe_allow_html=True)
 
-    # 4. Level 5 & Level 3: Left Team Scorecard (Always 5 Teams) vs Right Action Console
-    g_col1, g_col2 = st.columns([1, 1], gap="medium")
+    # --------------------------------------------------------------------------
+    # 4. BALANCED DUAL MIDDLE TIER (160px Height Side-by-Side Cards)
+    # --------------------------------------------------------------------------
+    col_team_gov, col_gate_radar = st.columns([1, 1], gap="small")
 
-    with g_col1:
-        st.markdown(ui.panel_header("Team Governance & Risk Distribution Matrix", color="#ff9830", live=True, count="5 Teams"), unsafe_allow_html=True)
+    with col_team_gov:
         team_profiles = list(TEAM_GOVERNANCE_PROFILES.values())
-
         t_rows = []
         for p in team_profiles:
-            is_active_tm = (gov_team_filter == p["team"])
-            row_bg = "background:rgba(255,120,10,0.12);border-left:3px solid var(--accent);" if is_active_tm else ""
-            active_badge = " <span style='color:var(--accent);font-size:9px;font-weight:700;'>[ACTIVE]</span>" if is_active_tm else ""
             t_rows.append(
-                f"<tr style='{row_bg}'>"
-                f"<td class='m' style='font-weight:600;color:var(--text);padding:3px 6px;'>{p['team']}{active_badge}</td>"
-                f"<td style='color:var(--slate);padding:3px 6px;'>{p['lead']}<br/><code style='font-size:9px;color:var(--mute);'>{p['channel']}</code></td>"
-                f"<td class='m r' style='padding:3px 6px;'><b>{p['assets']}</b></td>"
-                f"<td style='padding:3px 6px;'><span class='pill' style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:8.5px;border-radius:2px;'><span style='margin-right:4px;'>{p.get('symbol', '●')}</span>{p['status']}</span></td>"
-                f"<td style='color:var(--mute);font-size:9px;padding:3px 6px;'>{p['cadence']}</td>"
+                f"<tr style='border-bottom:1px solid #22252b;'>"
+                f"<td style='padding:2.5px 6px;font-weight:700;color:#f8fafc;'><a href='?gov_tm={p['team']}{auth_suffix}' target='_self' style='color:#38bdf8;text-decoration:none;'>{p['team']}</a></td>"
+                f"<td style='padding:2.5px 6px;color:#cbd5e1;'><span style='color:#e2e8f0;font-weight:600;'>{p['lead']}</span> <code style='font-size:8px;color:#64748b;'>{p['channel']}</code></td>"
+                f"<td style='padding:2.5px 6px;text-align:right;font-family:var(--mono);font-weight:700;'>{p['assets']}</td>"
+                f"<td style='padding:2.5px 6px;'><span style='color:{p['status_color']};background:{p['status_bg']};font-weight:700;font-size:8px;padding:1px 4px;border-radius:2px;'>{p.get('symbol', '●')} {p['status']}</span></td>"
+                f"<td style='padding:2.5px 6px;color:#94a3b8;font-size:8.5px;'>{p['cadence']}</td>"
                 f"</tr>"
             )
 
         st.markdown(f"""
-        <div class="panel" style="margin-bottom:4px;border:1px solid #2c3235;border-radius:2px;background:#181b1f;overflow:hidden;">
-          <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
-            <tr style="background:#141619;border-bottom:1px solid #2c3235;"><th>Functional Team</th><th>Owner & Channel</th><th class="r">Assets</th><th>Risk Posture</th><th>Cadence</th></tr>
-            {''.join(t_rows)}
-          </table>
-          <div style="background:#141619;border-top:1px solid #2c3235;padding:4px 8px;display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:9px;font-weight:700;color:var(--mute);letter-spacing:0.04em;">FOCUS TEAM SCOPE:</span>
-            <span style="font-size:8.5px;color:var(--slate);font-family:var(--mono);">Active: {gov_team_filter}</span>
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+            <div style="font-size:9.5px;font-weight:700;color:#ff9830;text-transform:uppercase;letter-spacing:0.04em;">
+              Team Governance &amp; Risk Distribution Matrix
+            </div>
+            <span style="font-size:8px;color:#94a3b8;font-weight:600;">5 Teams Live</span>
+          </div>
+          <div style="overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:none;">
+            <table style="font-size:9.5px;width:100%;border-collapse:collapse;color:#d8d9da;">
+              <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;color:#6e7681;text-transform:uppercase;font-size:8px;letter-spacing:0.03em;">
+                <tr><th style="padding:2px 6px;text-align:left;">Team</th><th style="padding:2px 6px;text-align:left;">Owner &amp; Channel</th><th style="padding:2px 6px;text-align:right;">Assets</th><th style="padding:2px 6px;text-align:left;">Risk Posture</th><th style="padding:2px 6px;text-align:left;">Cadence</th></tr>
+              </thead>
+              <tbody>
+                {''.join(t_rows)}
+              </tbody>
+            </table>
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # Team drill buttons (cleanly aligned)
-        _drill_cols = st.columns(6)
-        _teams_map = [("All","All"),("Core","Core"),("Letters","Letters"),("Cognos","Cognos"),("Informatica","Infa"),("App Server","AppSrv")]
-        for _col, (_tv, _tl) in zip(_drill_cols, _teams_map):
-            if _col.button(_tl, key=f"tm_btn_{_tv.lower().replace(' ','_')}", use_container_width=True,
-                           type="primary" if gov_team_filter == _tv else "secondary"):
-                st.session_state["gov_team_filter"] = _tv if _tv != gov_team_filter else "All"
-                if _tv == "All":
-                    st.session_state["gov_team_filter"] = "All"
-                rerun()
+    with col_gate_radar:
+        conn_rel = get_connection(DB_PATH)
+        rel_all = get_release_schedules(conn_rel, state=None)
+        conn_rel.close()
 
-    with g_col2:
-        # Right Pane: Structured Action Console & Synchronized Email Inspector
-        q_count_label = f" ({len(urgent_records)})" if not urgent_records.empty else " (0)"
-        st.markdown(ui.panel_header("Operational Action Console & Cutoff Dispatch", color="#38bdf8", live=True, count=f"{len(urgent_records)} Urgent"), unsafe_allow_html=True)
-        act_tab1, act_tab_release, act_tab2, act_tab3, act_tab4 = st.tabs([
-            f"⚡ Risk Queue{q_count_label}",
-            "🚀 Cutoffs",
-            "📧 Dispatch",
-            "🛠️ Cadence Console",
-            "📋 Audit Ledger"
-        ])
+        today_date = date.today()
+        milestone_items = []
+        for r in rel_all:
+            st_code = r.get("state", "")
+            rid = r.get("release_id", "")
+            rm_name = r.get("state_rm_name", f"{st_code} RM")
+            rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
 
-        with act_tab1:
-            if urgent_records.empty:
-                st.markdown(f"""
-                <div class="panel" style="padding:24px 16px;text-align:center;">
-                  <div style="font-size:14px;font-weight:700;color:var(--healthy);">✓ Scope 100% In Compliance</div>
-                  <div style="font-size:11px;color:var(--mute);margin-top:4px;">
-                    No expired or critical debt entities found for <b>{scope_name}</b>.
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+            gates = [
+                ("DEV Freeze", r.get("dev_end_date"), "ENV52" if st_code == "NH" else "Build-76"),
+                ("SIT QA Gate", r.get("sit_end_date"), "ENV57" if st_code == "NH" else "SIT QA"),
+                ("State UAT Gate", r.get("uat_end_date"), "ENV04" if st_code == "NH" else "UAT"),
+                ("PROD Cutover", r.get("prod_deploy_date"), "ENV05" if st_code == "NH" else "PROD"),
+            ]
+            for g_name, g_date, g_env in gates:
+                if g_date:
+                    try:
+                        diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
+                        if -7 <= diff <= 30:
+                            milestone_items.append({
+                                "state": st_code,
+                                "release_id": rid,
+                                "phase": g_name,
+                                "env": g_env,
+                                "cutoff_date": g_date,
+                                "days_left": diff,
+                                "rm_name": rm_name,
+                                "rm_email": rm_email,
+                            })
+                    except Exception:
+                        pass
+
+        milestone_items.sort(key=lambda m: (m["days_left"] if m["days_left"] >= 0 else 999, abs(m["days_left"])))
+
+        gate_rows = []
+        for m in milestone_items[:3]:
+            d = m["days_left"]
+            if d < 0:
+                chip_html = f'<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">{abs(d)}d OVERDUE</span>'
+            elif d == 0:
+                chip_html = '<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">TODAY</span>'
+            elif d <= 3:
+                chip_html = f'<span style="font-size:8px;font-weight:700;color:#f2495c;background:rgba(242,73,92,0.18);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
+            elif d <= 7:
+                chip_html = f'<span style="font-size:8px;font-weight:700;color:#ff9830;background:rgba(255,152,48,0.18);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
             else:
-                q_rows = []
-                for ur in urgent_records.itertuples():
-                    ur_meta = ui.BAND_META.get(ur.band, ui.BAND_META["Healthy"])
-                    ur_code = ui.COMPONENT_CODE.get(ur.component, ur.component)
-                    ur_icon = ui.COMPONENT_ICONS.get(ur.component, "📦")
-                    if ur.days_left < 0:
-                        ll_style = "color:var(--expired);font-weight:700;"
-                    elif ur.days_left <= 15:
-                        ll_style = "color:var(--critical);font-weight:700;"
-                    elif ur.days_left <= 30:
-                        ll_style = "color:var(--warning);font-weight:600;"
-                    else:
-                        ll_style = "color:var(--healthy);font-weight:600;"
-                    q_rows.append(
-                        f"<tr>"
-                        f"<td><span class='pill' style='color:{ur_meta['color']};background:{ur_meta['tint']};font-weight:700;font-size:9px;border-radius:2px;'>{ur.band}</span></td>"
-                        f"<td class='m'><b>{ur.state}</b> · <span class='env-tag' style='font-size:8.5px;'>{ur.env_label}</span></td>"
-                        f"<td>{ur_icon} <b>{ur.team}</b> ({ur_code})</td>"
-                        f"<td class='m'><code>{ur.schema_name}</code></td>"
-                        f"<td class='m r' style='{ll_style}'>{ui.fmt_days(ur.days_left)}</td>"
-                        f"</tr>"
-                    )
+                chip_html = f'<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.16);padding:1px 4px;border-radius:2px;">{d}d LEFT</span>'
 
-                gov_batch_open = st.session_state.setdefault("gov_batch_open", False)
+            gate_rows.append(
+                f"<div style='display:flex;align-items:center;justify-content:space-between;background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 6px;font-size:9.5px;margin-bottom:2px;'>"
+                f"<div style='display:flex;align-items:center;gap:5px;'>"
+                f"<span style='font-family:var(--mono);font-weight:700;color:#38bdf8;font-size:8.5px;'>{m['state']}</span>"
+                f"<span style='font-family:var(--mono);font-weight:600;color:#f8fafc;font-size:9px;'>{m['release_id']}</span>"
+                f"<span style='color:#94a3b8;font-size:8.5px;'>{m['phase']}</span>"
+                f"</div>"
+                f"<div style='display:flex;align-items:center;gap:6px;'>"
+                f"<span style='font-family:var(--mono);color:#cbd5e1;font-size:8.5px;'>{m['cutoff_date']}</span>"
+                f"{chip_html}"
+                f"</div>"
+                f"</div>"
+            )
 
-                aq_hdr1, aq_hdr2 = st.columns([2.3, 1.7])
-                with aq_hdr1:
-                    if gov_batch_open:
-                        st.markdown(f"<div style='font-size:10.5px;color:#38bdf8;line-height:26px;font-weight:700;'>⚡ Batch Remediation Console · {len(urgent_records)} Items</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div style='font-size:10px;color:var(--slate);line-height:26px;'><b style='color:var(--text);'>{len(urgent_records)} urgent items</b> queued for remediation:</div>", unsafe_allow_html=True)
-                with aq_hdr2:
-                    if gov_batch_open:
-                        if st.button("✕ Close Batch Editor", key="gov_close_batch", use_container_width=True):
-                            st.session_state["gov_batch_open"] = False
-                            rerun()
-                    else:
-                        if st.button("⚡ Open Batch Editor", key="gov_send_batch", type="primary", use_container_width=True):
-                            st.session_state["gov_batch_open"] = True
-                            st.session_state["op_selected_entity_ids"] = set(urgent_records["id"].tolist())
-                            st.session_state["op_target_tab"] = "batch"
-                            rerun()
+        st.markdown(f"""
+        <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+            <div style="font-size:9.5px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.04em;">
+              Release Gate Cutoff Radar &amp; Telemetry
+            </div>
+            <span style="font-size:8px;color:#94a3b8;font-weight:600;">Upcoming Gates (≤30d)</span>
+          </div>
 
-                if gov_batch_open:
-                    today_dt = date.today()
-                    p90_dt = today_dt + timedelta(days=90)
-                    p365_dt = today_dt + timedelta(days=365)
+          <div style="display:flex;flex-direction:column;gap:1.5px;">
+            {''.join(gate_rows) if gate_rows else '<div style="font-size:9px;color:#64748b;padding:6px 0;">No imminent gate cutoffs in next 30d</div>'}
+          </div>
 
-                    st.markdown("""
-                    <div style="background:#141619;border:1px solid rgba(56,189,248,0.3);border-radius:2px;padding:6px 10px;margin-top:2px;margin-bottom:6px;">
-                      <div style="font-size:10px;font-weight:700;color:#38bdf8;margin-bottom:1px;">BATCH RENEWAL ACTION</div>
-                      <div style="font-size:9.5px;color:var(--slate);">Apply bulk extension to all queued urgent entities:</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:8.5px;border-top:1px solid #22252b;padding-top:3px;">
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#10b981;font-weight:700;">PROD Resiliency</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">100% (0)</span>
+            </div>
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#38bdf8;font-weight:700;">Fleet Scope</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{len(base_df)} Assets</span>
+            </div>
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#ff9830;font-weight:700;">Schedules</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{stats.get('maintenance_schedules', 0)} Windows</span>
+            </div>
+            <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:2px 5px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:#73bf69;font-weight:700;">Audit Logs</span>
+              <span style="color:var(--text);font-family:var(--mono);font-weight:700;">{stats.get('reminder_log', 0)} Logged</span>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-                    b_act1, b_act2, b_act3, b_act4 = st.columns([1.0, 1.0, 1.2, 1.6])
-                    with b_act1:
-                        if st.button(f"+90 Days", key="gov_b_p90", use_container_width=True, help=f"Extend all {len(urgent_records)} to {p90_dt}"):
-                            edits = [(int(uid), p90_dt) for uid in urgent_records["id"]]
+    # --------------------------------------------------------------------------
+    # 5. MASTER ACTION & DISPATCH WORKSPACE (Full-Width, 310px Viewport Locked)
+    # --------------------------------------------------------------------------
+    valid_gov_subtabs = [
+        "⚡ Risk Queue",
+        "📧 Alert Dispatch",
+        "🛠️ Cadence Console",
+        "🚀 Cutoff Engine",
+        "📋 Audit Ledger"
+    ]
+    gov_tab_aliases = {
+        "⚡ Risk Queue": "⚡ Risk Queue",
+        "risk": "⚡ Risk Queue",
+        "queue": "⚡ Risk Queue",
+        "📧 Alert Dispatch": "📧 Alert Dispatch",
+        "disp": "📧 Alert Dispatch",
+        "dispatch": "📧 Alert Dispatch",
+        "🛠️ Cadence Console": "🛠️ Cadence Console",
+        "cad": "🛠️ Cadence Console",
+        "cadence": "🛠️ Cadence Console",
+        "🚀 Cutoff Engine": "🚀 Cutoff Engine",
+        "cut": "🚀 Cutoff Engine",
+        "cutoffs": "🚀 Cutoff Engine",
+        "📋 Audit Ledger": "📋 Audit Ledger",
+        "aud": "📋 Audit Ledger",
+        "audit": "📋 Audit Ledger",
+    }
+    gov_target = st.session_state.pop("gov_target_tab", None)
+    if gov_target in gov_tab_aliases:
+        gov_target = gov_tab_aliases[gov_target]
+    default_gov_subtab = gov_target if gov_target in valid_gov_subtabs else valid_gov_subtabs[0]
+
+    with st.container(key="gov_workspace_subtabs_box"):
+        gov_tab_risk, gov_tab_disp, gov_tab_cad, gov_tab_cut, gov_tab_aud = st.tabs(
+            valid_gov_subtabs,
+            default=default_gov_subtab,
+            key=f"gov_subtabs_bar_{reset_idx}"
+        )
+
+    # --- SUBTAB 1: RISK QUEUE & BULK REMEDIATION ---
+    with gov_tab_risk:
+        with st.container(key=f"gov_tab_actions_risk_{reset_idx}"):
+            act_c1, act_c2, act_c3, act_c4 = st.columns([1.5, 0.9, 0.9, 0.8], gap="small")
+            with act_c1:
+                st.markdown(f"<div style='font-size:9.5px;color:#38bdf8;font-weight:700;padding-top:4px;white-space:nowrap;'>⚡ {len(urgent_records)} urgent items queued</div>", unsafe_allow_html=True)
+            with act_c2:
+                if st.button("+90d All", key=f"gov_risk_bulk_90d_{reset_idx}", use_container_width=True, help=f"Extend all {len(urgent_records)} items by 90 days"):
+                    p90_dt = date.today() + timedelta(days=90)
+                    edits = [(int(uid), p90_dt) for uid in urgent_records["id"]]
+                    apply_edits(edits)
+                    st.success(f"+90d applied to {len(edits)} items.")
+                    rerun()
+            with act_c3:
+                if st.button("+1yr All", key=f"gov_risk_bulk_365d_{reset_idx}", use_container_width=True, help=f"Extend all {len(urgent_records)} items by 1 year"):
+                    p365_dt = date.today() + timedelta(days=365)
+                    edits = [(int(uid), p365_dt) for uid in urgent_records["id"]]
+                    apply_edits(edits)
+                    st.success(f"+1yr applied to {len(edits)} items.")
+                    rerun()
+            with act_c4:
+                if hasattr(st, "popover"):
+                    with st.popover("📅 Set", help="Set custom expiry date for all queued items", use_container_width=True):
+                        c_dt = st.date_input("Target Date", value=date.today() + timedelta(days=90), key=f"gov_risk_pop_dt_{reset_idx}")
+                        if st.button("Apply Date", type="primary", key=f"gov_risk_pop_apply_{reset_idx}", use_container_width=True):
+                            edits = [(int(uid), c_dt) for uid in urgent_records["id"]]
                             apply_edits(edits)
-                            st.session_state["gov_batch_open"] = False
-                            st.success(f"✓ Successfully extended {len(edits)} entities by 90 days (to {p90_dt})!")
-                            rerun()
-                    with b_act2:
-                        if st.button(f"+1 Year", key="gov_b_p365", use_container_width=True, help=f"Extend all {len(urgent_records)} to {p365_dt}"):
-                            edits = [(int(uid), p365_dt) for uid in urgent_records["id"]]
-                            apply_edits(edits)
-                            st.session_state["gov_batch_open"] = False
-                            st.success(f"✓ Successfully extended {len(edits)} entities by 1 year (to {p365_dt})!")
-                            rerun()
-                    with b_act3:
-                        custom_dt = st.date_input("Target Date", value=p90_dt, key="gov_b_custom_dt", label_visibility="collapsed")
-                    with b_act4:
-                        if st.button(f"🚀 Set Custom Date", key="gov_b_commit_custom", type="primary", use_container_width=True):
-                            edits = [(int(uid), custom_dt) for uid in urgent_records["id"]]
-                            apply_edits(edits)
-                            st.session_state["gov_batch_open"] = False
-                            st.success(f"✓ Successfully updated {len(edits)} entities to {custom_dt}!")
+                            st.success(f"Updated {len(edits)} items to {c_dt}!")
                             rerun()
 
-                    st.markdown(f"""
-                    <div style="max-height:calc(100vh - 270px);min-height:500px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:4px;">
-                      <table class="tblx" style="font-size:10px;">
-                        <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
-                        {''.join(q_rows)}
-                      </table>
-                    </div>
-                    <div style="font-size:9.5px;color:var(--mute);margin-top:6px;display:flex;align-items:center;justify-content:space-between;">
-                      <span>💡 For granular cell-by-cell edits, switch to <b>📊 Operations Hub</b> in the left navigation rail.</span>
-                      <span style="color:#38bdf8;font-weight:600;">{len(urgent_records)} entities ready</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div style="max-height:calc(100vh - 270px);min-height:500px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px;margin-top:2px;">
-                      <table class="tblx" style="font-size:10px;">
-                        <tr><th>Severity</th><th>Scope</th><th>Team & Comp</th><th>Schema Name</th><th class="r">Life Left</th></tr>
-                        {''.join(q_rows)}
-                      </table>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-        with act_tab_release:
-            conn_rel = get_connection(DB_PATH)
-            rel_all = get_release_schedules(conn_rel, state=None)
-            conn_rel.close()
-
-            today_date = date.today()
-            milestone_rows = []
-            for r in rel_all:
-                st_code = r.get("state", "")
-                rid = r.get("release_id", "")
-                rm_name = r.get("state_rm_name", f"{st_code} Release Manager")
-                rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
-
-                gates = [
-                    ("DEV Freeze", r.get("dev_end_date"), "ENV52 Dev" if st_code == "NH" else "Build-76"),
-                    ("SIT QA Gate", r.get("sit_end_date"), "ENV57 / ENV53" if st_code == "NH" else "SIT QA"),
-                    ("State UAT Gate", r.get("uat_end_date"), "ENV04 UAT" if st_code == "NH" else "State Acceptance"),
-                    ("Go / No-Go Board", r.get("go_nogo_date"), "Decision Board"),
-                    ("Production Cutover", r.get("prod_deploy_date"), "ENV05 Live" if st_code == "NH" else "PROD Cutover"),
-                ]
-                for g_name, g_date, g_env in gates:
-                    if g_date:
-                        try:
-                            diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
-                            if -14 <= diff <= 45:
-                                if diff < 0:
-                                    s_lbl = f"{abs(diff)}d OVERDUE"
-                                    s_chip = "firing"
-                                elif diff == 0:
-                                    s_lbl = "CUTOFF TODAY"
-                                    s_chip = "firing"
-                                elif diff <= 3:
-                                    s_lbl = f"{diff}d REMAINING"
-                                    s_chip = "firing"
-                                elif diff <= 7:
-                                    s_lbl = f"{diff}d REMAINING"
-                                    s_chip = "pending"
-                                else:
-                                    s_lbl = f"{diff}d REMAINING"
-                                    s_chip = "ok"
-
-                                milestone_rows.append({
-                                    "state": st_code,
-                                    "release_id": rid,
-                                    "phase": g_name,
-                                    "env": g_env,
-                                    "cutoff_date": g_date,
-                                    "days_left": diff,
-                                    "status_label": s_lbl,
-                                    "chip": s_chip,
-                                    "rm_name": rm_name,
-                                    "rm_email": rm_email,
-                                })
-                        except Exception:
-                            pass
-
-            milestone_rows.sort(key=lambda m: (0 if m["chip"] == "firing" else (1 if m["chip"] == "pending" else 2), m["days_left"]))
-
+        if urgent_records.empty:
             st.markdown("""
-            <div style="background:#141619;border:1px solid #2c3235;border-left:3px solid var(--accent);border-radius:2px;padding:6px 10px;margin-bottom:6px;font-size:10px;color:var(--slate);">
-              <b>Release Cutoff Trigger Engine:</b> Monitor upcoming DEV / SIT / UAT freeze milestones and dispatch cutoff alerts to state release managers.
+            <div style="padding:48px 16px;text-align:center;background:#181b1f;border:1px solid #2c3235;border-radius:3px;">
+              <div style="font-size:14px;font-weight:700;color:#10b981;">✓ Scope 100% In Compliance</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:4px;">No expired or critical debt entities found matching current filters.</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            q_rows = []
+            for ur in urgent_records.itertuples():
+                ur_meta = ui.BAND_META.get(ur.band, ui.BAND_META["Healthy"])
+                ur_code = ui.COMPONENT_CODE.get(ur.component, ur.component)
+                ur_icon = ui.COMPONENT_ICONS.get(ur.component, "📦")
+                ur_meta_color = ur_meta["color"]
+                ur_meta_tint = ur_meta["tint"]
+                days_color = "#f2495c" if ur.days_left < 0 else ("#ff9830" if ur.days_left <= 15 else "#73bf69")
+                action_btn_html = f'<a href="?op_act_id={ur.id}&op_subtab=insp{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:2px;font-size:9px;font-weight:700;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;">Inspect ↗</a>'
+
+                q_rows.append(
+                    f"<tr style='border-bottom:1px solid #22252b;'>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);'><span style='color:#f8fafc;font-weight:700;'>#{ur.id}</span></td>"
+                    f"<td style='padding:3px 6px;'><span style='color:{ur_meta_color};background:{ur_meta_tint};font-weight:700;font-size:8.5px;padding:1px 5px;border-radius:2px;'>{ur.band}</span></td>"
+                    f"<td style='padding:3px 6px;font-weight:700;color:#9fa7b3;'>{ur.state}</td>"
+                    f"<td style='padding:3px 6px;'><span class='env-tag'>{ur.env_label}</span></td>"
+                    f"<td style='padding:3px 6px;color:#cbd5e1;'>{ur.team}</td>"
+                    f"<td style='padding:3px 6px;color:#d8d9da;'>{ur_icon} {ur_code}</td>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);font-weight:600;color:#f8fafc;'>{ur.schema_name}</td>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);color:#cbd5e1;'>{ur.exp_date}</td>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);color:{days_color};font-weight:700;'>{ui.fmt_days(ur.days_left)}</td>"
+                    f"<td style='padding:3px 6px;text-align:right;'>{action_btn_html}</td>"
+                    f"</tr>"
+                )
+
+            st.markdown(f"""
+            <div class="gov-table-container">
+              <table style="width:100%;min-width:920px;border-collapse:collapse;font-size:10px;color:#d8d9da;">
+                <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;">
+                  <tr style="color:#6e7681;text-transform:uppercase;font-size:9px;font-weight:600;letter-spacing:0.03em;">
+                    <th style="padding:4px 6px;text-align:left;">ID</th>
+                    <th style="padding:4px 6px;text-align:left;">Severity</th>
+                    <th style="padding:4px 6px;text-align:left;">State</th>
+                    <th style="padding:4px 6px;text-align:left;">Env</th>
+                    <th style="padding:4px 6px;text-align:left;">Team</th>
+                    <th style="padding:4px 6px;text-align:left;">Component</th>
+                    <th style="padding:4px 6px;text-align:left;">Schema / Asset</th>
+                    <th style="padding:4px 6px;text-align:left;">Current Expiry</th>
+                    <th style="padding:4px 6px;text-align:left;">Time Left</th>
+                    <th style="padding:4px 6px;text-align:right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {''.join(q_rows)}
+                </tbody>
+              </table>
             </div>
             """, unsafe_allow_html=True)
 
-            if not milestone_rows:
-                st.info("No release cutoffs within the next 45 days.")
-            else:
-                m_table_rows = []
-                for m in milestone_rows[:10]:
-                    m_table_rows.append(
-                        f"<tr>"
-                        f"<td style='padding:5px 8px;'><span style='font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;background:#141619;border:1px solid #2c3235;color:var(--ink);font-family:var(--mono);'>{m['state']}</span></td>"
-                        f"<td style='padding:5px 8px;font-weight:700;color:var(--ink);font-family:var(--mono);'>{m['release_id']}</td>"
-                        f"<td style='padding:5px 8px;color:#5794f2;font-weight:600;'>{m['phase']} <span style='color:var(--mute);font-size:9.5px;'>({m['env']})</span></td>"
-                        f"<td style='padding:5px 8px;font-family:var(--mono);color:var(--slate);'>{m['cutoff_date']}</td>"
-                        f"<td style='padding:5px 8px;'><span class='alert-chip {m['chip']}'>{m['status_label']}</span></td>"
-                        f"</tr>"
-                    )
+    # --- SUBTAB 2: ALERT DISPATCH (SIMULATION & LIVE SMTP) ---
+    with gov_tab_disp:
+        sim_team_default = team_filter if team_filter in ui.TEAMS else ui.TEAMS[0]
+        sim_team_idx = ui.TEAMS.index(sim_team_default) if sim_team_default in ui.TEAMS else 0
 
-                st.markdown(f"""
-                <div style="max-height:calc(100vh - 480px);min-height:220px;overflow-y:auto;border:1px solid #2c3235;border-radius:2px;margin-bottom:8px;">
-                  <table class="tblx" style="font-size:10px;width:100%;border-collapse:collapse;">
-                    <tr style="background:#141619;border-bottom:1px solid #2c3235;position:sticky;top:0;z-index:2;">
-                      <th>State</th><th>Release</th><th>Milestone Phase</th><th>Cutoff Date</th><th>Alert Status</th>
-                    </tr>
-                    {''.join(m_table_rows)}
-                  </table>
-                </div>
-                """, unsafe_allow_html=True)
+        with st.container(key=f"gov_tab_actions_disp_{reset_idx}"):
+            disp_act_c1, disp_act_c2 = st.columns([1.5, 1.5], gap="small")
+            with disp_act_c1:
+                sim_trig = st.button("▶ Trigger Dry-Run", key=f"gov_trig_dry_{reset_idx}", type="secondary", use_container_width=True, help="Simulate email dispatch and log audit event")
+            with disp_act_c2:
+                real_trig = st.button("🚀 Send Real SMTP Test", key=f"gov_trig_real_{reset_idx}", type="primary", use_container_width=True, help="Transmit live email packets to designated inboxes")
 
-                # Dispatch control row
-                rc_c1, rc_c2 = st.columns([2.2, 1.8])
-                with rc_c1:
-                    m_opts = {f"{m['state']} · {m['release_id']} ({m['phase']}) — {m['cutoff_date']}": m for m in milestone_rows}
-                    chosen_m_lbl = st.selectbox("Target Cutoff Milestone", list(m_opts.keys()), key="gov_rel_cutoff_pick", label_visibility="collapsed")
-                    chosen_m = m_opts[chosen_m_lbl]
-                with rc_c2:
-                    if not can_write():
-                        st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Dispatching cutoff alerts requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
-                    else:
-                        if st.button("🚀 Dispatch Cutoff Alert (Simulate)", key="gov_dispatch_cutoff_btn", type="primary", use_container_width=True):
-                            try:
-                                conn_aud = get_connection(DB_PATH)
-                                log_audit_event(
-                                    conn_aud,
-                                    actor=st.session_state.get("active_user", "admin"),
-                                    role=st.session_state.get("user_role", ROLE_OPERATOR),
-                                    action="EMAIL_DISPATCHED",
-                                    target_entity=f"{chosen_m['state']} {chosen_m['release_id']} {chosen_m['phase']}",
-                                    details=f"Release cutoff alert dispatched to {chosen_m['rm_name']} <{chosen_m['rm_email']}> for cutoff {chosen_m['cutoff_date']} ({chosen_m['status_label']}).",
-                                )
-                                conn_aud.close()
-                                st.success(f"✓ Cutoff Alert dispatched for {chosen_m['release_id']} ({chosen_m['phase']}) to {chosen_m['rm_name']}!")
-                            except Exception as ex:
-                                st.error(f"Dispatch failed: {ex}")
+        disp_col_left, disp_col_right = st.columns([1.1, 1.9], gap="small")
 
-                # Email Preview
-                st.markdown(f"""
-                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:11px;margin-top:6px;max-height:220px;overflow-y:auto;overflow-x:hidden;">
-                  <div style="color:var(--slate);font-weight:700;margin-bottom:6px;">📧 Preview Release Cutoff Alert Email Template</div>
-                  <div style="color:var(--slate);margin-bottom:4px;"><b style="color:var(--text);">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
-                  <div style="color:var(--slate);margin-bottom:6px;"><b style="color:var(--text);">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
-                  <div style="border-top:1px solid #2c3235;padding-top:8px;color:var(--text);line-height:1.5;">
-                    <p>Attention State Release Management,</p>
-                    <p>This is an automated ETS Watchtower notification regarding the upcoming pipeline gate cutoff for <b>{chosen_m['release_id']}</b>.</p>
-                    <table style="border:1px solid #2c3235;background:#181b1f;padding:6px;width:100%;margin:6px 0;font-size:10.5px;">
-                      <tr><td style="color:var(--slate);">State Scope:</td><td><b>{chosen_m['state']} MMIS</b></td></tr>
-                      <tr><td style="color:var(--slate);">Release ID:</td><td><b>{chosen_m['release_id']}</b></td></tr>
-                      <tr><td style="color:var(--slate);">Phase / Gate:</td><td><b style="color:#5794f2;">{chosen_m['phase']}</b></td></tr>
-                      <tr><td style="color:var(--slate);">Environment:</td><td><b>{chosen_m['env']}</b></td></tr>
-                      <tr><td style="color:var(--slate);">Cutoff Deadline:</td><td><b style="color:#f2495c;">{chosen_m['cutoff_date']}</b></td></tr>
-                      <tr><td style="color:var(--slate);">Remaining Window:</td><td><b style="color:#ff9830;">{chosen_m['status_label']}</b></td></tr>
-                    </table>
-                    <p style="font-size:9.5px;color:var(--mute);">All code freezes, test run artifacts, and compliance exit criteria must be completed prior to 17:00 local state time on the cutoff date.</p>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+        with disp_col_left:
+            ds_c1, ds_c2 = st.columns(2)
+            sim_st = ds_c1.selectbox("State", STATES, key=f"sim_st_{reset_idx}")
+            sim_tm = ds_c2.selectbox("Team", ui.TEAMS, index=sim_team_idx, key=f"sim_tm_{reset_idx}")
 
-        with act_tab2:
-            # Sync default team with left filter if a specific team is selected
-            sim_team_default = gov_team_filter if gov_team_filter in ui.TEAMS else ui.TEAMS[0]
-            sim_team_idx = ui.TEAMS.index(sim_team_default) if sim_team_default in ui.TEAMS else 0
-
-            sim_c1, sim_c2, sim_c3 = st.columns([0.8, 1.0, 2.2])
-            sim_st = sim_c1.selectbox("State", STATES, key="sim_state", label_visibility="collapsed")
-            sim_tm = sim_c2.selectbox("Team", ui.TEAMS, index=sim_team_idx, key="sim_team", label_visibility="collapsed")
-
-            # Source of Truth: resolve team ownership directly from Team Governance profiles
             team_gov = TEAM_GOVERNANCE_PROFILES.get(sim_tm, TEAM_GOVERNANCE_PROFILES["Core"])
             owner_role = team_gov["lead"]
             owner_channel = team_gov["channel"]
@@ -2748,14 +2849,36 @@ def render_governance_center() -> None:
                 "SELECT * FROM component_records WHERE state = ? AND team = ? ORDER BY CAST(env_no AS INTEGER)",
                 (sim_st, sim_tm)
             ).fetchall()
-            sim_recs = [dict(r) for r in cur_sim]
             conn.close()
+            sim_recs = [dict(r) for r in cur_sim]
 
-            if sim_recs:
-                sim_opts = {f"{r['schema_name']} ({r['environment']}) · {ui.COMPONENT_CODE.get(r['component'], r['component'])}": r for r in sim_recs}
-                sim_pick_lbl = sim_c3.selectbox("Target Entity", list(sim_opts), key="sim_entity_pick", label_visibility="collapsed")
-                sim_chosen = sim_opts[sim_pick_lbl]
+            sim_opts = {f"{r['schema_name']} ({r['environment']}) · {ui.COMPONENT_CODE.get(r['component'], r['component'])}": r for r in sim_recs} if sim_recs else {}
+            sim_pick_lbl = st.selectbox("Target Entity", list(sim_opts) if sim_opts else ["No entities"], key=f"sim_pick_{reset_idx}")
+            sim_chosen = sim_opts.get(sim_pick_lbl, sim_recs[0] if sim_recs else None)
 
+            env_cfg = smtp_config_from_env()
+            sess_host = st.session_state.get("gov_smtp_host", env_cfg.get("host") or "")
+            sess_port = st.session_state.get("gov_smtp_port", env_cfg.get("port") or 587)
+            sess_user = st.session_state.get("gov_smtp_user", env_cfg.get("user") or "")
+            sess_pass = st.session_state.get("gov_smtp_pass", env_cfg.get("password") or "")
+            has_live_creds = bool(sess_host and sess_user and sess_pass)
+
+            with st.expander("⚙️ Live SMTP Credentials", expanded=not has_live_creds):
+                c_h1, c_h2 = st.columns([1.6, 0.8])
+                live_host = c_h1.text_input("SMTP Host", value=sess_host, placeholder="smtp.gmail.com", key=f"g_host_{reset_idx}")
+                live_user = c_h1.text_input("Username", value=sess_user, placeholder="user@gmail.com", key=f"g_user_{reset_idx}")
+                live_port = c_h2.text_input("Port", value=str(sess_port), placeholder="587", key=f"g_port_{reset_idx}")
+                live_pass = c_h2.text_input("Password", value=sess_pass, type="password", placeholder="App Password", key=f"g_pass_{reset_idx}")
+
+                port_val = int(live_port.strip()) if live_port.strip().isdigit() else 587
+                st.session_state["gov_smtp_host"] = live_host.strip()
+                st.session_state["gov_smtp_port"] = port_val
+                st.session_state["gov_smtp_user"] = live_user.strip()
+                st.session_state["gov_smtp_pass"] = live_pass.strip()
+                st.session_state["gov_smtp_from"] = live_user.strip()
+
+        with disp_col_right:
+            if sim_chosen:
                 exp_dt = pd.to_datetime(sim_chosen["exp_date"]).date()
                 days_left = (exp_dt - date.today()).days
                 team_meta = ui.TEAM_META.get(sim_tm, ui.TEAM_META["Core"])
@@ -2782,265 +2905,160 @@ def render_governance_center() -> None:
                 email_subject = subject_for(sim_mock)
                 email_html = render_email(sim_mock)
 
-                st.markdown(f"""
-                <div class="panel" style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--card);box-shadow:none !important;margin-top:6px;margin-bottom:8px;">
-                  <div class="panel-head" style="background:#141619;">
-                    <span class="panel-title" style="font-size:10px;font-weight:700;color:var(--text);letter-spacing:0.06em;">EMAIL ALERT DISPATCH PREVIEW &amp; SIMULATOR</span>
-                    <span class="pill" style="color:var(--warning);background:rgba(255,152,48,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">● Simulation Mode (No Live SMTP)</span>
-                  </div>
-                  <div style="background:#181b1f;border-bottom:1px solid var(--rule-soft);padding:6px 10px;font-size:11px;display:flex;flex-direction:column;gap:3px;">
-                    <div><span style="color:var(--mute);font-weight:600;">To:</span> <b style="color:var(--text);">{sim_mock['owner_name']}</b> &lt;<code style="color:var(--accent);font-size:10px;background:rgba(255,120,10,0.1);padding:1px 6px;border-radius:2px;">{sim_mock['owner_email']}</code>&gt;</div>
-                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">{email_subject}</span></div>
-                  </div>
-                  <div style="background:#111217;padding:7px;">
-                    <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;overflow-x:hidden;word-wrap:break-word;background:#ffffff;border:1px solid var(--rule);border-radius:2px;box-shadow:none !important;">
-                      {email_html}
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+                if sim_trig:
+                    conn_disp = get_connection(DB_PATH)
+                    sim_rec_log = {
+                        "state": sim_mock["state"],
+                        "username": sim_chosen.get("schema_name", "sim_user"),
+                        "schema_name": sim_mock["schema_name"],
+                        "exp_date": sim_mock["exp_date"],
+                    }
+                    mark_sent(conn_disp, sim_rec_log)
+                    conn_disp.close()
+                    bust_cache()
+                    st.toast(f"Simulated dispatch logged for {sim_mock['owner_email']}", icon="📧")
+                    rerun()
 
-                disp_c1, disp_c2 = st.columns([2.5, 1.5])
-                with disp_c1:
-                    st.markdown(
-                        f"<div style='font-size:10px;color:var(--mute);line-height:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-                        f"Simulate dispatch to <code style='color:var(--accent);font-size:9.5px;'>{sim_mock['owner_email']}</code> &amp; log audit:</div>",
-                        unsafe_allow_html=True
-                    )
-                with disp_c2:
-                    if st.button("▶ Trigger Dry-Run Dispatch", key="gov_trigger_dispatch", type="secondary", use_container_width=True):
-                        conn_disp = get_connection(DB_PATH)
-                        sim_rec_log = {
-                            "state": sim_mock["state"],
-                            "username": sim_chosen.get("schema_name", "sim_user"),
-                            "schema_name": sim_mock["schema_name"],
-                            "exp_date": sim_mock["exp_date"],
-                        }
-                        mark_sent(conn_disp, sim_rec_log)
-                        conn_disp.close()
-                        bust_cache()
-                        st.toast(f"Simulated dispatch logged for {sim_mock['owner_email']}", icon="📧")
-                        rerun()
-
-                # -------------------------------------------------------------
-                # SEPARATE & EXPLICIT: Live SMTP Dispatch (Real Network Send)
-                # -------------------------------------------------------------
-                st.markdown("""
-                <div style="border-top:1px dashed var(--rule);margin-top:12px;margin-bottom:8px;padding-top:8px;">
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                      <span style="font-size:10.5px;font-weight:700;color:var(--text);letter-spacing:0.04em;">🚀 LIVE SMTP DISPATCH &bull; REAL NETWORK SEND</span>
-                    </div>
-                    <span class="pill" style="color:var(--healthy);background:var(--green-dim);font-size:8.5px;font-weight:700;border-radius:2px;">NETWORK READY</span>
-                  </div>
-                  <div style="font-size:10px;color:var(--mute);line-height:1.4;">
-                    Dispatches authentic, RFC-compliant email alert for <b>all 10 expired components</b> strictly to designated operational test inboxes.
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                real_recipients = ["basha.shaikirfan@gmail.com", "dataengineerib@gmail.com"]
-
-                # Check if credentials are in env or session state
-                env_cfg = smtp_config_from_env()
-                sess_host = st.session_state.get("gov_smtp_host", env_cfg.get("host") or "")
-                sess_port = st.session_state.get("gov_smtp_port", env_cfg.get("port") or 587)
-                sess_user = st.session_state.get("gov_smtp_user", env_cfg.get("user") or "")
-                sess_pass = st.session_state.get("gov_smtp_pass", env_cfg.get("password") or "")
-
-                has_live_creds = bool(sess_host and sess_user and sess_pass)
-
-                with st.expander("⚙️ Live SMTP Server Credentials", expanded=not has_live_creds):
-                    cfg_c1, cfg_c2 = st.columns([1.5, 0.8])
-                    with cfg_c1:
-                        live_host = st.text_input("SMTP Host", value=sess_host, placeholder="smtp.gmail.com", key="gov_real_smtp_host")
-                        live_user = st.text_input("Username / Email", value=sess_user, placeholder="user@gmail.com", key="gov_real_smtp_user")
-                    with cfg_c2:
-                        live_port = st.text_input("Port", value=str(sess_port), placeholder="587", key="gov_real_smtp_port")
-                        live_pass = st.text_input("App Password", value=sess_pass, type="password", placeholder="16-char app password", key="gov_real_smtp_pass")
-
-                    port_val = int(live_port.strip()) if live_port.strip().isdigit() else 587
-                    st.session_state["gov_smtp_host"] = live_host.strip()
-                    st.session_state["gov_smtp_port"] = port_val
-                    st.session_state["gov_smtp_user"] = live_user.strip()
-                    st.session_state["gov_smtp_pass"] = live_pass.strip()
-                    st.session_state["gov_smtp_from"] = live_user.strip()
-
-                    if not (live_host.strip() and live_user.strip() and live_pass.strip()):
-                        st.markdown("<div style='font-size:9.5px;color:var(--warning);'>⚠️ SMTP Host, Username, and Password are required for live network send.</div>", unsafe_allow_html=True)
+                if real_trig:
+                    if not can_write():
+                        st.error("🔒 Live SMTP dispatch requires Operator or Admin role.")
                     else:
-                        st.markdown("<div style='font-size:9.5px;color:var(--healthy);'>✓ SMTP configuration set for session. Ready to dispatch.</div>", unsafe_allow_html=True)
+                        active_host = st.session_state.get("gov_smtp_host")
+                        active_port = st.session_state.get("gov_smtp_port", 587)
+                        active_user = st.session_state.get("gov_smtp_user")
+                        active_pass = st.session_state.get("gov_smtp_pass")
+                        active_from = st.session_state.get("gov_smtp_from") or active_user
 
-                st.markdown(f"""
-                <div style="background:#141619;border:1px solid var(--rule);border-radius:2px;padding:6px 10px;margin-bottom:6px;font-size:10px;">
-                  <div><span style="color:var(--mute);font-weight:600;">Strict Target Inboxes:</span> <code style="color:var(--accent);">{', '.join(real_recipients)}</code></div>
-                  <div style="margin-top:2px;"><span style="color:var(--mute);font-weight:600;">Alert Payload:</span> <b style="color:var(--text);">10 Overdue Records (ND DR &amp; MO Software Versions)</b></div>
-                </div>
-                """, unsafe_allow_html=True)
+                        if not (active_host and active_user and active_pass):
+                            st.error("❌ Live SMTP Dispatch Blocked: Missing credentials in '⚙️ Live SMTP Credentials'.")
+                        else:
+                            real_recipients = ["basha.shaikirfan@gmail.com", "dataengineerib@gmail.com"]
+                            conn_exp = get_connection(DB_PATH)
+                            df_all = pd.read_sql_query("SELECT * FROM component_records", conn_exp)
+                            conn_exp.close()
+                            df_all["exp_dt"] = pd.to_datetime(df_all["exp_date"]).dt.date
+                            df_all["days_left"] = (df_all["exp_dt"] - date.today()).apply(lambda d: d.days)
+                            exp_list = df_all[df_all["days_left"] < 0].sort_values(by=["state", "team", "environment"]).to_dict(orient="records")
 
-                if not can_write():
-                    st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Live SMTP dispatch requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
-                elif st.button("🚀 Send Real Test Email (10 Expired Items)", key="gov_trigger_real_dispatch", type="primary", use_container_width=True):
-                    active_host = st.session_state.get("gov_smtp_host")
-                    active_port = st.session_state.get("gov_smtp_port", 587)
-                    active_user = st.session_state.get("gov_smtp_user")
-                    active_pass = st.session_state.get("gov_smtp_pass")
-                    active_from = st.session_state.get("gov_smtp_from") or active_user
-
-                    if not (active_host and active_user and active_pass):
-                        st.error("❌ Live SMTP Dispatch Blocked: Missing credentials. Please expand '⚙️ Live SMTP Server Credentials' above and supply Host, Username, and App Password.")
-                    else:
-                        conn_exp = get_connection(DB_PATH)
-                        df_all = pd.read_sql_query("SELECT * FROM component_records", conn_exp)
-                        conn_exp.close()
-
-                        df_all["exp_dt"] = pd.to_datetime(df_all["exp_date"]).dt.date
-                        df_all["days_left"] = (df_all["exp_dt"] - date.today()).apply(lambda d: d.days)
-                        exp_list = df_all[df_all["days_left"] < 0].sort_values(by=["state", "team", "environment"]).to_dict(orient="records")
-
-                        active_smtp_config = {
-                            "host": active_host,
-                            "port": int(active_port),
-                            "user": active_user,
-                            "password": active_pass,
-                            "from_addr": active_from,
-                        }
-
-                        with st.spinner("Connecting to SMTP server & transmitting live packets..."):
-                            try:
-                                receipt = dispatch_expired_alert_real(
-                                    recipients=real_recipients,
-                                    expired_records=exp_list,
-                                    smtp_config=active_smtp_config,
-                                    is_simulation=False,
-                                )
-                                st.session_state["last_real_receipt"] = receipt
-                                st.success("✓ Live SMTP Alert Successfully Delivered!")
+                            active_smtp_config = {
+                                "host": active_host,
+                                "port": int(active_port),
+                                "user": active_user,
+                                "password": active_pass,
+                                "from_addr": active_from,
+                            }
+                            with st.spinner("Connecting to SMTP server & transmitting live packets..."):
                                 try:
-                                    conn_aud = get_connection(DB_PATH)
-                                    log_audit_event(
-                                        conn_aud,
-                                        actor=st.session_state.get("active_user", "admin"),
-                                        role=st.session_state.get("user_role", ROLE_OPERATOR),
-                                        action="EMAIL_DISPATCHED",
-                                        target_entity="Live SMTP Overdue Alert",
-                                        details=f"Delivered overdue alert with {len(exp_list)} records to {len(real_recipients)} recipient(s).",
+                                    receipt = dispatch_expired_alert_real(
+                                        recipients=real_recipients,
+                                        expired_records=exp_list,
+                                        smtp_config=active_smtp_config,
+                                        is_simulation=False,
                                     )
-                                    conn_aud.close()
-                                except Exception:
-                                    pass
-                            except Exception as ex:
-                                import traceback
-                                st.error(f"❌ Real SMTP Delivery Failed: {ex}")
-                                st.code(traceback.format_exc(), language="text")
+                                    st.session_state["last_real_receipt"] = receipt
+                                    st.success("✓ Live SMTP Alert Successfully Delivered!")
+                                    try:
+                                        conn_aud = get_connection(DB_PATH)
+                                        log_audit_event(
+                                            conn_aud,
+                                            actor=st.session_state.get("active_user", "admin"),
+                                            role=st.session_state.get("user_role", ROLE_OPERATOR),
+                                            action="EMAIL_DISPATCHED",
+                                            target_entity="Live SMTP Overdue Alert",
+                                            details=f"Delivered overdue alert with {len(exp_list)} records to {len(real_recipients)} recipient(s).",
+                                        )
+                                        conn_aud.close()
+                                    except Exception:
+                                        pass
+                                except Exception as ex:
+                                    st.error(f"❌ Real Delivery Failed: {ex}")
+
+                st.markdown(f"""
+                <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:6px 10px;font-size:10px;margin-bottom:4px;">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+                    <span style="color:#94a3b8;"><b>To:</b> {sim_mock['owner_name']} &lt;{sim_mock['owner_email']}&gt;</span>
+                    <span style="color:#f59e0b;font-weight:700;">● Simulation &amp; Live Channel</span>
+                  </div>
+                  <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f8fafc;font-weight:600;"><b>Subject:</b> {email_subject}</div>
+                </div>
+                <div style="background:#ffffff;border:1px solid #2c3235;border-radius:2px;height:245px;overflow-y:auto;padding:6px;">
+                  {email_html}
+                </div>
+                """, unsafe_allow_html=True)
 
                 if "last_real_receipt" in st.session_state:
                     rcpt = st.session_state["last_real_receipt"]
                     st.markdown(f"""
-                    <div style="background:rgba(115,191,105,0.08);border:1px solid rgba(115,191,105,0.3);border-radius:2px;padding:8px 10px;margin-top:6px;font-size:10px;">
-                      <div style="font-weight:700;color:var(--healthy);margin-bottom:4px;">VERIFIABLE DELIVERY RECEIPT</div>
-                      <div><b>Server Response:</b> <code>{rcpt.get('smtp_response', '250 2.0.0 OK')}</code></div>
-                      <div><b>Timestamp (UTC):</b> <code>{rcpt.get('timestamp')}</code></div>
-                      <div><b>Message-ID:</b> <code>{rcpt.get('message_id')}</code></div>
-                      <div><b>Recipients:</b> <code>{', '.join(rcpt.get('recipients', []))}</code></div>
-                      <div><b>Payload:</b> <code>{rcpt.get('item_count')} Expired Items</code></div>
+                    <div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:2px;padding:4px 8px;margin-top:4px;font-size:9.5px;color:#10b981;">
+                      <b>Receipt:</b> {rcpt.get('smtp_response', '250 OK')} &middot; {rcpt.get('timestamp')} &middot; {rcpt.get('item_count')} Expired Items
                     </div>
                     """, unsafe_allow_html=True)
+            else:
+                st.info("No entity records available for simulated preview.")
 
-        with act_tab3:
-            st.markdown("""
-            <div style="border-top:1px solid var(--rule);margin-top:2px;margin-bottom:8px;padding-top:6px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                <div style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:0.04em;">
-                  🛠️ WEEKLY OPERATIONAL MAINTENANCE CADENCE ALERT (STATE-DIFFERENTIATED)
-                </div>
-                <span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">
-                  STATE-WISE NOTIFICATION
-                </span>
-              </div>
-              <div style="font-size:10px;color:var(--mute);line-height:1.4;">
-                Unlike entity-level expiry alerts, this weekly notice coordinates planned operational windows, scheduled hours, and recurrence cadences across all 5 functional teams, differentiated state-wise.
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+    # --- SUBTAB 3: CADENCE CONSOLE ---
+    with gov_tab_cad:
+        with st.container(key=f"gov_tab_actions_cad_{reset_idx}"):
+            cad_act_c1, cad_act_c2 = st.columns([1.5, 1.5], gap="small")
+            with cad_act_c1:
+                cad_sim_trig = st.button("▶ Simulate Cadence", key=f"gov_cad_sim_{reset_idx}", type="secondary", use_container_width=True)
+            with cad_act_c2:
+                cad_real_trig = st.button("🚀 Send Cadence Email", key=f"gov_cad_real_{reset_idx}", type="primary", use_container_width=True)
 
-            cad_c1, cad_c2 = st.columns([1.2, 1.8])
-            with cad_c1:
-                cad_st_pick = st.selectbox(
-                    "Select State Scope",
-                    ["Fleet-Wide (All States)", "Alaska (AK)", "North Dakota (ND)", "New Hampshire (NH)"],
-                    key="gov_cad_state_pick",
-                    label_visibility="collapsed"
-                )
-            with cad_c2:
-                cad_st_map = {
-                    "Fleet-Wide (All States)": None,
-                    "Alaska (AK)": "AK",
-                    "North Dakota (ND)": "ND",
-                    "New Hampshire (NH)": "NH"
-                }
-                cad_state_code = cad_st_map[cad_st_pick]
+        cad_col_left, cad_col_right = st.columns([1.1, 1.9], gap="small")
 
-                default_recips = {
-                    "AK": "ak-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
-                    "ND": "nd-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
-                    "NH": "nh-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
-                    None: "fleet-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
-                }
-                cad_recips_input = st.text_input(
-                    "Target Distribution List",
-                    value=default_recips[cad_state_code],
-                    key=f"gov_cad_recips_{cad_state_code}",
-                    label_visibility="collapsed"
-                )
+        with cad_col_left:
+            cad_st_pick = st.selectbox(
+                "Select State Scope",
+                ["Fleet-Wide (All States)", "Alaska (AK)", "North Dakota (ND)", "New Hampshire (NH)"],
+                key=f"gov_cad_st_{reset_idx}"
+            )
+            cad_st_map = {
+                "Fleet-Wide (All States)": None,
+                "Alaska (AK)": "AK",
+                "North Dakota (ND)": "ND",
+                "New Hampshire (NH)": "NH"
+            }
+            cad_state_code = cad_st_map[cad_st_pick]
 
-            # Retrieve schedules from DB
+            default_recips = {
+                "AK": "ak-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                "ND": "nd-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                "NH": "nh-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+                None: "fleet-operations@ets.internal, basha.shaikirfan@gmail.com, dataengineerib@gmail.com",
+            }
+            cad_recips_input = st.text_input(
+                "Target Distribution List",
+                value=default_recips[cad_state_code],
+                key=f"gov_cad_recips_{cad_state_code}_{reset_idx}"
+            )
+
             conn_cad = get_connection(DB_PATH)
             all_schedules = get_maintenance_schedules(conn_cad)
             conn_cad.close()
-
             st_schedules = [s for s in all_schedules if not cad_state_code or s.get("state") == cad_state_code]
 
-            # Render live preview
+            st.markdown(f"""
+            <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 10px;font-size:10px;margin-top:4px;">
+              <span style="color:#38bdf8;font-weight:700;">{len(st_schedules)} Planned Windows</span>
+              <div style="color:#94a3b8;font-size:9px;margin-top:2px;">Coordinates operational maintenance hours and weekly cadence across all 5 functional teams.</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with cad_col_right:
             cad_email_html = render_maintenance_cadence_email(
                 all_schedules,
                 state=cad_state_code,
                 extra_context={"recipients_str": cad_recips_input}
             )
 
-            st.markdown(f"""
-            <div class="panel" style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;background:var(--card);margin-top:4px;margin-bottom:8px;">
-              <div class="panel-head" style="background:#141619;display:flex;justify-content:space-between;align-items:center;">
-                <span class="panel-title" style="font-size:10px;font-weight:700;color:var(--text);letter-spacing:0.06em;">
-                  WEEKLY CADENCE ALERT PREVIEW &bull; {cad_st_pick.upper()}
-                </span>
-                <span class="pill" style="color:#38bdf8;background:rgba(56,189,248,0.15);font-size:8.5px;font-weight:700;border-radius:2px;">
-                  {len(st_schedules)} Windows Across 5 Teams
-                </span>
-              </div>
-              <div style="background:#181b1f;border-bottom:1px solid var(--rule-soft);padding:6px 10px;font-size:11px;display:flex;flex-direction:column;gap:3px;">
-                <div><span style="color:var(--mute);font-weight:600;">State Distribution List:</span> <code style="color:var(--accent);font-size:10px;background:rgba(255,120,10,0.1);padding:1px 6px;border-radius:2px;">{cad_recips_input}</code></div>
-                <div><span style="color:var(--mute);font-weight:600;">Subject:</span> <span style="color:var(--text);font-weight:600;font-size:11px;">[CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick} (5 Teams Scheduled)</span></div>
-              </div>
-              <div style="background:#111217;padding:7px;">
-                <div style="max-height:calc(100vh - 440px);min-height:300px;overflow-y:auto;background:#ffffff;border:1px solid var(--rule);border-radius:2px;">
-                  {cad_email_html}
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+            if cad_sim_trig:
+                st.toast(f"Simulated Cadence alert logged for {cad_st_pick} ({len(st_schedules)} windows)", icon="📅")
 
-            # Dispatch action bar
-            cd_c1, cd_c2 = st.columns([1.5, 1.5])
-            with cd_c1:
+            if cad_real_trig:
                 if not can_write():
-                    st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Cadence simulation requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
-                elif st.button("▶ Trigger Simulated Cadence Alert", key="gov_sim_cadence_btn", type="secondary", use_container_width=True):
-                    st.toast(f"Simulated Cadence alert logged for {cad_st_pick} ({len(st_schedules)} windows)", icon="📅")
-            with cd_c2:
-                if not can_write():
-                    st.markdown("<div style='font-size:11px;color:#94a3b8;padding:8px 0;'>🔒 <i>Real SMTP dispatch requires Operator or Admin role.</i></div>", unsafe_allow_html=True)
-                elif st.button("🚀 Send Real Test Cadence Email", key="gov_real_cadence_btn", type="primary", use_container_width=True):
+                    st.error("🔒 Real SMTP dispatch requires Operator or Admin role.")
+                else:
                     active_host = st.session_state.get("gov_smtp_host")
                     active_port = st.session_state.get("gov_smtp_port", 587)
                     active_user = st.session_state.get("gov_smtp_user")
@@ -3048,7 +3066,7 @@ def render_governance_center() -> None:
                     active_from = st.session_state.get("gov_smtp_from") or active_user
 
                     if not (active_host and active_user and active_pass):
-                        st.error("❌ Live SMTP Dispatch Blocked: Please configure SMTP Server Credentials in the 'Expiry Alert Dispatch' tab first.")
+                        st.error("❌ Live SMTP Dispatch Blocked: Configure SMTP Server Credentials in Alert Dispatch first.")
                     else:
                         active_smtp_config = {
                             "host": active_host,
@@ -3059,7 +3077,7 @@ def render_governance_center() -> None:
                         }
                         recips_list = [e.strip() for e in cad_recips_input.split(",") if e.strip() and "@" in e and not e.strip().endswith(".internal")]
                         if not recips_list:
-                            st.warning("⚠️ No valid live test email address found in recipients (mock domains like .internal are filtered). Please include a real address such as basha.shaikirfan@gmail.com or dataengineerib@gmail.com.")
+                            st.warning("⚠️ No valid live test email address found in recipients.")
                         else:
                             with st.spinner(f"Transmitting weekly cadence alert for {cad_st_pick}..."):
                                 try:
@@ -3070,83 +3088,227 @@ def render_governance_center() -> None:
                                         smtp_config=active_smtp_config,
                                     )
                                     st.session_state["last_cadence_receipt"] = rcpt
-                                    st.success(f"✓ Weekly Cadence Alert for {cad_st_pick} Successfully Delivered to {', '.join(recips_list)}!")
-                                    try:
-                                        conn_aud = get_connection(DB_PATH)
-                                        log_audit_event(
-                                            conn_aud,
-                                            actor=st.session_state.get("active_user", "admin"),
-                                            role=st.session_state.get("user_role", ROLE_OPERATOR),
-                                            action="EMAIL_DISPATCHED",
-                                            target_entity=f"Weekly Cadence Notice ({cad_st_pick})",
-                                            details=f"Delivered {len(st_schedules)} schedule windows to {len(recips_list)} recipient(s).",
-                                        )
-                                        conn_aud.close()
-                                    except Exception:
-                                        pass
+                                    st.success(f"✓ Weekly Cadence Alert delivered to {', '.join(recips_list)}!")
                                 except Exception as ex:
                                     st.error(f"❌ Real Delivery Failed: {ex}")
 
-            if "last_cadence_receipt" in st.session_state:
-                c_rcpt = st.session_state["last_cadence_receipt"]
-                st.markdown(f"""
-                <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:2px;padding:6px 10px;margin-top:6px;font-size:10px;">
-                  <div style="font-weight:700;color:var(--accent);margin-bottom:2px;">CADENCE ALERT VERIFIED DISPATCH RECEIPT</div>
-                  <div><b>Response:</b> <code>{c_rcpt.get('smtp_response', '250 2.0.0 OK')}</code> &bull; <b>Timestamp:</b> <code>{c_rcpt.get('timestamp')}</code></div>
-                  <div><b>Recipients:</b> <code>{', '.join(c_rcpt.get('recipients', []))}</code></div>
-                  <div><b>Payload:</b> <code>{c_rcpt.get('item_count')} Maintenance Schedules</code></div>
-                </div>
-                """, unsafe_allow_html=True)
-
-        with act_tab4:
             st.markdown(f"""
-            <div class="panel" style="padding:6px 10px;margin-bottom:6px;border-radius:2px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:11px;font-weight:700;color:var(--text);">Database: <code style="color:var(--accent);">{Path(DB_PATH).name}</code></span>
-                <span style="font-size:9.5px;color:var(--healthy);font-weight:700;">● ZERO-MOCK LINEAGE</span>
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:6px 10px;font-size:10px;margin-bottom:4px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+                <span style="color:#94a3b8;"><b>Scope:</b> {cad_st_pick.upper()} &middot; {len(st_schedules)} Windows</span>
+                <span style="color:#38bdf8;font-weight:700;">● Weekly Cadence Notice</span>
               </div>
-              <table class="tblx" style="font-size:10px;">
-                <tr><th>Table Name</th><th class="r">Rows</th><th>Lineage Role</th><th class="r">Status</th></tr>
-                <tr><td class="m">component_records</td><td class="m r"><b>{stats['component_records']}</b></td><td style="color:var(--slate)">Multi-Component Workbooks</td><td class="r"><span class="pill" style="color:var(--healthy);background:var(--green-dim);font-size:8.5px;border-radius:2px;">✓ Active</span></td></tr>
-                <tr><td class="m">expiry_records</td><td class="m r"><b>{stats['expiry_records']}</b></td><td style="color:var(--slate)">Account DB Passwords</td><td class="r"><span class="pill" style="color:var(--healthy);background:var(--green-dim);font-size:8.5px;border-radius:2px;">✓ Active</span></td></tr>
-                <tr><td class="m">maintenance_schedules</td><td class="m r"><b>{stats.get('maintenance_schedules', 0)}</b></td><td style="color:var(--slate)">Team Maintenance Windows</td><td class="r"><span class="pill" style="color:#5794f2;background:rgba(87,148,242,0.15);font-size:8.5px;border-radius:2px;">✓ Synced</span></td></tr>
-                <tr><td class="m">owners</td><td class="m r"><b>{stats['owners']}</b></td><td style="color:var(--slate)">State Owner Routing</td><td class="r"><span class="pill" style="color:#5794f2;background:rgba(87,148,242,0.15);font-size:8.5px;border-radius:2px;">3 States</span></td></tr>
-                <tr><td class="m">reminder_log</td><td class="m r"><b>{stats['reminder_log']}</b></td><td style="color:var(--slate)">Audit & Reminder Cycles</td><td class="r"><span class="pill" style="color:var(--slate);background:rgba(159,167,179,0.15);font-size:8.5px;border-radius:2px;">Audit Ready</span></td></tr>
-              </table>
+              <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f8fafc;font-weight:600;"><b>Subject:</b> [CADENCE NOTICE] ETS Weekly Maintenance Windows: {cad_st_pick}</div>
+            </div>
+            <div style="background:#ffffff;border:1px solid #2c3235;border-radius:2px;height:245px;overflow-y:auto;padding:6px;">
+              {cad_email_html}
             </div>
             """, unsafe_allow_html=True)
 
-            conn_audit = get_connection(DB_PATH)
-            recent_logs = conn_audit.execute(
-                "SELECT state, schema_name, last_sent_at, times_sent FROM reminder_log ORDER BY last_sent_at DESC LIMIT 8"
-            ).fetchall()
-            conn_audit.close()
-            if recent_logs:
-                rl_rows = "".join(
-                    f"<tr><td class='m'><b>{r['state']}</b></td><td class='m'><code>{r['schema_name']}</code></td><td class='m'>{r['last_sent_at']}</td><td class='m r'><b>{r['times_sent']}</b></td></tr>"
-                    for r in recent_logs
-                )
+    # --- SUBTAB 4: RELEASE GATE CUTOFF ENGINE ---
+    with gov_tab_cut:
+        conn_rel = get_connection(DB_PATH)
+        rel_all = get_release_schedules(conn_rel, state=None)
+        conn_rel.close()
+
+        today_date = date.today()
+        milestone_rows = []
+        for r in rel_all:
+            st_code = r.get("state", "")
+            rid = r.get("release_id", "")
+            rm_name = r.get("state_rm_name", f"{st_code} Release Manager")
+            rm_email = r.get("state_rm_email", f"{st_code.lower()}_rm@ets.state.gov")
+
+            gates = [
+                ("DEV Freeze", r.get("dev_end_date"), "ENV52 Dev" if st_code == "NH" else "Build-76"),
+                ("SIT QA Gate", r.get("sit_end_date"), "ENV57 / ENV53" if st_code == "NH" else "SIT QA"),
+                ("State UAT Gate", r.get("uat_end_date"), "ENV04 UAT" if st_code == "NH" else "State Acceptance"),
+                ("Go / No-Go Board", r.get("go_nogo_date"), "Decision Board"),
+                ("Production Cutover", r.get("prod_deploy_date"), "ENV05 Live" if st_code == "NH" else "PROD Cutover"),
+            ]
+            for g_name, g_date, g_env in gates:
+                if g_date:
+                    try:
+                        diff = (datetime.strptime(g_date, "%Y-%m-%d").date() - today_date).days
+                        if -14 <= diff <= 45:
+                            s_lbl = f"{abs(diff)}d OVERDUE" if diff < 0 else ("CUTOFF TODAY" if diff == 0 else f"{diff}d REMAINING")
+                            s_chip = "firing" if diff <= 3 else ("pending" if diff <= 7 else "ok")
+                            milestone_rows.append({
+                                "state": st_code,
+                                "release_id": rid,
+                                "phase": g_name,
+                                "env": g_env,
+                                "cutoff_date": g_date,
+                                "days_left": diff,
+                                "status_label": s_lbl,
+                                "chip": s_chip,
+                                "rm_name": rm_name,
+                                "rm_email": rm_email,
+                            })
+                    except Exception:
+                        pass
+
+        milestone_rows.sort(key=lambda m: (0 if m["chip"] == "firing" else (1 if m["chip"] == "pending" else 2), m["days_left"]))
+
+        m_opts = {f"{m['state']} · {m['release_id']} ({m['phase']}) — {m['cutoff_date']}": m for m in milestone_rows} if milestone_rows else {}
+
+        with st.container(key=f"gov_tab_actions_cut_{reset_idx}"):
+            rc_c1, rc_c2 = st.columns([2.2, 1.8], gap="small")
+            with rc_c1:
+                chosen_m_lbl = st.selectbox("Target Cutoff Milestone", list(m_opts.keys()) if m_opts else ["No cutoffs"], key=f"gov_cut_pick_{reset_idx}", label_visibility="collapsed")
+            with rc_c2:
+                dispatch_gate_btn = st.button("🚀 Dispatch Cutoff Alert", key=f"gov_cut_send_{reset_idx}", type="primary", use_container_width=True)
+
+        cut_col_left, cut_col_right = st.columns([1.1, 1.9], gap="small")
+
+        with cut_col_left:
+            if not milestone_rows:
+                st.info("No release cutoffs within the next 45 days.")
+            else:
+                m_table_rows = []
+                for m in milestone_rows[:12]:
+                    m_table_rows.append(
+                        f"<tr style='border-bottom:1px solid #22252b;'>"
+                        f"<td style='padding:3px 6px;font-family:var(--mono);font-weight:700;color:#38bdf8;'>{m['state']}</td>"
+                        f"<td style='padding:3px 6px;font-family:var(--mono);color:#f8fafc;'>{m['release_id']}</td>"
+                        f"<td style='padding:3px 6px;color:#cbd5e1;'>{m['phase']}</td>"
+                        f"<td style='padding:3px 6px;font-family:var(--mono);color:#94a3b8;'>{m['cutoff_date']}</td>"
+                        f"<td style='padding:3px 6px;'><span class='alert-chip {m['chip']}'>{m['status_label']}</span></td>"
+                        f"</tr>"
+                    )
+
                 st.markdown(f"""
-                <div style="border:1px solid var(--rule);border-radius:2px;overflow:hidden;margin-bottom:8px;">
-                  <table class="tblx" style="font-size:9.5px;">
-                    <tr><th>State</th><th>Entity Audited</th><th>Last Audit Date</th><th class="r">Dispatches</th></tr>
-                    {rl_rows}
+                <div class="gov-table-container" style="height:280px;max-height:280px;">
+                  <table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
+                    <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;color:#6e7681;text-transform:uppercase;font-size:8px;">
+                      <tr><th style="padding:3px 6px;text-align:left;">State</th><th style="padding:3px 6px;text-align:left;">Release</th><th style="padding:3px 6px;text-align:left;">Phase</th><th style="padding:3px 6px;text-align:left;">Date</th><th style="padding:3px 6px;text-align:left;">Status</th></tr>
+                    </thead>
+                    <tbody>
+                      {''.join(m_table_rows)}
+                    </tbody>
                   </table>
                 </div>
                 """, unsafe_allow_html=True)
 
-            reing_c1, reing_c2 = st.columns([2.5, 1.5])
-            with reing_c1:
-                st.markdown("<div style='font-size:10px;color:var(--mute);line-height:26px;'>Zero-mock filesystem parser across all state workbooks:</div>", unsafe_allow_html=True)
-            with reing_c2:
-                if st.button("⚡ Trigger Re-ingest (AST)", key="gov_reingest_tab", type="primary", use_container_width=True):
-                    t_start = datetime.now()
-                    with st.spinner("Executing workbook parser..."):
-                        res = run_ingest(WORKBOOK_DIR, DB_PATH)
-                    duration_ms = (datetime.now() - t_start).total_seconds() * 1000
-                    bust_cache()
-                    st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
-                    rerun()
+        with cut_col_right:
+            chosen_m = m_opts.get(chosen_m_lbl)
+            if chosen_m:
+                if dispatch_gate_btn:
+                    if not can_write():
+                        st.error("🔒 Dispatching cutoff alerts requires Operator or Admin role.")
+                    else:
+                        try:
+                            conn_aud = get_connection(DB_PATH)
+                            log_audit_event(
+                                conn_aud,
+                                actor=st.session_state.get("active_user", "admin"),
+                                role=st.session_state.get("user_role", ROLE_OPERATOR),
+                                action="EMAIL_DISPATCHED",
+                                target_entity=f"{chosen_m['state']} {chosen_m['release_id']} {chosen_m['phase']}",
+                                details=f"Release cutoff alert dispatched to {chosen_m['rm_name']} <{chosen_m['rm_email']}> for cutoff {chosen_m['cutoff_date']} ({chosen_m['status_label']}).",
+                            )
+                            conn_aud.close()
+                            st.success(f"✓ Cutoff Alert dispatched for {chosen_m['release_id']} ({chosen_m['phase']}) to {chosen_m['rm_name']}!")
+                        except Exception as ex:
+                            st.error(f"Dispatch failed: {ex}")
+
+                st.markdown(f"""
+                <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:8px;font-family:var(--mono);font-size:10px;height:280px;box-sizing:border-box;overflow-y:auto;">
+                  <div style="color:#94a3b8;font-weight:700;margin-bottom:4px;">📧 Preview Release Cutoff Alert Email Template</div>
+                  <div style="color:#cbd5e1;margin-bottom:2px;"><b style="color:#f8fafc;">TO:</b> {chosen_m['rm_name']} &lt;{chosen_m['rm_email']}&gt;</div>
+                  <div style="color:#cbd5e1;margin-bottom:6px;"><b style="color:#f8fafc;">SUBJECT:</b> [GATE ALERT] {chosen_m['state']} MMIS — {chosen_m['release_id']} {chosen_m['phase']} Deadline: {chosen_m['cutoff_date']}</div>
+                  <div style="border-top:1px solid #2c3235;padding-top:6px;color:#d8d9da;line-height:1.4;">
+                    <p style="margin-bottom:4px;">Attention State Release Management,</p>
+                    <p style="margin-bottom:6px;">This is an automated ETS notification regarding the upcoming pipeline gate cutoff for <b>{chosen_m['release_id']}</b>.</p>
+                    <table style="border:1px solid #2c3235;background:#181b1f;padding:4px;width:100%;font-size:9.5px;">
+                      <tr><td style="color:#94a3b8;">State Scope:</td><td><b>{chosen_m['state']} MMIS</b></td></tr>
+                      <tr><td style="color:#94a3b8;">Release ID:</td><td><b>{chosen_m['release_id']}</b></td></tr>
+                      <tr><td style="color:#94a3b8;">Phase / Gate:</td><td><b style="color:#38bdf8;">{chosen_m['phase']}</b></td></tr>
+                      <tr><td style="color:#94a3b8;">Environment:</td><td><b>{chosen_m['env']}</b></td></tr>
+                      <tr><td style="color:#94a3b8;">Cutoff Deadline:</td><td><b style="color:#f2495c;">{chosen_m['cutoff_date']}</b></td></tr>
+                      <tr><td style="color:#94a3b8;">Remaining Window:</td><td><b style="color:#ff9830;">{chosen_m['status_label']}</b></td></tr>
+                    </table>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("Select a milestone to preview template.")
+
+    # --- SUBTAB 5: AUDIT LEDGER & AST RE-INGEST ---
+    with gov_tab_aud:
+        with st.container(key=f"gov_tab_actions_aud_{reset_idx}"):
+            aud_act_c1, aud_act_c2 = st.columns([2.0, 1.2], gap="small")
+            with aud_act_c1:
+                st.markdown(f"<div style='font-size:9px;color:#10b981;font-weight:700;padding-top:4px;'>● ZERO-MOCK LINEAGE: <code>{Path(DB_PATH).name}</code></div>", unsafe_allow_html=True)
+            with aud_act_c2:
+                reing_btn = st.button("⚡ Trigger Re-ingest (AST)", key=f"gov_reingest_{reset_idx}", type="primary", use_container_width=True)
+
+        aud_col_left, aud_col_right = st.columns([1.0, 1.5], gap="small")
+
+        with aud_col_left:
+            st.markdown(f"""
+            <div style="background:#181b1f;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;height:280px;box-sizing:border-box;overflow-y:auto;">
+              <div style="font-size:9.5px;font-weight:700;color:#f8fafc;margin-bottom:6px;">Database Table Lineage Matrix</div>
+              <table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
+                <tr style="border-bottom:1px solid #2c3235;color:#6e7681;font-size:8.5px;">
+                  <th style="text-align:left;padding:3px 4px;">Table</th>
+                  <th style="text-align:right;padding:3px 4px;">Rows</th>
+                  <th style="text-align:left;padding:3px 4px;">Lineage Role</th>
+                  <th style="text-align:right;padding:3px 4px;">Status</th>
+                </tr>
+                <tr style="border-bottom:1px solid #22252b;"><td style="padding:3px 4px;font-family:var(--mono);">component_records</td><td style="text-align:right;padding:3px 4px;font-family:var(--mono);font-weight:700;">{stats['component_records']}</td><td style="color:#94a3b8;padding:3px 4px;">Multi-Component</td><td style="text-align:right;padding:3px 4px;"><span style="color:#10b981;font-weight:700;font-size:8px;">Active</span></td></tr>
+                <tr style="border-bottom:1px solid #22252b;"><td style="padding:3px 4px;font-family:var(--mono);">expiry_records</td><td style="text-align:right;padding:3px 4px;font-family:var(--mono);font-weight:700;">{stats['expiry_records']}</td><td style="color:#94a3b8;padding:3px 4px;">DB Passwords</td><td style="text-align:right;padding:3px 4px;"><span style="color:#10b981;font-weight:700;font-size:8px;">Active</span></td></tr>
+                <tr style="border-bottom:1px solid #22252b;"><td style="padding:3px 4px;font-family:var(--mono);">maintenance_schedules</td><td style="text-align:right;padding:3px 4px;font-family:var(--mono);font-weight:700;">{stats.get('maintenance_schedules', 0)}</td><td style="color:#94a3b8;padding:3px 4px;">Maintenance Windows</td><td style="text-align:right;padding:3px 4px;"><span style="color:#38bdf8;font-weight:700;font-size:8px;">Synced</span></td></tr>
+                <tr style="border-bottom:1px solid #22252b;"><td style="padding:3px 4px;font-family:var(--mono);">owners</td><td style="text-align:right;padding:3px 4px;font-family:var(--mono);font-weight:700;">{stats['owners']}</td><td style="color:#94a3b8;padding:3px 4px;">Owner Routing</td><td style="text-align:right;padding:3px 4px;"><span style="color:#38bdf8;font-weight:700;font-size:8px;">3 States</span></td></tr>
+                <tr style="border-bottom:1px solid #22252b;"><td style="padding:3px 4px;font-family:var(--mono);">reminder_log</td><td style="text-align:right;padding:3px 4px;font-family:var(--mono);font-weight:700;">{stats['reminder_log']}</td><td style="color:#94a3b8;padding:3px 4px;">Audit &amp; Reminders</td><td style="text-align:right;padding:3px 4px;"><span style="color:#94a3b8;font-weight:700;font-size:8px;">Ready</span></td></tr>
+              </table>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with aud_col_right:
+            if reing_btn:
+                t_start = datetime.now()
+                with st.spinner("Executing workbook parser..."):
+                    res = run_ingest(WORKBOOK_DIR, DB_PATH)
+                duration_ms = (datetime.now() - t_start).total_seconds() * 1000
+                bust_cache()
+                st.success(f"Ingested {res['total_rows_read']} records in {duration_ms:.1f}ms ({res['new']} new, {res['renewed']} renewed).")
+                rerun()
+
+            conn_audit = get_connection(DB_PATH)
+            recent_logs = conn_audit.execute(
+                "SELECT state, schema_name, last_sent_at, times_sent FROM reminder_log ORDER BY last_sent_at DESC LIMIT 10"
+            ).fetchall()
+            conn_audit.close()
+
+            if recent_logs:
+                rl_rows = "".join(
+                    f"<tr style='border-bottom:1px solid #22252b;'>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);font-weight:700;color:#38bdf8;'>{r['state']}</td>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);color:#f8fafc;'><code>{r['schema_name']}</code></td>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);color:#94a3b8;'>{r['last_sent_at']}</td>"
+                    f"<td style='padding:3px 6px;font-family:var(--mono);text-align:right;font-weight:700;'>{r['times_sent']}</td>"
+                    f"</tr>"
+                    for r in recent_logs
+                )
+                st.markdown(f"""
+                <div class="gov-table-container" style="height:280px;max-height:280px;">
+                  <table style="width:100%;border-collapse:collapse;font-size:9.5px;color:#d8d9da;">
+                    <thead style="position:sticky;top:0;background:#141619;border-bottom:1px solid #2c3235;z-index:2;color:#6e7681;text-transform:uppercase;font-size:8px;">
+                      <tr><th style="padding:3px 6px;text-align:left;">State</th><th style="padding:3px 6px;text-align:left;">Entity Audited</th><th style="padding:3px 6px;text-align:left;">Last Audit Date</th><th style="padding:3px 6px;text-align:right;">Dispatches</th></tr>
+                    </thead>
+                    <tbody>
+                      {rl_rows}
+                    </tbody>
+                  </table>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="padding:32px 16px;text-align:center;background:#181b1f;border:1px solid #2c3235;border-radius:2px;color:#94a3b8;font-size:10px;">
+                  No reminder dispatches recorded yet.
+                </div>
+                """, unsafe_allow_html=True)
 
 
 # ==========================================================================
@@ -3777,7 +3939,7 @@ with tab_operations:
     render_operations_hub(records)
 
 with tab_governance:
-    render_governance_center()
+    render_governance_center(records)
 
 with tab_rbac:
     render_rbac_workspace()
