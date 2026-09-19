@@ -381,18 +381,20 @@ def css() -> str:
   line-height: 1.35;
 }}
 
-/* Zero-scroll viewport layout & Ultrawide / 4K Centering */
-.block-container {{ max-width:2400px !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
+/* Viewport layout & Ultrawide / 4K Centering */
+.block-container {{ max-width:1800px !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
 [data-testid="stVerticalBlock"] {{ gap:.5rem; }}
 iframe:not([data-testid="stCustomComponentV1"]) {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; }}
 iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100% !important; }}
 
-/* Screen Zero-Scroll Enforcement: Screen/page cannot scroll */
+/* Screen Viewport Layout: Fallback scroll prevents permanent content loss on scaled viewports */
 [data-testid="stMain"] {{
-  overflow-y: hidden !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #38bdf8 #111217 !important;
 }}
 
 /* Eliminate Streamlit markdown negative margin collapse */
@@ -494,24 +496,30 @@ div[class*="st-key-sel_st_"] button,
 div[class*="st-key-sel_tm_"] button,
 div[class*="st-key-sel_cp_"] button,
 div[class*="st-key-sel_ev_"] button {{
-  width: 20px !important;
-  min-width: 20px !important;
-  max-width: 20px !important;
-  height: 20px !important;
-  min-height: 20px !important;
-  max-height: 20px !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
   padding: 0 !important;
-  margin: 4px auto !important;
+  margin: 3px auto !important;
   border-radius: 3px !important;
   font-size: 11px !important;
   font-weight: 800 !important;
-  line-height: 18px !important;
+  line-height: 24px !important;
   text-align: center !important;
   background: #181b1f !important;
   border: 1px solid #3b424a !important;
   color: #94a3b8 !important;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4) !important;
   transition: all 0.15s ease !important;
+}}
+
+/* WCAG 2.1 AA Focus Rings */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {{
+  outline: 2px solid #38bdf8 !important;
+  outline-offset: 2px !important;
 }}
 
 div[class*="st-key-pg_ck_"] button:hover,
@@ -867,16 +875,18 @@ iframe[height="0"], [data-testid="stCustomComponentV1"]:has(iframe[height="0"]) 
 [data-testid="stSidebar"][data-rail-state="collapsed"] ~ div,
 [data-testid="stSidebar"]:not([data-rail-state="expanded"]) ~ div {{
   margin-left: 48px !important;
-  width: calc(100vw - 48px) !important;
-  max-width: calc(100vw - 48px) !important;
+  width: calc(100% - 48px) !important;
+  max-width: calc(100% - 48px) !important;
+  box-sizing: border-box !important;
   transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }}
 
 [data-testid="stSidebar"][data-rail-state="expanded"] + div,
 [data-testid="stSidebar"][data-rail-state="expanded"] ~ div {{
   margin-left: 260px !important;
-  width: calc(100vw - 260px) !important;
-  max-width: calc(100vw - 260px) !important;
+  width: calc(100% - 260px) !important;
+  max-width: calc(100% - 260px) !important;
+  box-sizing: border-box !important;
   transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }}
 

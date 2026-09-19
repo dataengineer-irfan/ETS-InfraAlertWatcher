@@ -193,6 +193,7 @@ def render_release_plan_workspace(db_path: str) -> None:
     # 1. Silent RBAC Identification (Under-the-Hood)
     # --------------------------------------------------------------------------
     active_user = st.session_state.get("active_user") or "admin"
+    auth_suffix = f"&_auth_user={active_user}&tab=0"
     user_role = st.session_state.get("user_role") or "Admin"
     user_assigned_state = st.session_state.get("assigned_state")
 
@@ -886,7 +887,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         <tr style="{row_bg}">
             <td style="padding:3px 6px;"><span style="font-weight:700;color:#9fa7b3;">{r["state"]}</span></td>
             <td style="padding:3px 6px;">
-                <a href="?target_rel={r['id']}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 5px;border-radius:2px;font-family:var(--mono);font-size:10px;font-weight:700;background:{badge_bg};border:1px solid {badge_border};color:{badge_color};{badge_shadow}">
+                <a href="?target_rel={r['id']}{auth_suffix}" target="_self" style="text-decoration:none;display:inline-flex;align-items:center;padding:1.5px 5px;border-radius:2px;font-family:var(--mono);font-size:10px;font-weight:700;background:{badge_bg};border:1px solid {badge_border};color:{badge_color};{badge_shadow}">
                     {target_icon}{r["clean_id"]}
                 </a>
             </td>

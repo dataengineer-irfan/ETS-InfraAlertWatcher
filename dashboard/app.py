@@ -894,7 +894,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | 5 Slicers | Telemetry & Actions)
     # --------------------------------------------------------------------------
     c_brand, c_f1, c_f2, c_f3, c_f4, c_f5, c_telem, c_csv, c_reset = st.columns(
-        [1.8, 1.25, 0.85, 0.85, 0.95, 0.85, 1.7, 0.55, 0.35],
+        [1.35, 1.4, 1.05, 1.15, 1.15, 1.05, 1.25, 0.5, 0.35],
         gap="small"
     )
 
@@ -1245,8 +1245,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     if c_cnt == 0:
                         td_cells.append(
                             f'<td style="padding:1px;">'
-                            f'<div style="background:rgba(255,255,255,0.015);border:1px solid #22262a;border-radius:2px;height:32px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;font-family:var(--mono);">'
-                            f'—</div></td>'
+                            f'<div style="background:#141619;border:1px dashed #22262a;border-radius:2px;height:32px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;font-family:var(--mono);">'
+                            f'<span style="opacity:0.35;">—</span></div></td>'
                         )
                     else:
                         c_exp = int((sub["days_left"] < 0).sum())
@@ -1271,6 +1271,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             c_badge = f"✓ {c_hlth} OK"
                             c_fill = "rgba(115,191,105,0.18)"
 
+                        p_hlth = (c_hlth / c_cnt) * 100.0
+                        p_risk = 100.0 - p_hlth
+                        risk_bar = f'<div style="width:{p_risk:.0f}%;background:{c_color};"></div>' if p_risk > 0 else ''
+                        hlth_bar = f'<div style="width:{p_hlth:.0f}%;background:#10b981;"></div>' if p_hlth > 0 else ''
+
                         c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
                         cd_str = ui.fmt_heatmap_time(min_days)
 
@@ -1282,6 +1287,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             f'<span style="font-family:var(--mono);font-size:11px;font-weight:800;color:#f8fafc;">{c_cnt}</span>'
                             f'<span style="font-size:7.5px;font-weight:700;color:{c_color};">{c_badge}</span>'
                             f'</div>'
+                            f'<div style="display:flex;height:2px;border-radius:1px;overflow:hidden;background:rgba(255,255,255,0.06);margin:1px 0;">{risk_bar}{hlth_bar}</div>'
                             f'<div style="font-size:7.5px;color:{c_color};font-family:var(--mono);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
                             f'{cd_str}</div>'
                             f'</div></a></td>'
@@ -1350,6 +1356,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             c_badge = f"✓ {c_hlth} OK"
                             c_fill = "rgba(115,191,105,0.18)"
 
+                        p_hlth = (c_hlth / c_cnt) * 100.0
+                        p_risk = 100.0 - p_hlth
+                        risk_bar = f'<div style="width:{p_risk:.0f}%;background:{c_color};"></div>' if p_risk > 0 else ''
+                        hlth_bar = f'<div style="width:{p_hlth:.0f}%;background:#10b981;"></div>' if p_hlth > 0 else ''
+
                         c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
                         cd_str = ui.fmt_heatmap_time(min_days)
                         cell_st_val = state_filter if state_filter != "All States" else ""
@@ -1357,9 +1368,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         td_cells.append(
                             f'<td style="padding:1px;">'
                             f'<a href="?op_cell={cell_st_val}:{c_val}:{tm_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
-                            f'<div style="{c_border};border-radius:2px;padding:0 3px;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" title="Filter to {tm_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
+                            f'<div style="{c_border};border-radius:2px;padding:0 3px;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;position:relative;overflow:hidden;" title="Filter to {tm_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
                             f'<span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">{c_cnt}</span>'
                             f'<span style="font-size:7.5px;font-weight:700;color:{c_color};white-space:nowrap;">{c_badge}</span>'
+                            f'<div style="position:absolute;bottom:0;left:0;right:0;height:2px;display:flex;background:rgba(255,255,255,0.06);">{risk_bar}{hlth_bar}</div>'
                             f'</div></a></td>'
                         )
 
@@ -1427,6 +1439,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                             c_badge = f"✓ {c_hlth} OK"
                             c_fill = "rgba(115,191,105,0.18)"
 
+                        p_hlth = (c_hlth / c_cnt) * 100.0
+                        p_risk = 100.0 - p_hlth
+                        risk_bar = f'<div style="width:{p_risk:.0f}%;background:{c_color};"></div>' if p_risk > 0 else ''
+                        hlth_bar = f'<div style="width:{p_hlth:.0f}%;background:#10b981;"></div>' if p_hlth > 0 else ''
+
                         c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
                         cd_str = ui.fmt_heatmap_time(min_days)
                         cell_st_val = state_filter if state_filter != "All States" else ""
@@ -1434,9 +1451,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                         td_cells.append(
                             f'<td style="padding:1px;">'
                             f'<a href="?op_cell={cell_st_val}:{c_val}::{env_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
-                            f'<div style="{c_border};border-radius:2px;padding:0 3px;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" title="Filter to {env_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
+                            f'<div style="{c_border};border-radius:2px;padding:0 3px;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;position:relative;overflow:hidden;" title="Filter to {env_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
                             f'<span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">{c_cnt}</span>'
                             f'<span style="font-size:7.5px;font-weight:700;color:{c_color};white-space:nowrap;">{c_badge}</span>'
+                            f'<div style="position:absolute;bottom:0;left:0;right:0;height:2px;display:flex;background:rgba(255,255,255,0.06);">{risk_bar}{hlth_bar}</div>'
                             f'</div></a></td>'
                         )
 
@@ -1604,39 +1622,31 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         position: relative !important;
     }
     div.st-key-op_workspace_subtabs_box div[data-baseweb="tab-list"] {
-        width: fit-content !important;
-        max-width: 480px !important;
+        width: 100% !important;
         border-bottom: 1px solid #2c3235 !important;
         gap: 2px !important;
-        height: 36px !important;
+        height: 34px !important;
     }
     div.st-key-op_workspace_subtabs_box div[data-baseweb="tab-list"] button[role="tab"] {
-        padding: 3px 6px !important;
+        padding: 3px 8px !important;
         font-size: 10px !important;
         font-weight: 600 !important;
         white-space: nowrap !important;
     }
     div[class*="st-key-tab_actions_"] {
-        position: absolute !important;
-        top: 2px !important;
-        right: 0 !important;
-        left: auto !important;
-        width: auto !important;
-        max-width: calc(100% - 500px) !important;
+        position: relative !important;
+        width: 100% !important;
+        margin: 2px 0 4px !important;
         height: 32px !important;
-        z-index: 99 !important;
+        z-index: 1 !important;
         background: transparent !important;
         border: none !important;
     }
-    div[class*="st-key-tab_actions_inv_"] { min-width: 500px !important; }
-    div[class*="st-key-tab_actions_insp_"] { min-width: 500px !important; }
-    div[class*="st-key-tab_actions_tree_"] { min-width: 400px !important; }
-    div[class*="st-key-tab_actions_batch_"] { min-width: 480px !important; }
-    div[class*="st-key-tab_actions_rev_"] { min-width: 260px !important; }
     div[class*="st-key-tab_actions_"] div[data-testid="stHorizontalBlock"] {
         align-items: center !important;
-        justify-content: flex-end !important;
-        gap: 4px !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+        width: 100% !important;
     }
     div[class*="st-key-tab_actions_"] button,
     div[class*="st-key-tab_actions_"] div[data-testid="stPopover"] > button {
@@ -2496,39 +2506,31 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         position: relative !important;
     }
     div.st-key-gov_workspace_subtabs_box div[data-baseweb="tab-list"] {
-        width: fit-content !important;
-        max-width: 540px !important;
+        width: 100% !important;
         border-bottom: 1px solid #2c3235 !important;
         gap: 2px !important;
-        height: 36px !important;
+        height: 34px !important;
     }
     div.st-key-gov_workspace_subtabs_box div[data-baseweb="tab-list"] button[role="tab"] {
-        padding: 3px 6px !important;
+        padding: 3px 8px !important;
         font-size: 10px !important;
         font-weight: 600 !important;
         white-space: nowrap !important;
     }
     div[class*="st-key-gov_tab_actions_"] {
-        position: absolute !important;
-        top: 2px !important;
-        right: 0 !important;
-        left: auto !important;
-        width: auto !important;
-        max-width: calc(100% - 550px) !important;
+        position: relative !important;
+        width: 100% !important;
+        margin: 2px 0 4px !important;
         height: 32px !important;
-        z-index: 99 !important;
+        z-index: 1 !important;
         background: transparent !important;
         border: none !important;
     }
-    div[class*="st-key-gov_tab_actions_risk_"] { min-width: 460px !important; }
-    div[class*="st-key-gov_tab_actions_disp_"] { min-width: 320px !important; }
-    div[class*="st-key-gov_tab_actions_cad_"] { min-width: 360px !important; }
-    div[class*="st-key-gov_tab_actions_cut_"] { min-width: 420px !important; }
-    div[class*="st-key-gov_tab_actions_aud_"] { min-width: 320px !important; }
     div[class*="st-key-gov_tab_actions_"] div[data-testid="stHorizontalBlock"] {
         align-items: center !important;
-        justify-content: flex-end !important;
-        gap: 4px !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+        width: 100% !important;
     }
     div[class*="st-key-gov_tab_actions_"] button,
     div[class*="st-key-gov_tab_actions_"] div[data-testid="stPopover"] > button {
@@ -2622,7 +2624,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         st.session_state[gov_st_key] = active_scope
 
     c_brand, c_srch, c_st, c_tm, c_risk, c_telem, c_csv, c_reset = st.columns(
-        [1.9, 1.2, 0.85, 0.85, 0.95, 1.7, 0.55, 0.35],
+        [1.4, 1.4, 1.15, 1.2, 1.2, 1.2, 0.5, 0.35],
         gap="small"
     )
 
@@ -4117,26 +4119,33 @@ with st.sidebar:
         st.session_state["assigned_state"] = None
         st.rerun()
 
-    st.markdown("""
+    _sb_tot = len(records)
+    _sb_hlth = int((records["band"] == "Healthy").sum()) if _sb_tot else 0
+    _sb_crit = int((records["band"].isin(["Expired", "Critical"])).sum()) if _sb_tot else 0
+    _sb_sla = f"{(_sb_hlth / _sb_tot * 100.0):.1f}% OK" if _sb_tot else "100% OK"
+    _sb_prod_exp = int(((records["days_left"] < 0) & (records["env_label"] == "PROD")).sum()) if _sb_tot else 0
+    _sb_resil = "100% OK" if _sb_prod_exp == 0 else f"{_sb_prod_exp} At-Risk"
+
+    st.markdown(f"""
     <!-- Live Fleet Telemetry (Visible when expanded) -->
     <div class="nav-telemetry" style="margin-top:16px;padding-top:12px;border-top:1px solid #1e293b;">
       <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px;">Fleet Telemetry</div>
       <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;">
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(255,255,255,0.03);border-radius:4px;border:1px solid rgba(255,255,255,0.05);">
           <span style="color:#94a3b8;">Managed Assets</span>
-          <b style="color:#f8fafc;font-family:var(--mono);">500</b>
+          <b style="color:#f8fafc;font-family:var(--mono);">{_sb_tot}</b>
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(16,185,129,0.08);border-radius:4px;border:1px solid rgba(16,185,129,0.2);">
           <span style="color:#34d399;">Fleet SLA</span>
-          <b style="color:#10b981;font-family:var(--mono);">95.0% OK</b>
+          <b style="color:#10b981;font-family:var(--mono);">{_sb_sla}</b>
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(56,189,248,0.08);border-radius:4px;border:1px solid rgba(56,189,248,0.2);">
           <span style="color:#38bdf8;">PROD Resiliency</span>
-          <b style="color:#38bdf8;font-family:var(--mono);">100% OK</b>
+          <b style="color:#38bdf8;font-family:var(--mono);">{_sb_resil}</b>
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(239,68,68,0.08);border-radius:4px;border:1px solid rgba(239,68,68,0.2);">
           <span style="color:#f87171;">Critical Items</span>
-          <b style="color:#ef4444;font-family:var(--mono);">7</b>
+          <b style="color:#ef4444;font-family:var(--mono);">{_sb_crit}</b>
         </div>
       </div>
     </div>
