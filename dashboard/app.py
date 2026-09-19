@@ -793,6 +793,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     reset_idx = st.session_state.setdefault("op_reset_idx", 0)
     cur_kpi = st.session_state.setdefault("op_kpi_filter", "All")
     cell_filter = st.session_state.setdefault("op_cell_filter", None)
+    cell_team = st.session_state.setdefault("op_cell_team", None)
+    cell_env = st.session_state.setdefault("op_cell_env", None)
     tree_open = st.session_state.setdefault("op_tree_open", set())
     selected_entity_ids = st.session_state.setdefault("op_selected_entity_ids", set())
 
@@ -800,11 +802,19 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     active_user = st.session_state.get("active_user", "admin")
     auth_suffix = f"&_auth_user={active_user}&tab=2"
 
+    qp_dim = st.query_params.get("op_dim")
+    if qp_dim:
+        if qp_dim in ["state", "team", "env", "auto"]:
+            st.session_state["op_heatmap_dim"] = qp_dim
+        del st.query_params["op_dim"]
+
     qp_kpi = st.query_params.get("op_kpi")
     if qp_kpi:
         if qp_kpi in ["All", "Expired", "Urgent", "Healthy"]:
             st.session_state["op_kpi_filter"] = qp_kpi
             st.session_state["op_cell_filter"] = None
+            st.session_state["op_cell_team"] = None
+            st.session_state["op_cell_env"] = None
             if qp_kpi == "Expired":
                 tree_open.clear()
                 tree_open.add("ND")
@@ -820,21 +830,40 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     if qp_cell:
         if qp_cell == "clear":
             st.session_state["op_cell_filter"] = None
+            st.session_state["op_cell_team"] = None
+            st.session_state["op_cell_env"] = None
         elif ":" in qp_cell:
-            p_st, p_cp = qp_cell.split(":", 1)
-            p_cp = p_cp if p_cp else None
-            if st.session_state.get("op_cell_filter") == (p_st, p_cp):
+            parts = qp_cell.split(":")
+            p_st = parts[0] if len(parts) > 0 and parts[0] and parts[0] != "ALL" else None
+            p_cp = parts[1] if len(parts) > 1 and parts[1] else None
+            p_tm = parts[2] if len(parts) > 2 and parts[2] else None
+            p_env = parts[3] if len(parts) > 3 and parts[3] else None
+
+            cur_filter = st.session_state.get("op_cell_filter")
+            cur_tm = st.session_state.get("op_cell_team")
+            cur_env = st.session_state.get("op_cell_env")
+
+            if cur_filter == (p_st, p_cp) and cur_tm == p_tm and cur_env == p_env:
                 st.session_state["op_cell_filter"] = None
+                st.session_state["op_cell_team"] = None
+                st.session_state["op_cell_env"] = None
             else:
                 st.session_state["op_cell_filter"] = (p_st, p_cp)
-                tree_open.clear()
-                tree_open.add(p_st)
-                if p_cp:
-                    sub_matches = df[(df["state"] == p_st) & (df["component"] == p_cp)]
-                    for t in sub_matches["team"].unique():
-                        tree_open.add(f"{p_st}/{t}")
-                        tree_open.add(f"{p_st}/{t}/{p_cp}")
+                st.session_state["op_cell_team"] = p_tm
+                st.session_state["op_cell_env"] = p_env
+                if p_st:
+                    tree_open.clear()
+                    tree_open.add(p_st)
+                    if p_cp:
+                        sub_matches = df[(df["state"] == p_st) & (df["component"] == p_cp)]
+                        for t in sub_matches["team"].unique():
+                            tree_open.add(f"{p_st}/{t}")
+                            tree_open.add(f"{p_st}/{t}/{p_cp}")
         del st.query_params["op_cell"]
+
+    cell_filter = st.session_state.get("op_cell_filter")
+    cell_team = st.session_state.get("op_cell_team")
+    cell_env = st.session_state.get("op_cell_env")
 
     qp_act = st.query_params.get("op_act_id")
     if qp_act:
@@ -905,6 +934,10 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             filtered = filtered[filtered["state"] == c_st]
         if c_cp:
             filtered = filtered[filtered["component"] == c_cp]
+    if cell_team:
+        filtered = filtered[filtered["team"] == cell_team]
+    if cell_env:
+        filtered = filtered[filtered["env_label"] == cell_env]
 
     if cur_kpi == "Expired":
         filtered = filtered[filtered["band"] == "Expired"]
@@ -924,6 +957,8 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         health_filter != "All Health" or
         cur_kpi != "All" or
         cell_filter is not None or
+        cell_team is not None or
+        cell_env is not None or
         len(tree_open) > 0 or
         len(selected_entity_ids) > 0
     )
@@ -978,6 +1013,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             st.session_state["op_reset_idx"] = reset_idx + 1
             st.session_state["op_kpi_filter"] = "All"
             st.session_state["op_cell_filter"] = None
+            st.session_state["op_cell_team"] = None
+            st.session_state["op_cell_env"] = None
+            st.session_state["op_heatmap_dim"] = "auto"
             st.session_state["op_tree_open"] = set()
             st.session_state["op_selected_entity_ids"] = set()
             st.session_state["op_batch_page_no"] = 0
@@ -1107,13 +1145,19 @@ def render_operations_hub(df: pd.DataFrame) -> None:
           <a href="?op_kpi=All{auth_suffix}" target="_self" style="font-size:9px;color:#ff9830;text-decoration:none;font-weight:700;">✕ Clear Filter</a>
         </div>
         """)
-    elif cell_filter:
-        c_st, c_cp = cell_filter
+    elif cell_filter or cell_team or cell_env:
+        c_st, c_cp = cell_filter if cell_filter else (None, None)
+        active_tags = []
+        if c_st: active_tags.append(f"State {c_st}")
+        if cell_team: active_tags.append(f"Team {cell_team}")
+        if cell_env: active_tags.append(f"Env {cell_env}")
+        if c_cp: active_tags.append(f"{c_cp}")
+        tag_str = " · ".join(active_tags) if active_tags else "Active Filter"
         _render_html(f"""
         <div class="cross-filter-pulse" style="background:rgba(255,120,10,0.12);border:1px solid #ff780a;border-radius:2px;padding:2px 8px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;">
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:10px;font-weight:700;color:#ff780a;">⚡ HEATMAP FILTER:</span>
-            <span style="font-size:10.5px;font-weight:700;color:var(--text);">State {c_st}{f' × {c_cp}' if c_cp else ''}</span>
+            <span style="font-size:10.5px;font-weight:700;color:var(--text);">{tag_str}</span>
             <span style="font-size:9px;color:var(--slate);">({scope_cnt} entities synced)</span>
           </div>
           <a href="?op_cell=clear{auth_suffix}" target="_self" style="font-size:9px;color:#ff780a;text-decoration:none;font-weight:700;">✕ Clear Filter</a>
@@ -1140,119 +1184,297 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     mat_col, sla_col = st.columns([5.8, 4.2], gap="small")
 
     with mat_col:
-        if selected_entity_ids:
-            mat_df = df[df["id"].isin(selected_entity_ids)].copy()
-            mat_scope_lbl = f"{len(selected_entity_ids)} Selected Entities"
+        user_dim = st.session_state.get("op_heatmap_dim", "auto")
+        if user_dim == "auto":
+            if state_filter != "All States" and team_filter == "All Teams":
+                resolved_dim = "team"
+            elif state_filter != "All States" and team_filter != "All Teams":
+                resolved_dim = "env"
+            else:
+                resolved_dim = "state"
         else:
-            mat_df = filtered.copy()
+            resolved_dim = user_dim
+
+        if selected_entity_ids:
+            mat_scope_lbl = f"{len(selected_entity_ids)} Selected Entities"
+            base_scope_df = df[df["id"].isin(selected_entity_ids)].copy()
+        else:
             mat_scope_lbl = "Filtered Scope" if is_scoped else "Consolidated Fleet"
+            base_scope_df = filtered.copy()
 
-        available_states = [s for s in STATES if s in mat_df["state"].unique()]
-        mat_states = available_states if available_states else STATES
+        def _dim_pill(d_id, d_label):
+            is_cur = (user_dim == d_id) or (user_dim == "auto" and d_id == "auto")
+            style = "background:rgba(56,189,248,0.25);border:1px solid #38bdf8;color:#38bdf8;font-weight:700;" if is_cur else "background:#141619;border:1px solid #2c3235;color:#94a3b8;font-weight:600;"
+            return f'<a href="?op_dim={d_id}{auth_suffix}" target="_self" style="text-decoration:none;font-size:7.5px;padding:1.5px 5px;border-radius:2px;line-height:1;display:inline-block;{style}">{d_label}</a>'
+
+        dim_pills = f"""<div style="display:inline-flex;align-items:center;gap:3px;"><span style="font-size:7.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;">AXIS:</span>{_dim_pill('auto', 'Auto')}{_dim_pill('state', 'State')}{_dim_pill('team', 'Team')}{_dim_pill('env', 'Env')}</div>"""
+
+        clear_hm_link = f'<a href="?op_cell=clear{auth_suffix}" target="_self" style="font-size:8px;color:#f59e0b;font-weight:700;text-decoration:none;border:1px solid #f59e0b;padding:1px 5px;border-radius:2px;line-height:1;display:inline-block;">✕ Clear</a>' if (cell_filter or cell_team or cell_env) else ''
+
         mat_comps = COMPONENT_ORDER
-
-        clear_hm_link = f'<a href="?op_cell=clear{auth_suffix}" target="_self" style="font-size:8.5px;color:#f59e0b;font-weight:700;text-decoration:none;border:1px solid #f59e0b;padding:1px 6px;border-radius:2px;">✕ Clear Filter</a>' if cell_filter else '<span style="font-size:8px;color:#94a3b8;">Click cell to cross-filter</span>'
-
-        # Build table rows for Heatmap
         hm_tr_list = []
-        for st_val in mat_states:
-            st_sub = mat_df[mat_df["state"] == st_val]
-            is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
-            st_border = "1.5px solid #38bdf8" if is_st_active else "1px solid #2c3235"
-            st_bg = "rgba(56,189,248,0.2)" if is_st_active else "#212429"
-            st_color = "#38bdf8" if is_st_active else "#f8fafc"
 
-            td_cells = []
-            for c_val in mat_comps:
-                c_code = ui.COMPONENT_CODE.get(c_val, c_val)
-                sub = st_sub[st_sub["component"] == c_val]
-                c_cnt = len(sub)
-                is_cell_active = (cell_filter == (st_val, c_val))
+        if resolved_dim == "state":
+            heatmap_title = f"Severity Heatmap — State × Component ({mat_scope_lbl})"
+            col0_header = "STATE"
 
-                if c_cnt == 0:
-                    td_cells.append('''
-                    <td style="padding:1px;">
-                      <div style="background:rgba(255,255,255,0.015);border:1px solid #22262a;border-radius:2px;height:32px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;font-family:var(--mono);">
-                        —
-                      </div>
-                    </td>
-                    ''')
+            for st_val in STATES:
+                is_st_active = (cell_filter == (st_val, None)) or (state_filter == st_val and cell_filter is None and comp_filter == "All Components")
+                st_border = "1.5px solid #38bdf8" if is_st_active else "1px solid #2c3235"
+                st_bg = "rgba(56,189,248,0.2)" if is_st_active else "#212429"
+                st_color = "#38bdf8" if is_st_active else "#f8fafc"
+
+                if state_filter == st_val or state_filter == "All States":
+                    st_sub = base_scope_df[base_scope_df["state"] == st_val]
+                    opacity_style = "opacity:1;"
                 else:
-                    c_exp = int((sub["days_left"] < 0).sum())
-                    c_crit = int((sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
-                    c_warn = int((sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
-                    c_hlth = int((sub["days_left"] > ui.WARNING_DAYS).sum())
-                    min_days = int(sub["days_left"].min())
+                    bg_filter = df[df["state"] == st_val]
+                    if team_filter != "All Teams": bg_filter = bg_filter[bg_filter["team"] == team_filter]
+                    if comp_filter != "All Components": bg_filter = bg_filter[bg_filter["component"] == comp_filter]
+                    if health_filter != "All Health": bg_filter = bg_filter[bg_filter["band"] == health_filter]
+                    st_sub = bg_filter
+                    opacity_style = "opacity:0.65;"
 
-                    worst_b = ui.worst_band(sub["band"].tolist())
-                    c_color = ui.BAND_META[worst_b]["color"]
+                td_cells = []
+                for c_val in mat_comps:
+                    c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+                    sub = st_sub[st_sub["component"] == c_val]
+                    c_cnt = len(sub)
+                    is_cell_active = (cell_filter == (st_val, c_val))
 
-                    if c_exp > 0:
-                        c_badge = f"▲ {c_exp} Exp"
-                        c_fill = "rgba(242,73,92,0.22)"
-                    elif c_crit > 0:
-                        c_badge = f"▲ {c_crit} Crit"
-                        c_fill = "rgba(242,73,92,0.18)"
-                    elif c_warn > 0:
-                        c_badge = f"{c_warn} Warn"
-                        c_fill = "rgba(255,152,48,0.18)"
+                    if c_cnt == 0:
+                        td_cells.append(
+                            f'<td style="padding:1px;">'
+                            f'<div style="background:rgba(255,255,255,0.015);border:1px solid #22262a;border-radius:2px;height:32px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:10px;font-family:var(--mono);">'
+                            f'—</div></td>'
+                        )
                     else:
-                        c_badge = f"✓ {c_hlth} OK"
-                        c_fill = "rgba(115,191,105,0.18)"
+                        c_exp = int((sub["days_left"] < 0).sum())
+                        c_crit = int((sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                        c_warn = int((sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                        c_hlth = int((sub["days_left"] > ui.WARNING_DAYS).sum())
+                        min_days = int(sub["days_left"].min())
 
-                    c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
-                    cd_str = ui.fmt_heatmap_time(min_days)
+                        worst_b = ui.worst_band(sub["band"].tolist())
+                        c_color = ui.BAND_META[worst_b]["color"]
 
-                    td_cells.append(f'''
-                    <td style="padding:1px;">
-                      <a href="?op_cell={st_val}:{c_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">
-                        <div style="{c_border};border-radius:2px;padding:2px 4px;height:32px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;" title="Filter to {st_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">
-                          <div style="display:flex;align-items:center;justify-content:space-between;line-height:1;">
-                            <span style="font-family:var(--mono);font-size:11px;font-weight:800;color:#f8fafc;">{c_cnt}</span>
-                            <span style="font-size:7.5px;font-weight:700;color:{c_color};">{c_badge}</span>
-                          </div>
-                          <div style="font-size:7.5px;color:{c_color};font-family:var(--mono);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                            {cd_str}
-                          </div>
-                        </div>
-                      </a>
-                    </td>
-                    ''')
+                        if c_exp > 0:
+                            c_badge = f"▲ {c_exp} Exp"
+                            c_fill = "rgba(242,73,92,0.22)"
+                        elif c_crit > 0:
+                            c_badge = f"▲ {c_crit} Crit"
+                            c_fill = "rgba(242,73,92,0.18)"
+                        elif c_warn > 0:
+                            c_badge = f"{c_warn} Warn"
+                            c_fill = "rgba(255,152,48,0.18)"
+                        else:
+                            c_badge = f"✓ {c_hlth} OK"
+                            c_fill = "rgba(115,191,105,0.18)"
 
-            _st_worst = ui.worst_band(st_sub["band"].tolist()) if not st_sub.empty else "Healthy"
-            _st_color = ui.BAND_META[_st_worst]["color"]
-            tot_td = f'<td style="padding:1px;text-align:center;"><div style="font-family:var(--mono);font-size:11.5px;font-weight:800;color:{_st_color};line-height:32px;">{len(st_sub)}</div></td>'
+                        c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
+                        cd_str = ui.fmt_heatmap_time(min_days)
 
-            hm_tr_list.append(f'''
-            <tr>
-              <td style="padding:1px;">
-                <a href="?op_cell={st_val}:{auth_suffix}" target="_self" style="text-decoration:none;display:block;">
-                  <div style="background:{st_bg};border:{st_border};color:{st_color};border-radius:2px;padding:0 4px;height:32px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;cursor:pointer;" title="Filter to State {st_val}">
-                    📍 {st_val}
-                  </div>
-                </a>
-              </td>
-              {''.join(td_cells)}
-              {tot_td}
-            </tr>
-            ''')
+                        td_cells.append(
+                            f'<td style="padding:1px;">'
+                            f'<a href="?op_cell={st_val}:{c_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
+                            f'<div style="{c_border};border-radius:2px;padding:2px 4px;height:32px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;" title="Filter to {st_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
+                            f'<div style="display:flex;align-items:center;justify-content:space-between;line-height:1;">'
+                            f'<span style="font-family:var(--mono);font-size:11px;font-weight:800;color:#f8fafc;">{c_cnt}</span>'
+                            f'<span style="font-size:7.5px;font-weight:700;color:{c_color};">{c_badge}</span>'
+                            f'</div>'
+                            f'<div style="font-size:7.5px;color:{c_color};font-family:var(--mono);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+                            f'{cd_str}</div>'
+                            f'</div></a></td>'
+                        )
+
+                _st_worst = ui.worst_band(st_sub["band"].tolist()) if not st_sub.empty else "Healthy"
+                _st_color = ui.BAND_META[_st_worst]["color"]
+                tot_td = f'<td style="padding:1px;text-align:center;"><div style="font-family:var(--mono);font-size:11.5px;font-weight:800;color:{_st_color};line-height:32px;">{len(st_sub)}</div></td>'
+
+                hm_tr_list.append(
+                    f'<tr style="{opacity_style}">'
+                    f'<td style="padding:1px;">'
+                    f'<a href="?op_cell={st_val}:{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
+                    f'<div style="background:{st_bg};border:{st_border};color:{st_color};border-radius:2px;padding:0 4px;height:32px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;cursor:pointer;" title="Filter to State {st_val}">'
+                    f'📍 {st_val}</div></a></td>'
+                    f'{"".join(td_cells)}'
+                    f'{tot_td}'
+                    f'</tr>'
+                )
+
+        elif resolved_dim == "team":
+            st_scope_name = f"State: {state_filter}" if state_filter != "All States" else "Fleet"
+            heatmap_title = f"Severity Heatmap — Team × Component ({st_scope_name})"
+            col0_header = "TEAM"
+
+            for tm_val in ui.TEAMS:
+                tm_sub = base_scope_df[base_scope_df["team"] == tm_val]
+                is_tm_active = (team_filter == tm_val) or (cell_team == tm_val)
+                tm_border = "1.5px solid #38bdf8" if is_tm_active else "1px solid #2c3235"
+                tm_bg = "rgba(56,189,248,0.2)" if is_tm_active else "#212429"
+                tm_color = "#38bdf8" if is_tm_active else "#f8fafc"
+
+                td_cells = []
+                for c_val in mat_comps:
+                    c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+                    sub = tm_sub[tm_sub["component"] == c_val]
+                    c_cnt = len(sub)
+                    is_cell_active = (cell_filter == (state_filter if state_filter != "All States" else None, c_val)) and (cell_team == tm_val)
+
+                    if c_cnt == 0:
+                        td_cells.append(
+                            f'<td style="padding:1px;">'
+                            f'<div style="background:rgba(255,255,255,0.015);border:1px solid #22262a;border-radius:2px;height:20px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:9px;font-family:var(--mono);">'
+                            f'—</div></td>'
+                        )
+                    else:
+                        c_exp = int((sub["days_left"] < 0).sum())
+                        c_crit = int((sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                        c_warn = int((sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                        c_hlth = int((sub["days_left"] > ui.WARNING_DAYS).sum())
+                        min_days = int(sub["days_left"].min())
+
+                        worst_b = ui.worst_band(sub["band"].tolist())
+                        c_color = ui.BAND_META[worst_b]["color"]
+
+                        if c_exp > 0:
+                            c_badge = f"▲ {c_exp} Exp"
+                            c_fill = "rgba(242,73,92,0.22)"
+                        elif c_crit > 0:
+                            c_badge = f"▲ {c_crit} Crit"
+                            c_fill = "rgba(242,73,92,0.18)"
+                        elif c_warn > 0:
+                            c_badge = f"{c_warn} Warn"
+                            c_fill = "rgba(255,152,48,0.18)"
+                        else:
+                            c_badge = f"✓ {c_hlth} OK"
+                            c_fill = "rgba(115,191,105,0.18)"
+
+                        c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
+                        cd_str = ui.fmt_heatmap_time(min_days)
+                        cell_st_val = state_filter if state_filter != "All States" else ""
+
+                        td_cells.append(
+                            f'<td style="padding:1px;">'
+                            f'<a href="?op_cell={cell_st_val}:{c_val}:{tm_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
+                            f'<div style="{c_border};border-radius:2px;padding:0 3px;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" title="Filter to {tm_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
+                            f'<span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">{c_cnt}</span>'
+                            f'<span style="font-size:7.5px;font-weight:700;color:{c_color};white-space:nowrap;">{c_badge}</span>'
+                            f'</div></a></td>'
+                        )
+
+                _tm_worst = ui.worst_band(tm_sub["band"].tolist()) if not tm_sub.empty else "Healthy"
+                _tm_color = ui.BAND_META[_tm_worst]["color"]
+                tot_td = f'<td style="padding:1px;text-align:center;"><div style="font-family:var(--mono);font-size:10px;font-weight:800;color:{_tm_color};line-height:20px;">{len(tm_sub)}</div></td>'
+                cell_st_val = state_filter if state_filter != "All States" else ""
+
+                hm_tr_list.append(
+                    f'<tr>'
+                    f'<td style="padding:1px;">'
+                    f'<a href="?op_cell={cell_st_val}::{tm_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
+                    f'<div style="background:{tm_bg};border:{tm_border};color:{tm_color};border-radius:2px;padding:0 4px;height:20px;display:flex;align-items:center;justify-content:flex-start;font-size:9px;font-weight:800;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="Filter to Team {tm_val}">'
+                    f'👥 {tm_val}</div></a></td>'
+                    f'{"".join(td_cells)}'
+                    f'{tot_td}'
+                    f'</tr>'
+                )
+
+        else: # resolved_dim == "env"
+            scope_name = f"{state_filter} · {team_filter}" if state_filter != "All States" or team_filter != "All Teams" else "Fleet"
+            heatmap_title = f"Severity Heatmap — Env × Component ({scope_name})"
+            col0_header = "ENV"
+
+            for env_val in ["DEV", "SIT", "UAT", "PROD", "DR"]:
+                env_sub = base_scope_df[base_scope_df["env_label"] == env_val]
+                is_env_active = (cell_env == env_val)
+                env_border = "1.5px solid #38bdf8" if is_env_active else "1px solid #2c3235"
+                env_bg = "rgba(56,189,248,0.2)" if is_env_active else "#212429"
+                env_color = "#38bdf8" if is_env_active else "#f8fafc"
+
+                td_cells = []
+                for c_val in mat_comps:
+                    c_code = ui.COMPONENT_CODE.get(c_val, c_val)
+                    sub = env_sub[env_sub["component"] == c_val]
+                    c_cnt = len(sub)
+                    is_cell_active = (cell_filter == (state_filter if state_filter != "All States" else None, c_val)) and (cell_env == env_val)
+
+                    if c_cnt == 0:
+                        td_cells.append(
+                            f'<td style="padding:1px;">'
+                            f'<div style="background:rgba(255,255,255,0.015);border:1px solid #22262a;border-radius:2px;height:20px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:9px;font-family:var(--mono);">'
+                            f'—</div></td>'
+                        )
+                    else:
+                        c_exp = int((sub["days_left"] < 0).sum())
+                        c_crit = int((sub["days_left"].between(0, ui.CRITICAL_DAYS)).sum())
+                        c_warn = int((sub["days_left"].between(ui.CRITICAL_DAYS + 1, ui.WARNING_DAYS)).sum())
+                        c_hlth = int((sub["days_left"] > ui.WARNING_DAYS).sum())
+                        min_days = int(sub["days_left"].min())
+
+                        worst_b = ui.worst_band(sub["band"].tolist())
+                        c_color = ui.BAND_META[worst_b]["color"]
+
+                        if c_exp > 0:
+                            c_badge = f"▲ {c_exp} Exp"
+                            c_fill = "rgba(242,73,92,0.22)"
+                        elif c_crit > 0:
+                            c_badge = f"▲ {c_crit} Crit"
+                            c_fill = "rgba(242,73,92,0.18)"
+                        elif c_warn > 0:
+                            c_badge = f"{c_warn} Warn"
+                            c_fill = "rgba(255,152,48,0.18)"
+                        else:
+                            c_badge = f"✓ {c_hlth} OK"
+                            c_fill = "rgba(115,191,105,0.18)"
+
+                        c_border = "1.5px solid #38bdf8;box-shadow:0 0 8px rgba(56,189,248,0.3);background:rgba(56,189,248,0.12);" if is_cell_active else f"1px solid #2c3235;border-top:2px solid {c_color};background:{c_fill};"
+                        cd_str = ui.fmt_heatmap_time(min_days)
+                        cell_st_val = state_filter if state_filter != "All States" else ""
+
+                        td_cells.append(
+                            f'<td style="padding:1px;">'
+                            f'<a href="?op_cell={cell_st_val}:{c_val}::{env_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
+                            f'<div style="{c_border};border-radius:2px;padding:0 3px;height:20px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" title="Filter to {env_val} × {c_code} ({c_cnt} assets · soonest {cd_str})">'
+                            f'<span style="font-family:var(--mono);font-size:9.5px;font-weight:800;color:#f8fafc;">{c_cnt}</span>'
+                            f'<span style="font-size:7.5px;font-weight:700;color:{c_color};white-space:nowrap;">{c_badge}</span>'
+                            f'</div></a></td>'
+                        )
+
+                _env_worst = ui.worst_band(env_sub["band"].tolist()) if not env_sub.empty else "Healthy"
+                _env_color = ui.BAND_META[_env_worst]["color"]
+                tot_td = f'<td style="padding:1px;text-align:center;"><div style="font-family:var(--mono);font-size:10px;font-weight:800;color:{_env_color};line-height:20px;">{len(env_sub)}</div></td>'
+                cell_st_val = state_filter if state_filter != "All States" else ""
+
+                hm_tr_list.append(
+                    f'<tr>'
+                    f'<td style="padding:1px;">'
+                    f'<a href="?op_cell={cell_st_val}:::{env_val}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">'
+                    f'<div style="background:{env_bg};border:{env_border};color:{env_color};border-radius:2px;padding:0 4px;height:20px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;cursor:pointer;" title="Filter to Env {env_val}">'
+                    f'🏷️ {env_val}</div></a></td>'
+                    f'{"".join(td_cells)}'
+                    f'{tot_td}'
+                    f'</tr>'
+                )
 
         _render_html(f'''
         <div style="background:#181b1f;border:1px solid #2c3235;border-radius:3px;padding:4px 8px;box-sizing:border-box;height:160px;min-height:160px;display:flex;flex-direction:column;justify-content:space-between;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
-            <div style="font-size:9.5px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.04em;">
-              Severity Heatmap — State × Component ({mat_scope_lbl})
+            <div style="font-size:9.5px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">
+              {heatmap_title}
             </div>
-            {clear_hm_link}
+            <div style="display:flex;align-items:center;gap:6px;">
+              {dim_pills}
+              {clear_hm_link}
+            </div>
           </div>
           <table style="width:100%;border-collapse:separate;border-spacing:3px;margin:0;padding:0;">
             <thead>
               <tr style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;font-weight:700;line-height:1;">
-                <th style="width:10%;text-align:center;padding:1px 0;">STATE</th>
-                <th style="width:20%;text-align:center;padding:1px 0;">🔑 CRYPTO</th>
-                <th style="width:20%;text-align:center;padding:1px 0;">🔒 DBPWD</th>
-                <th style="width:20%;text-align:center;padding:1px 0;">📦 SWVER</th>
-                <th style="width:20%;text-align:center;padding:1px 0;">🛠️ PATCH</th>
+                <th style="width:14%;text-align:center;padding:1px 0;">{col0_header}</th>
+                <th style="width:19%;text-align:center;padding:1px 0;">🔑 CRYPTO</th>
+                <th style="width:19%;text-align:center;padding:1px 0;">🔒 DBPWD</th>
+                <th style="width:19%;text-align:center;padding:1px 0;">📦 SWVER</th>
+                <th style="width:19%;text-align:center;padding:1px 0;">🛠️ PATCH</th>
                 <th style="width:10%;text-align:center;padding:1px 0;">TOTAL</th>
               </tr>
             </thead>
