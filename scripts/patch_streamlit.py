@@ -336,28 +336,50 @@ PATCH_SCRIPT = """
         } catch (_) {}
       }
 
-      // 6. Global Autocomplete Sanitizer (eliminates empty autocomplete="" attributes)
-      function initAutocompleteSanitizer() {
+      // 6. Global Form Field & Accessibility Sanitizer (ensures id/name, valid autocomplete, and labels)
+      function initFormSanitizer() {
+        let fieldSeq = 0;
         function sanitizeInput(el) {
-          if (!el || el.tagName !== 'INPUT') return;
-          const ac = el.getAttribute('autocomplete');
-          if (ac === '' || ac === '""' || (typeof ac === 'string' && ac.trim() === '')) {
-            const type = (el.getAttribute('type') || 'text').toLowerCase();
-            const name = (el.getAttribute('name') || '').toLowerCase();
-            const label = (el.getAttribute('aria-label') || '').toLowerCase();
-            if (type === 'password') {
-              el.setAttribute('autocomplete', 'current-password');
-            } else if (type === 'email' || name.includes('email') || label.includes('email')) {
-              el.setAttribute('autocomplete', 'email');
-            } else if (name.includes('user') || label.includes('username')) {
-              el.setAttribute('autocomplete', 'username');
-            } else {
-              el.setAttribute('autocomplete', 'off');
+          if (!el) return;
+          const tag = el.tagName;
+          if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA') return;
+          fieldSeq++;
+
+          // 1. Ensure id or name attribute exists
+          if (!el.id && !el.getAttribute('name')) {
+            el.id = 'ets-field-' + fieldSeq;
+          }
+
+          // 2. Ensure associated label or aria-label exists
+          const ariaLabel = el.getAttribute('aria-label');
+          const placeholder = el.getAttribute('placeholder');
+          const title = el.getAttribute('title');
+          if (!ariaLabel && !el.getAttribute('aria-labelledby') && !document.querySelector('label[for="' + el.id + '"]')) {
+            const fallbackLabel = placeholder || title || el.getAttribute('name') || el.id;
+            el.setAttribute('aria-label', fallbackLabel);
+          }
+
+          // 3. Ensure valid autocomplete attribute (HTML Living Standard)
+          if (tag === 'INPUT') {
+            const ac = el.getAttribute('autocomplete');
+            if (ac === '' || ac === '""' || (typeof ac === 'string' && ac.trim() === '')) {
+              const type = (el.getAttribute('type') || 'text').toLowerCase();
+              const name = (el.getAttribute('name') || '').toLowerCase();
+              const label = (el.getAttribute('aria-label') || '').toLowerCase();
+              if (type === 'password') {
+                el.setAttribute('autocomplete', 'current-password');
+              } else if (type === 'email' || name.includes('email') || label.includes('email')) {
+                el.setAttribute('autocomplete', 'email');
+              } else if (name.includes('user') || label.includes('username')) {
+                el.setAttribute('autocomplete', 'username');
+              } else {
+                el.setAttribute('autocomplete', 'off');
+              }
             }
           }
         }
         function sanitizeAll() {
-          document.querySelectorAll('input').forEach(sanitizeInput);
+          document.querySelectorAll('input, select, textarea').forEach(sanitizeInput);
         }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', sanitizeAll);
@@ -372,18 +394,18 @@ PATCH_SCRIPT = """
                 for (let j = 0; j < m.addedNodes.length; j++) {
                   const node = m.addedNodes[j];
                   if (node.nodeType === 1) {
-                    if (node.tagName === 'INPUT') sanitizeInput(node);
-                    if (node.querySelectorAll) node.querySelectorAll('input').forEach(sanitizeInput);
+                    sanitizeInput(node);
+                    if (node.querySelectorAll) node.querySelectorAll('input, select, textarea').forEach(sanitizeInput);
                   }
                 }
-              } else if (m.type === 'attributes' && m.attributeName === 'autocomplete') {
+              } else if (m.type === 'attributes') {
                 sanitizeInput(m.target);
               }
             }
           });
           const target = document.documentElement || document.body;
           if (target) {
-            obs.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ['autocomplete'] });
+            obs.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ['autocomplete', 'id', 'name', 'aria-label'] });
           }
         } catch (_) {}
       }
@@ -392,12 +414,12 @@ PATCH_SCRIPT = """
         document.addEventListener('DOMContentLoaded', function() {
           setupNav();
           syncTabFromUrl();
-          initAutocompleteSanitizer();
+          initFormSanitizer();
         });
       } else {
         setupNav();
         syncTabFromUrl();
-        initAutocompleteSanitizer();
+        initFormSanitizer();
       }
     })();
     </script>
@@ -436,8 +458,8 @@ def patch_index_html() -> bool:
 
         content = idx_path.read_text(encoding="utf-8")
         if PATCH_MARKER in content:
-            if "initAutocompleteSanitizer" in content:
-                print("[+] Streamlit static index.html is already patched with initAutocompleteSanitizer.")
+            if "initFormSanitizer" in content:
+                print("[+] Streamlit static index.html is already patched with initFormSanitizer.")
                 return True
             import re
             cleaned = re.sub(r'<!-- ETS Watchtower Resilience Watchdog & Hotkey Sanitizer -->[\s\S]*?</script>', '', content)

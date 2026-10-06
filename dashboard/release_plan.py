@@ -334,18 +334,19 @@ def render_release_plan_workspace(db_path: str) -> None:
                 label_visibility="collapsed"
             )
 
+    def _on_reset_rp_scope():
+        st.session_state["_override_canvas_state"] = None
+        st.session_state["global_release_selection"] = None
+        st.session_state["gov_state_filter"] = "All"
+        reset_idx = st.session_state.get("op_reset_idx", 0)
+        st.session_state[f"op_state_{reset_idx}"] = "All States"
+        st.session_state["sl_state_clean"] = "All States"
+        if "rp_target_rel_picker" in st.session_state:
+            del st.session_state["rp_target_rel_picker"]
+
     if h_col_reset is not None:
         with h_col_reset:
-            if st.button("↺", key="btn_rp_reset_scope", use_container_width=True, help="Reset to All States"):
-                st.session_state["_override_canvas_state"] = None
-                st.session_state["global_release_selection"] = None
-                st.session_state["gov_state_filter"] = "All"
-                reset_idx = st.session_state.get("op_reset_idx", 0)
-                st.session_state[f"op_state_{reset_idx}"] = "All States"
-                st.session_state["sl_state_clean"] = "All States"
-                if "rp_target_rel_picker" in st.session_state:
-                    del st.session_state["rp_target_rel_picker"]
-                st.rerun()
+            st.button("↺", key="btn_rp_reset_scope", on_click=_on_reset_rp_scope, use_container_width=True, help="Reset to All States")
 
     # --------------------------------------------------------------------------
     # 3. Categorize into: Previous, Current, Upcoming based on DEV Date Window
