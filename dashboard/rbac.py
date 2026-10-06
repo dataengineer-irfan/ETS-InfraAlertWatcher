@@ -356,6 +356,7 @@ def render_rbac_workspace(db_path: str) -> None:
             placeholder="🔍 Search users, audit, IP...",
             key="rbac_top_search_input",
             label_visibility="collapsed",
+            autocomplete="off",
         )
         if srch_val != ss["rbac_search"]:
             ss["rbac_search"] = srch_val
@@ -625,11 +626,11 @@ def render_rbac_workspace(db_path: str) -> None:
                 with st.form("rbac_prov_new_user_form", clear_on_submit=True):
                     f_c1, f_c2 = st.columns(2)
                     with f_c1:
-                        p_username = st.text_input("Username *", key="prov_f_uname", placeholder="e.g. jdoe_sec")
-                        p_password = st.text_input("Temporary Password (min 6) *", type="password", key="prov_f_pwd")
+                        p_username = st.text_input("Username *", key="prov_f_uname", placeholder="e.g. jdoe_sec", autocomplete="username")
+                        p_password = st.text_input("Temporary Password (min 6) *", type="password", key="prov_f_pwd", autocomplete="new-password")
                     with f_c2:
-                        p_fullname = st.text_input("Full Name", key="prov_f_fname", placeholder="e.g. John Doe")
-                        p_email = st.text_input("Enterprise Email", key="prov_f_email", placeholder="e.g. jdoe@ets.gov")
+                        p_fullname = st.text_input("Full Name", key="prov_f_fname", placeholder="e.g. John Doe", autocomplete="name")
+                        p_email = st.text_input("Enterprise Email", key="prov_f_email", placeholder="e.g. jdoe@ets.gov", autocomplete="email")
 
                     f_r1, f_r2 = st.columns(2)
                     with f_r1:

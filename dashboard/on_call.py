@@ -701,6 +701,7 @@ def render_on_call_workspace(db_path: str) -> None:
             placeholder="🔍 Search...",
             key="oncall_top_search_input",
             label_visibility="collapsed",
+            autocomplete="off",
         )
         if srch_val != ss["oncall_search"]:
             ss["oncall_search"] = srch_val

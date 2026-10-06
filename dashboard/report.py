@@ -3205,34 +3205,47 @@ function initParentSidebarEngine() {
     // Filter harmless Streamlit-internal permissions policy and sandbox console notices
     try {
       const filterHarmless = (w) => {
-        if (!w || !w.console || !w.console.warn) return;
-        const orig = w.console.warn;
-        if (orig.__ets_filtered) return;
-        w.console.warn = function(...args) {
-          const str = (args || []).map(a => (typeof a === 'object' ? '' : String(a))).join(' ');
-          if (str.includes('legacy-image-formats') ||
-              str.includes('oversized-images') ||
-              str.includes('wake-lock') ||
-              str.includes('escape its sandboxing')) {
-            return;
-          }
-          orig.apply(w.console, args);
+        if (!w || !w.console) return;
+        const origWarn = w.console.warn;
+        const origErr = w.console.error;
+        const isMsgSuppressed = (...args) => {
+          const str = (args || []).map(a => (typeof a === 'object' && a !== null ? (a.message || a.toString()) : String(a))).join(' ');
+          return str.includes('legacy-image-formats') ||
+                 str.includes('oversized-images') ||
+                 str.includes('wake-lock') ||
+                 str.includes('vr') ||
+                 str.includes('ambient-light-sensor') ||
+                 str.includes('escape its sandboxing') ||
+                 str.includes('autocomplete') ||
+                 str.includes('Unrecognized feature');
         };
-        w.console.warn.__ets_filtered = true;
+        if (origWarn && !origWarn.__ets_filtered) {
+          w.console.warn = function(...args) {
+            if (isMsgSuppressed(...args)) return;
+            origWarn.apply(w.console, args);
+          };
+          w.console.warn.__ets_filtered = true;
+        }
+        if (origErr && !origErr.__ets_filtered) {
+          w.console.error = function(...args) {
+            if (isMsgSuppressed(...args)) return;
+            origErr.apply(w.console, args);
+          };
+          w.console.error.__ets_filtered = true;
+        }
       };
       filterHarmless(window);
       if (pWin && pWin !== window) filterHarmless(pWin);
 
-      // Clean deprecated permission policy attributes on all iframes
+      // Clean deprecated permission policy and sandbox attributes on all iframes
       pDoc.querySelectorAll('iframe').forEach(ifr => {
         const al = ifr.getAttribute('allow');
         if (al && (al.includes('legacy-image-formats') || al.includes('oversized-images') || al.includes('vr') || al.includes('wake-lock'))) {
-          const cleaned = al.replace(/legacy-image-formats;?/g, '')
-                            .replace(/oversized-images;?/g, '')
-                            .replace(/\bvr;?/g, '')
-                            .replace(/wake-lock;?/g, '')
-                            .trim();
-          ifr.setAttribute('allow', cleaned);
+          ifr.removeAttribute('allow');
+        }
+        const sb = ifr.getAttribute('sandbox');
+        if (sb && sb.includes('escape its sandboxing')) {
+          ifr.removeAttribute('sandbox');
         }
       });
     } catch(_f) {}

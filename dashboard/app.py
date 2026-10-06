@@ -258,19 +258,19 @@ def render_login_gate(db_path: str) -> None:
 
             with st.form("portal_signup_form", clear_on_submit=False):
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Full Name</div>', unsafe_allow_html=True)
-                su_fullname = st.text_input("Full Name", key="signup_fullname", placeholder="e.g. Jane Doe", label_visibility="collapsed")
+                su_fullname = st.text_input("Full Name", key="signup_fullname", placeholder="e.g. Jane Doe", label_visibility="collapsed", autocomplete="name")
 
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Enterprise Email *</div>', unsafe_allow_html=True)
-                su_email = st.text_input("Enterprise Email", key="signup_email", placeholder="e.g. jdoe@infinite.com", label_visibility="collapsed")
+                su_email = st.text_input("Enterprise Email", key="signup_email", placeholder="e.g. jdoe@infinite.com", label_visibility="collapsed", autocomplete="email")
 
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Username (min 3 chars) *</div>', unsafe_allow_html=True)
-                su_uname = st.text_input("Username", key="signup_uname", placeholder="e.g. jdoe", label_visibility="collapsed")
+                su_uname = st.text_input("Username", key="signup_uname", placeholder="e.g. jdoe", label_visibility="collapsed", autocomplete="username")
 
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Password (min 8 chars, 1 number/symbol) *</div>', unsafe_allow_html=True)
-                su_pwd = st.text_input("Password", type="password", key="signup_pwd", placeholder="••••••••••••", label_visibility="collapsed")
+                su_pwd = st.text_input("Password", type="password", key="signup_pwd", placeholder="••••••••••••", label_visibility="collapsed", autocomplete="new-password")
 
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Confirm Password *</div>', unsafe_allow_html=True)
-                su_pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2", placeholder="••••••••••••", label_visibility="collapsed")
+                su_pwd2 = st.text_input("Confirm Password", type="password", key="signup_pwd2", placeholder="••••••••••••", label_visibility="collapsed", autocomplete="new-password")
 
                 st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
                 submit_signup = st.form_submit_button("Create Account", use_container_width=True, type="primary")
@@ -323,7 +323,7 @@ def render_login_gate(db_path: str) -> None:
             with fp_tab1:
                 with st.form("request_code_form"):
                     st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Account Username or Email</div>', unsafe_allow_html=True)
-                    fp_ident = st.text_input("Identifier", key="forgot_ident_val", placeholder="Enter your username or email", label_visibility="collapsed")
+                    fp_ident = st.text_input("Identifier", key="forgot_ident_val", placeholder="Enter your username or email", label_visibility="collapsed", autocomplete="username")
                     req_btn = st.form_submit_button("Generate & Send Verification Code", use_container_width=True, type="primary")
 
                     if req_btn:
@@ -359,13 +359,13 @@ def render_login_gate(db_path: str) -> None:
             with fp_tab2:
                 with st.form("consume_token_form"):
                     st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Reset Verification Code</div>', unsafe_allow_html=True)
-                    token_in = st.text_input("Verification Code", key="reset_token_input_val", value=st.session_state.get("dev_reset_code", ""), placeholder="Paste single-use token", label_visibility="collapsed")
+                    token_in = st.text_input("Verification Code", key="reset_token_input_val", value=st.session_state.get("dev_reset_code", ""), placeholder="Paste single-use token", label_visibility="collapsed", autocomplete="one-time-code")
 
                     st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">New Password (min 8 chars, 1 number/symbol)</div>', unsafe_allow_html=True)
-                    new_p1 = st.text_input("New Password", type="password", key="reset_new_pwd1", placeholder="••••••••••••", label_visibility="collapsed")
+                    new_p1 = st.text_input("New Password", type="password", key="reset_new_pwd1", placeholder="••••••••••••", label_visibility="collapsed", autocomplete="new-password")
 
                     st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:10px;margin-bottom:4px;">Confirm New Password</div>', unsafe_allow_html=True)
-                    new_p2 = st.text_input("Confirm New Password", type="password", key="reset_new_pwd2", placeholder="••••••••••••", label_visibility="collapsed")
+                    new_p2 = st.text_input("Confirm New Password", type="password", key="reset_new_pwd2", placeholder="••••••••••••", label_visibility="collapsed", autocomplete="new-password")
 
                     st.markdown('<div style="margin-top:14px;"></div>', unsafe_allow_html=True)
                     update_pwd_btn = st.form_submit_button("Update Password", use_container_width=True, type="primary")
@@ -417,10 +417,10 @@ def render_login_gate(db_path: str) -> None:
 
             with st.form("portal_login_form", clear_on_submit=False):
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Username</div>', unsafe_allow_html=True)
-                u_input = st.text_input("Username", key="auth_login_username", placeholder="Enter username (e.g. admin)", label_visibility="collapsed")
+                u_input = st.text_input("Username", key="auth_login_username", placeholder="Enter username (e.g. admin)", label_visibility="collapsed", autocomplete="username")
 
                 st.markdown('<div style="font-size:11px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:0.06em;margin-top:14px;margin-bottom:6px;">Password</div>', unsafe_allow_html=True)
-                p_input = st.text_input("Password", type="password", key="auth_login_password", placeholder="••••••••••••", label_visibility="collapsed")
+                p_input = st.text_input("Password", type="password", key="auth_login_password", placeholder="••••••••••••", label_visibility="collapsed", autocomplete="current-password")
 
                 st.markdown('<div style="margin-top:16px;"></div>', unsafe_allow_html=True)
                 submit_login = st.form_submit_button("Sign In to Watchtower", use_container_width=True, type="primary")
@@ -588,7 +588,8 @@ def render_manage(state_records: pd.DataFrame, state: str) -> None:
         c1, c2, c3, c4, c5 = st.columns([1.5, 1.0, 1.2, 1.0, 1.1])
         query = c1.text_input("Search", key="mg_q",
                               placeholder="Search schema, env...",
-                              label_visibility="collapsed")
+                              label_visibility="collapsed",
+                              autocomplete="off")
         team_pick = c2.selectbox("Team", ["All Teams"] + ui.TEAMS, key="mg_team",
                                  label_visibility="collapsed")
         comp_pick = c3.selectbox("Component", ["All Components"] + COMPONENT_ORDER, key="mg_comp",
@@ -901,7 +902,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     )
 
     with c_f1:
-        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search...", label_visibility="collapsed")
+        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search...", label_visibility="collapsed", autocomplete="off")
     with c_f2:
         state_opts = ["All States"] + STATES
         state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
@@ -2631,7 +2632,7 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
     )
 
     with c_srch:
-        q = st.text_input("Filter", key=gov_srch_key, placeholder="🔍 Search...", label_visibility="collapsed")
+        q = st.text_input("Filter", key=gov_srch_key, placeholder="🔍 Search...", label_visibility="collapsed", autocomplete="off")
     with c_st:
         state_opts = ["All States"] + STATES
         state_filter = st.selectbox("State", state_opts, key=gov_st_key, label_visibility="collapsed")
@@ -3106,10 +3107,10 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
 
             with st.expander("⚙️ Live SMTP Credentials", expanded=not has_live_creds):
                 c_h1, c_h2 = st.columns([1.6, 0.8])
-                live_host = c_h1.text_input("SMTP Host", value=sess_host, placeholder="smtp.gmail.com", key=f"g_host_{reset_idx}")
-                live_user = c_h1.text_input("Username", value=sess_user, placeholder="user@gmail.com", key=f"g_user_{reset_idx}")
-                live_port = c_h2.text_input("Port", value=str(sess_port), placeholder="587", key=f"g_port_{reset_idx}")
-                live_pass = c_h2.text_input("Password", value=sess_pass, type="password", placeholder="App Password", key=f"g_pass_{reset_idx}")
+                live_host = c_h1.text_input("SMTP Host", value=sess_host, placeholder="smtp.gmail.com", key=f"g_host_{reset_idx}", autocomplete="off")
+                live_user = c_h1.text_input("Username", value=sess_user, placeholder="user@gmail.com", key=f"g_user_{reset_idx}", autocomplete="username")
+                live_port = c_h2.text_input("Port", value=str(sess_port), placeholder="587", key=f"g_port_{reset_idx}", autocomplete="off")
+                live_pass = c_h2.text_input("Password", value=sess_pass, type="password", placeholder="App Password", key=f"g_pass_{reset_idx}", autocomplete="current-password")
 
                 port_val = int(live_port.strip()) if live_port.strip().isdigit() else 587
                 st.session_state["gov_smtp_host"] = live_host.strip()
@@ -3271,7 +3272,8 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
             cad_recips_input = st.text_input(
                 "Target Distribution List",
                 value=default_recips[cad_state_code],
-                key=f"gov_cad_recips_{cad_state_code}_{reset_idx}"
+                key=f"gov_cad_recips_{cad_state_code}_{reset_idx}",
+                autocomplete="off"
             )
 
             conn_cad = get_connection(DB_PATH)

@@ -27,24 +27,29 @@ PATCH_SCRIPT = """
       try {
         const _warn = console.warn;
         const _err = console.error;
-        const isSuppressed = function(m) {
-          if (typeof m !== 'string') return false;
-          return m.indexOf('Unrecognized feature:') !== -1 ||
-                 m.indexOf('wake-lock') !== -1 ||
-                 m.indexOf('ambient-light-sensor') !== -1 ||
-                 m.indexOf('escape its sandboxing') !== -1 ||
-                 m.indexOf('legacy-image-formats') !== -1 ||
-                 m.indexOf('oversized-images') !== -1 ||
-                 m.indexOf('Download Button source error') !== -1 ||
-                 m.indexOf('source error - 404') !== -1 ||
-                 m.indexOf('/media/') !== -1;
+        const isSuppressed = function(args) {
+          if (!args || args.length === 0) return false;
+          const str = Array.from(args).map(function(a) {
+            return (typeof a === 'object' && a !== null) ? (a.message || a.toString()) : String(a);
+          }).join(' ');
+          return str.indexOf('Unrecognized feature:') !== -1 ||
+                 str.indexOf('wake-lock') !== -1 ||
+                 str.indexOf('vr') !== -1 ||
+                 str.indexOf('ambient-light-sensor') !== -1 ||
+                 str.indexOf('escape its sandboxing') !== -1 ||
+                 str.indexOf('legacy-image-formats') !== -1 ||
+                 str.indexOf('oversized-images') !== -1 ||
+                 str.indexOf('autocomplete') !== -1 ||
+                 str.indexOf('Download Button source error') !== -1 ||
+                 str.indexOf('source error - 404') !== -1 ||
+                 str.indexOf('/media/') !== -1;
         };
         console.warn = function(...args) {
-          if (args.length > 0 && isSuppressed(args[0])) return;
+          if (isSuppressed(args)) return;
           return _warn.apply(console, args);
         };
         console.error = function(...args) {
-          if (args.length > 0 && isSuppressed(args[0])) return;
+          if (isSuppressed(args)) return;
           return _err.apply(console, args);
         };
       } catch (_) {}
@@ -331,14 +336,68 @@ PATCH_SCRIPT = """
         } catch (_) {}
       }
 
+      // 6. Global Autocomplete Sanitizer (eliminates empty autocomplete="" attributes)
+      function initAutocompleteSanitizer() {
+        function sanitizeInput(el) {
+          if (!el || el.tagName !== 'INPUT') return;
+          const ac = el.getAttribute('autocomplete');
+          if (ac === '' || ac === '""' || (typeof ac === 'string' && ac.trim() === '')) {
+            const type = (el.getAttribute('type') || 'text').toLowerCase();
+            const name = (el.getAttribute('name') || '').toLowerCase();
+            const label = (el.getAttribute('aria-label') || '').toLowerCase();
+            if (type === 'password') {
+              el.setAttribute('autocomplete', 'current-password');
+            } else if (type === 'email' || name.includes('email') || label.includes('email')) {
+              el.setAttribute('autocomplete', 'email');
+            } else if (name.includes('user') || label.includes('username')) {
+              el.setAttribute('autocomplete', 'username');
+            } else {
+              el.setAttribute('autocomplete', 'off');
+            }
+          }
+        }
+        function sanitizeAll() {
+          document.querySelectorAll('input').forEach(sanitizeInput);
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', sanitizeAll);
+        } else {
+          sanitizeAll();
+        }
+        try {
+          const obs = new MutationObserver(function(mutations) {
+            for (let i = 0; i < mutations.length; i++) {
+              const m = mutations[i];
+              if (m.type === 'childList') {
+                for (let j = 0; j < m.addedNodes.length; j++) {
+                  const node = m.addedNodes[j];
+                  if (node.nodeType === 1) {
+                    if (node.tagName === 'INPUT') sanitizeInput(node);
+                    if (node.querySelectorAll) node.querySelectorAll('input').forEach(sanitizeInput);
+                  }
+                }
+              } else if (m.type === 'attributes' && m.attributeName === 'autocomplete') {
+                sanitizeInput(m.target);
+              }
+            }
+          });
+          const target = document.documentElement || document.body;
+          if (target) {
+            obs.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: ['autocomplete'] });
+          }
+        } catch (_) {}
+      }
+
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
           setupNav();
           syncTabFromUrl();
+          initAutocompleteSanitizer();
         });
       } else {
         setupNav();
         syncTabFromUrl();
+        initAutocompleteSanitizer();
       }
     })();
     </script>
@@ -377,8 +436,8 @@ def patch_index_html() -> bool:
 
         content = idx_path.read_text(encoding="utf-8")
         if PATCH_MARKER in content:
-            if "syncTabFromUrl" in content:
-                print("[+] Streamlit static index.html is already patched with syncTabFromUrl.")
+            if "initAutocompleteSanitizer" in content:
+                print("[+] Streamlit static index.html is already patched with initAutocompleteSanitizer.")
                 return True
             import re
             cleaned = re.sub(r'<!-- ETS Watchtower Resilience Watchdog & Hotkey Sanitizer -->[\s\S]*?</script>', '', content)
