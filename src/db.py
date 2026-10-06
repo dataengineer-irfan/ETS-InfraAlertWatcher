@@ -749,6 +749,14 @@ def update_user_role(conn: sqlite3.Connection, username: str, new_role: str) -> 
     return cur.rowcount > 0
 
 
+def update_user_state(conn: sqlite3.Connection, username: str, new_state: str | None) -> bool:
+    """Updates the assigned state scope for an existing user account."""
+    cur = conn.execute("UPDATE users SET assigned_state = ? WHERE username = ?", (new_state, username.strip()))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+
 def log_audit_event(
     conn: sqlite3.Connection,
     actor: str,
