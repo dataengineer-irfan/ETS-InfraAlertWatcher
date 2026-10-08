@@ -51,6 +51,7 @@ from ui import (  # noqa: F401  (BAND_COLOR is re-exported for callers)
     COMPONENT_BLURB,
     COMPONENT_CODE,
     COMPONENT_ICONS,
+    COMPONENT_SHORT_LABEL,
     CRITICAL_DAYS,
     ENV_BLURB,
     STATES,
@@ -168,7 +169,7 @@ body{
   height:100%; padding:var(--gap); display:grid; gap:var(--gap);
   grid-template-rows:auto minmax(64px,80px) minmax(140px,1.25fr) minmax(160px,1.4fr);
 }
-.rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,0.72fr) minmax(0,1.28fr);
+.rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,0.38fr) minmax(0,1.62fr);
        min-height:0; }
 .rowC{ display:grid; gap:var(--gap); grid-template-columns:1fr;
        min-height:0; }
@@ -541,37 +542,39 @@ body{
 }
 
 /* ---- component cards ------------------------------------------------- */
-.comps{ display:grid; gap:var(--gap); grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+.comps{ display:grid; gap:4px; grid-template-columns:1fr; grid-template-rows:repeat(4,1fr);
         min-height:0; min-width:0; }
 .cc{
-  background:var(--card); border:1px solid var(--rule); border-radius:2px;
-  box-shadow:none; padding:8px 10px; cursor:pointer; font:inherit; text-align:left;
+  background:var(--card); border:1px solid var(--rule); border-radius:3px;
+  box-shadow:none; padding:4px 8px; cursor:pointer; font:inherit; text-align:left;
   display:flex; flex-direction:column; justify-content:space-between; min-height:0; min-width:0; overflow:hidden;
   transition:background .1s ease, border-color .1s ease;
 }
 .cc:hover{ background:var(--sunk); border-color:var(--accent); box-shadow:none; }
 .cc[aria-pressed="true"]{ background:var(--accent-tint);
                           border-color:var(--accent); box-shadow:none; }
-.cc .head-row{ display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; }
-.cc .code{ font-family:var(--ui); font-size:9px; font-weight:700; letter-spacing:.06em;
+.cc .head-row{ display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; overflow:hidden; }
+.cc .head-left{ display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; flex:1 1 auto; }
+.cc .code{ font-family:var(--ui); font-size:8px; font-weight:700; letter-spacing:.04em;
            color:var(--accent); background:var(--accent-tint); border:1px solid var(--accent-line);
-           border-radius:2px; padding:1px 4px; flex:none; }
+           border-radius:2px; padding:1px 3px; flex:none; white-space:nowrap; }
 .cc[aria-pressed="true"] .code{ background:var(--accent); color:#111217; }
-.cc .nm{ font-size:11px; font-weight:700; color:var(--ink);
-         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
-.cc .foot{ margin-top:auto; display:flex; align-items:flex-end; justify-content:space-between;
-           gap:6px; padding-top:3px; min-width:0; border-top:1px solid rgba(255,255,255,0.03); }
-.cc .cnt{ font-family:var(--ui); font-variant-numeric:tabular-nums; font-weight:700;
-          font-size:clamp(15px,2.5vh,20px); line-height:1; min-width:0; }
-.cc .cnt em{ font-style:normal; font-size:9px; font-weight:500; color:var(--mute);
+.cc .nm{ font-size:10px; font-weight:700; color:var(--ink); letter-spacing:-0.01em;
+         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; min-width:0; }
+.cc .cnt{ font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:700;
+          font-size:10px; line-height:1; min-width:0; color:var(--ink); flex:none; white-space:nowrap; }
+.cc .cnt em{ font-style:normal; font-size:8px; font-weight:500; color:var(--mute);
              margin-left:2px; font-family:var(--ui); }
-.cc .nx{ font-family:var(--ui); font-variant-numeric:tabular-nums; font-size:9px; color:var(--slate); text-align:right;
-         white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.meter{ display:flex; height:4px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
+        margin:2px 0 1px; flex:none; gap:1.5px; }
+.meter i{ display:block; height:100%; min-width:4px; border-radius:1px; }
+.cc .foot{ display:flex; align-items:center; justify-content:space-between;
+           gap:4px; min-width:0; margin-top:1px; border-top:1px solid rgba(255,255,255,0.03); padding-top:1px; }
+.meter-label{ font-size:8.5px; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+              font-family:var(--ui); font-variant-numeric:tabular-nums; line-height:1.2; flex:1 1 auto; min-width:0; }
+.cc .nx{ font-family:var(--ui); font-variant-numeric:tabular-nums; font-size:8.5px; color:var(--slate); text-align:right;
+         white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; flex:none; }
 .cc .nx b{ color:var(--val,var(--ink)); font-weight:700; }
-.meter{ display:flex; height:9px; border-radius:2px; overflow:hidden; background:var(--rule-soft);
-        margin:4px 0 3px; flex:none; gap:2px; }
-.meter-label{ font-size:9.5px; color:var(--slate); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:var(--ui); font-variant-numeric:tabular-nums; }
-.meter i{ display:block; height:100%; min-width:6px; border-radius:1px; }
 
 /* ---- segmented control ----------------------------------------------- */
 .seg{ display:inline-flex; background:var(--sunk); border:1px solid var(--rule);
@@ -921,6 +924,16 @@ const COMP_ICONS = DATA.componentIcons || {
   "DBPWD": "🛡️",
   "SWVER": "🏷️",
   "PATCH": "🔧"
+};
+const COMP_SHORT = DATA.componentShort || {
+  "Crypto Keys & CA Certificates": "Certificates",
+  "Database Password Expiry": "Database Passwords",
+  "Software Versions & N-1 Tracking": "N-1 Versions",
+  "Upgrade & Patch Tasks": "Patches & Upgrades",
+  "CRYPTO": "Certificates",
+  "DBPWD": "Database Passwords",
+  "SWVER": "N-1 Versions",
+  "PATCH": "Patches & Upgrades"
 };
 const CRIT = DATA.criticalDays, WARN = DATA.warningDays;
 const T = DATA.tokens;
@@ -1477,31 +1490,42 @@ function renderComps(S){
     const band = worstBand(new Set(sub.map(r => r.band)));
     const on = S.component === comp;
     const icon = COMP_ICONS[comp] || "📦";
+    const shortName = COMP_SHORT[comp] || comp;
+    const blurb = (DATA.componentBlurb && DATA.componentBlurb[comp]) || "";
+    const tooltip = comp + " (" + (CODE[comp] || "") + ")" + (blurb ? " — " + blurb : "");
+
     const parts = [];
-    if (c.Expired > 0) parts.push('<b style="color:#ef4444">' + c.Expired + ' Expired</b>');
-    if (c.Critical > 0) parts.push('<b style="color:#f97316">' + c.Critical + ' Critical</b>');
-    if (c.Warning > 0) parts.push('<b style="color:#f59e0b">' + c.Warning + ' Warning</b>');
+    if (c.Expired > 0) parts.push('<b style="color:#ef4444">' + c.Expired + ' Exp</b>');
+    if (c.Critical > 0) parts.push('<b style="color:#f97316">' + c.Critical + ' Crit</b>');
+    if (c.Warning > 0) parts.push('<b style="color:#f59e0b">' + c.Warning + ' Warn</b>');
     if (c.Healthy > 0) parts.push((c.Healthy || 0) + ' OK');
 
-    let mLabel = "100% Healthy";
+    let mLabel = '<span style="color:#10b981">&#10003; 100% OK</span>';
     if (parts.length > 0 && (c.Expired > 0 || c.Critical > 0 || c.Warning > 0)) {
       mLabel = parts.join(" &middot; ");
-    } else {
-      mLabel = '<span style="color:#10b981">&#10003; 100% Compliant</span>';
     }
+
+    const nextStr = nx
+      ? 'next <b style="color:' + (META[healthOf(nx.days)] ? META[healthOf(nx.days)].color : "var(--ink)") + '">'
+        + esc(fmtDays(nx.days)) + '</b>'
+      : "none in scope";
 
     return '<button class="cc" type="button" data-act="component" data-val="' + esc(comp)
       + '" data-hl-comp="' + esc(comp)
       + '" aria-pressed="' + (on ? "true" : "false") + '" style="--val:' + META[band].color
-      + '" data-tip="' + esc((on ? "Click again to clear. " : "Click to focus ")
-      + comp + " (" + CODE[comp] + ") — " + DATA.componentBlurb[comp])
-      + '"><div class="head-row"><span class="code">' + icon + ' ' + esc(CODE[comp]) + '</span><span class="nm">'
-      + esc(comp) + '</span></div>' + meter(c)
-      + '<div class="meter-label">' + mLabel + '</div>'
-      + '<div class="foot"><span class="cnt">' + sub.length + "<em>item"
-      + (sub.length === 1 ? "" : "s") + '</em></span><span class="nx">'
-      + (nx ? "next <b>" + esc(fmtDays(nx.days)) + "</b><br />" + esc(fmtDate(nx.exp))
-            : "nothing in scope") + "</span></div></button>";
+      + '" title="' + esc(tooltip)
+      + '" data-tip="' + esc((on ? "Click again to clear. " : "Click to focus ") + tooltip)
+      + '"><div class="head-row">'
+      + '<div class="head-left">'
+      + '<span class="code">' + icon + ' ' + esc(CODE[comp]) + '</span>'
+      + '<span class="nm" title="' + esc(tooltip) + '">' + esc(shortName) + '</span>'
+      + '</div>'
+      + '<span class="cnt">' + sub.length + '<em>' + (sub.length === 1 ? "item" : "items") + '</em></span>'
+      + '</div>' + meter(c)
+      + '<div class="foot">'
+      + '<span class="meter-label">' + mLabel + '</span>'
+      + '<span class="nx">' + nextStr + '</span>'
+      + '</div></button>';
   }).join("");
 }
 
@@ -3473,6 +3497,7 @@ def _payload(records: list, *, mode: str, state, as_of: date, env_order: list,
         "states": list(STATES),
         "components": list(COMPONENT_CODE),
         "componentCode": COMPONENT_CODE,
+        "componentShort": COMPONENT_SHORT_LABEL,
         "componentIcons": COMPONENT_ICONS,
         "componentBlurb": COMPONENT_BLURB,
         "teams": teams or list(TEAMS),
