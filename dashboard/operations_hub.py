@@ -420,12 +420,35 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         </a>
         """
 
+    rem_hours = max(2, exp_cnt * 2)
+    if sc_prod_exp == 0:
+        bluf_color = "#10b981"
+        bluf_bg = "rgba(16,185,129,0.06)"
+        bluf_border = "rgba(16,185,129,0.25)"
+        bluf_icon = "🟢"
+        bluf_headline = "FLEET OPERATIONAL POSTURE: STABLE"
+        bluf_detail = f"0 Production Violations · {exp_cnt} Non-Prod Action Items · {pct_local:.1f}% Compliance"
+        bluf_badge = '<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: MINIMAL</span>'
+    else:
+        bluf_color = "#ef4444"
+        bluf_bg = "rgba(239,68,68,0.08)"
+        bluf_border = "rgba(239,68,68,0.3)"
+        bluf_icon = "🔴"
+        bluf_headline = f"FLEET OPERATIONAL POSTURE: ELEVATED RISK ({sc_prod_exp} PROD BREACHES)"
+        bluf_detail = f"{sc_prod_exp} Live Production Violations Breaching SLA · Immediate Escalation Required"
+        bluf_badge = '<span style="font-size:8px;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.2);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: CRITICAL</span>'
+
+    scope_bluf_txt = f"[{state_filter}] " if state_filter != "All States" else ""
+
+    bluf_html = f'''<div style="display:flex;align-items:center;justify-content:space-between;background:{bluf_bg};border:1px solid {bluf_border};border-left:3px solid {bluf_color};border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:9.5px;font-weight:800;color:{bluf_color};letter-spacing:0.04em;white-space:nowrap;">{bluf_icon} EXECUTIVE BLUF:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;">{scope_bluf_txt}{bluf_headline}</span><span style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {bluf_detail}</span></div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">EST. REMEDIATION: ~{rem_hours}h</span>{bluf_badge}</div></div>'''
+
     c_k1 = _make_kpi_card_html("Portfolio Scope", f"{scope_cnt} / {tot_cnt}", k1_sub, "ALL FLEET" if k1_active else "SCOPED", "ok", k1_active, "All", spark_vals=_scope_trend)
     c_k2 = _make_kpi_card_html("Expired Items", exp_cnt, k2_sub, "FIRING" if exp_cnt else "CLEAR", "firing" if exp_cnt else "ok", k2_active, "Expired", spark_vals=_exp_trend)
     c_k3 = _make_kpi_card_html("Critical & Warning", crit_cnt + warn_cnt, k3_sub, "PENDING" if (crit_cnt + warn_cnt) else "STABLE", "pending" if (crit_cnt + warn_cnt) else "ok", k3_active, "Urgent", spark_vals=_cw_trend)
     c_k4 = _make_kpi_card_html("Healthy Entities", hlth_cnt, k4_sub, "COMPLIANT", "ok", k4_active, "Healthy", donut_val=pct_local)
 
     _render_html(f"""
+    {bluf_html}
     <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:4px;">
       {c_k1}
       {c_k2}
@@ -519,6 +542,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         background: #38bdf8;
         border-radius: 3px;
         border: 1px solid #0284c7;
+    }
+    .op-master-table-box table tbody tr:hover {
+        background: rgba(56, 189, 248, 0.08) !important;
+        border-left: 2px solid #38bdf8 !important;
+        cursor: pointer;
     }
     div.st-key-op_detail_box {
         background: #181b1f !important;
@@ -695,96 +723,104 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                     </div>
                     """, unsafe_allow_html=True)
 
-                # Action Controls Row
-                if conf and conf.get("id") == rec["id"]:
-                    st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;margin-bottom:4px;'>⚠️ Confirm {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
-                    cf_y, cf_n = st.columns(2)
-                    with cf_y:
-                        if st.button("✓ Confirm", key=f"insp_cf_yes_{rec['id']}", type="primary", use_container_width=True):
-                            _apply_edits([(conf["id"], conf["new_dt"])])
-                            del st.session_state["confirm_action"]
-                            st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
-                            st.rerun()
-                    with cf_n:
-                        if st.button("✕ Cancel", key=f"insp_cf_no_{rec['id']}", use_container_width=True):
-                            del st.session_state["confirm_action"]
-                            st.rerun()
-                else:
-                    act_cols = st.columns([1.0, 1.0, 1.1, 1.1] if rec["edited"] else [1.0, 1.0, 1.2], gap="small")
-                    if act_cols[0].button("+90d", key=f"insp_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
-                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
-                        st.rerun()
-                    if act_cols[1].button("+1yr", key=f"insp_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
-                        st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
-                        st.rerun()
-                    with act_cols[2]:
-                        if hasattr(st, "popover"):
-                            with st.popover("📅 Date", help="Pick custom expiry date", use_container_width=True):
-                                c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
-                                if st.button("Commit Expiry", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
-                                    _apply_edits([(rec["id"], c_date)])
-                                    st.success(f"Updated to {c_date}")
-                                    st.rerun()
-                    if rec["edited"] and len(act_cols) > 3:
-                        with act_cols[3]:
-                            if act_cols[3].button("↩ Rev", key=f"insp_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
-                                conn = get_connection(DB_PATH)
-                                try:
-                                    revert_component_exp_date(conn, int(rec["id"]))
-                                finally:
-                                    conn.close()
-                                st.session_state["_bust"] = st.session_state.get("_bust", 0) + 1
-                                st.cache_data.clear()
-                                st.success("Reverted to workbook date.")
+                    # Fact Grid & Life Gauge
+                    exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
+                    _life_gauge = ui.life_gauge(int(rec["days_left"]))
+                    _team_chip = ui.alert_chip(rec["band"])
+
+                    st.markdown(f"""
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;">
+                      <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                        <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Team Owner</div>
+                        <div style="font-size:10.5px;color:{team_meta['color']};font-weight:700;margin-top:2px;">{rec['team']}</div>
+                        <div style="font-size:8.5px;color:#94a3b8;">Lead: {team_meta['lead']}</div>
+                      </div>
+                      <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                        <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Component</div>
+                        <div style="font-size:10.5px;color:#f8fafc;font-weight:700;margin-top:2px;">{rec['component']}</div>
+                        <div style="font-size:8.5px;color:#94a3b8;">Code: {ui.COMPONENT_CODE.get(rec['component'], rec['component'])}</div>
+                      </div>
+                      <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                        <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Current Expiry</div>
+                        <div style="font-size:11px;color:{meta['color']};font-weight:700;font-family:var(--mono);margin-top:2px;">{rec['exp_date']}</div>
+                        <div style="font-size:8.5px;color:#94a3b8;">Source: {rec['source_exp_date']}</div>
+                      </div>
+                      <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
+                        <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Life Remaining</div>
+                        <div style="font-size:11px;color:{meta['color']};font-weight:800;font-family:var(--mono);margin-top:2px;">{ui.fmt_days(rec['days_left'])}</div>
+                        <div style="font-size:8.5px;color:#94a3b8;">{rec['quarter']}</div>
+                      </div>
+                    </div>
+                    <div style="margin:4px 0 8px;">{_life_gauge}</div>
+                    """, unsafe_allow_html=True)
+
+                    # Technical Diagnostics
+                    payload = {
+                        "id": int(rec["id"]),
+                        "state": rec["state"],
+                        "team": rec["team"],
+                        "component": rec["component"],
+                        "environment": rec["env_label"],
+                        "schema_name": rec["schema_name"],
+                        "exp_date": rec["exp_date"],
+                        "source_exp_date": rec["source_exp_date"],
+                        "days_left": int(rec["days_left"]),
+                        "band": rec["band"],
+                        "edited_at": str(rec["edited_at"]),
+                    }
+                    with st.expander("Technical Diagnostics & Database Query", expanded=False):
+                        st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
+                        st.code(json.dumps(payload, indent=2), language="json")
+
+                    # Dedicated Remediation Action Tray (Assess Context -> Execute Remediation)
+                    st.markdown("""
+                    <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid #22252b;padding-top:6px;margin-top:6px;margin-bottom:4px;">
+                      <span style="font-size:8.5px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;">⚡ REMEDIATION ACTIONS</span>
+                      <span style="font-size:8px;color:#64748b;font-family:var(--mono);">COMMIT TO DB</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    if conf and conf.get("id") == rec["id"]:
+                        st.markdown(f"<div style='font-size:9.5px;color:var(--warning);font-weight:700;margin-bottom:4px;'>⚠️ Confirm {conf['new_dt']} (+{conf['days']}d)?</div>", unsafe_allow_html=True)
+                        cf_y, cf_n = st.columns(2)
+                        with cf_y:
+                            if st.button("✓ Confirm", key=f"insp_cf_yes_{rec['id']}", type="primary", use_container_width=True):
+                                _apply_edits([(conf["id"], conf["new_dt"])])
+                                del st.session_state["confirm_action"]
+                                st.success(f"Updated {conf['schema']} to {conf['new_dt']}")
                                 st.rerun()
-
-                exp_detail = f"(Expired {rec['exp_dt'].strftime('%b %Y')})" if rec['days_left'] < 0 else f"(Expires {rec['exp_date']})"
-                _life_gauge = ui.life_gauge(int(rec["days_left"]))
-                _team_chip = ui.alert_chip(rec["band"])
-
-                st.markdown(f"""
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;">
-                  <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                    <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Team Owner</div>
-                    <div style="font-size:10.5px;color:{team_meta['color']};font-weight:700;margin-top:2px;">{rec['team']}</div>
-                    <div style="font-size:8.5px;color:#94a3b8;">Lead: {team_meta['lead']}</div>
-                  </div>
-                  <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                    <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Component</div>
-                    <div style="font-size:10.5px;color:#f8fafc;font-weight:700;margin-top:2px;">{rec['component']}</div>
-                    <div style="font-size:8.5px;color:#94a3b8;">Code: {ui.COMPONENT_CODE.get(rec['component'], rec['component'])}</div>
-                  </div>
-                  <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                    <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Current Expiry</div>
-                    <div style="font-size:11px;color:{meta['color']};font-weight:700;font-family:var(--mono);margin-top:2px;">{rec['exp_date']}</div>
-                    <div style="font-size:8.5px;color:#94a3b8;">Source: {rec['source_exp_date']}</div>
-                  </div>
-                  <div style="background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 7px;">
-                    <div style="font-size:8.5px;color:#64748b;text-transform:uppercase;font-weight:700;">Life Remaining</div>
-                    <div style="font-size:11px;color:{meta['color']};font-weight:800;font-family:var(--mono);margin-top:2px;">{ui.fmt_days(rec['days_left'])}</div>
-                    <div style="font-size:8.5px;color:#94a3b8;">{rec['quarter']}</div>
-                  </div>
-                </div>
-                <div style="margin:4px 0 8px;">{_life_gauge}</div>
-                """, unsafe_allow_html=True)
-
-                # Technical Diagnostics
-                payload = {
-                    "id": int(rec["id"]),
-                    "state": rec["state"],
-                    "team": rec["team"],
-                    "component": rec["component"],
-                    "environment": rec["env_label"],
-                    "schema_name": rec["schema_name"],
-                    "exp_date": rec["exp_date"],
-                    "source_exp_date": rec["source_exp_date"],
-                    "days_left": int(rec["days_left"]),
-                    "band": rec["band"],
-                    "edited_at": str(rec["edited_at"]),
-                }
-                with st.expander("Technical Diagnostics & Database Query", expanded=False):
-                    st.code(f"SELECT * FROM component_records WHERE id = {int(rec['id'])};", language="sql")
-                    st.code(json.dumps(payload, indent=2), language="json")
+                        with cf_n:
+                            if st.button("✕ Cancel", key=f"insp_cf_no_{rec['id']}", use_container_width=True):
+                                del st.session_state["confirm_action"]
+                                st.rerun()
+                    else:
+                        act_cols = st.columns([1.0, 1.0, 1.1, 1.1] if rec["edited"] else [1.0, 1.0, 1.2], gap="small")
+                        if act_cols[0].button("+90d", key=f"insp_top_p90_{rec['id']}", use_container_width=True, help="Extend expiry by 90 days"):
+                            st.session_state["confirm_action"] = {"id": rec["id"], "days": 90, "new_dt": cur_dt + pd.Timedelta(days=90), "schema": rec["schema_name"]}
+                            st.rerun()
+                        if act_cols[1].button("+1yr", key=f"insp_top_p365_{rec['id']}", use_container_width=True, help="Extend expiry by 1 year"):
+                            st.session_state["confirm_action"] = {"id": rec["id"], "days": 365, "new_dt": cur_dt + pd.Timedelta(days=365), "schema": rec["schema_name"]}
+                            st.rerun()
+                        with act_cols[2]:
+                            if hasattr(st, "popover"):
+                                with st.popover("📅 Date", help="Pick custom expiry date", use_container_width=True):
+                                    c_date = st.date_input("New Expiry Date", value=cur_dt, key=f"insp_pop_dt_{rec['id']}")
+                                    if st.button("Commit Expiry", type="primary", key=f"insp_pop_btn_{rec['id']}", use_container_width=True):
+                                        _apply_edits([(rec["id"], c_date)])
+                                        st.success(f"Updated to {c_date}")
+                                        st.rerun()
+                        if rec["edited"] and len(act_cols) > 3:
+                            with act_cols[3]:
+                                if act_cols[3].button("↩ Rev", key=f"insp_top_rev_{rec['id']}", type="secondary", use_container_width=True, help="Revert to workbook source date"):
+                                    conn = get_connection(DB_PATH)
+                                    try:
+                                        revert_component_exp_date(conn, int(rec["id"]))
+                                    finally:
+                                        conn.close()
+                                    st.session_state["_bust"] = st.session_state.get("_bust", 0) + 1
+                                    st.cache_data.clear()
+                                    st.success("Reverted to workbook date.")
+                                    st.rerun()
 
     # ==========================================================================
     # SUBTAB 2: 🗺️ SEVERITY MATRIX & CROSS-TAB HEATMAP (DEDICATED FULL-WIDTH MATRIX)
