@@ -225,7 +225,7 @@ body{
   border:1px solid var(--accent-line); border-radius:4px; padding:1px 4px; white-space:nowrap;
 }
 .state-env-strip{
-  display:inline-flex; align-items:center; gap:4px; flex:none;
+  display:none;
 }
 .state-env-chip{
   display:inline-flex; align-items:center; gap:3.5px; height:19px; padding:0 5px;

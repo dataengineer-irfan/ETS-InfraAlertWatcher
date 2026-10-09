@@ -2146,6 +2146,10 @@ with st.sidebar:
           <span style="color:#94a3b8;">Managed Assets</span>
           <b style="color:#f8fafc;font-family:var(--mono);">{_sb_tot}</b>
         </div>
+        <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(56,189,248,0.08);border-radius:4px;border:1px solid rgba(56,189,248,0.2);">
+          <span style="color:#38bdf8;">Topology (Envs)</span>
+          <b style="color:#38bdf8;font-family:var(--mono);">25 (8 AK · 8 ND · 9 NH)</b>
+        </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(16,185,129,0.08);border-radius:4px;border:1px solid rgba(16,185,129,0.2);">
           <span style="color:#34d399;">Fleet SLA</span>
           <b style="color:#10b981;font-family:var(--mono);">{_sb_sla}</b>
@@ -2165,14 +2169,122 @@ with st.sidebar:
 
 
 
-# --- Global Release & State Scope Synchronization ---
+# --- Global Query Param & Cross-Workspace State Synchronization ---
+_qp_gst = st.query_params.get("global_state")
+if _qp_gst is not None:
+    if _qp_gst in STATES:
+        if st.session_state.get("_override_canvas_state") == _qp_gst:
+            # Toggle off if already active
+            st.session_state["_override_canvas_state"] = None
+            st.session_state["gov_state_filter"] = "All"
+            _r_idx = st.session_state.get("op_reset_idx", 0)
+            st.session_state[f"op_state_{_r_idx}"] = "All States"
+            st.session_state["sl_state_clean"] = "All States"
+        else:
+            st.session_state["_override_canvas_state"] = _qp_gst
+            st.session_state["gov_state_filter"] = _qp_gst
+            _r_idx = st.session_state.get("op_reset_idx", 0)
+            st.session_state[f"op_state_{_r_idx}"] = _qp_gst
+            _st_labels = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
+            st.session_state["sl_state_clean"] = _st_labels.get(_qp_gst, "All States")
+    elif _qp_gst in ["ALL", "Fleet", "fleet", "clear", ""]:
+        st.session_state["_override_canvas_state"] = None
+        st.session_state["gov_state_filter"] = "All"
+        _r_idx = st.session_state.get("op_reset_idx", 0)
+        st.session_state[f"op_state_{_r_idx}"] = "All States"
+        st.session_state["sl_state_clean"] = "All States"
+    del st.query_params["global_state"]
+
 active_scope_state = st.session_state.get("_override_canvas_state")
 global_sel = st.session_state.get("global_release_selection")
 
 # Retain full unmutated records so workspace filters (State, Team, Comp, Health) operate across all 500 records
 records_full = records.copy()
 
+# ==========================================================================
+# Global Fixed Top Banner (State & Environment Fleet Topology)
+# ==========================================================================
+_active_user = st.session_state.get("active_user", "admin")
+_auth_suffix = f"&_auth_user={_active_user}"
 
+_tot_envs_count = len(records["env_no"].unique()) if "env_no" in records.columns else 25
+_prod_envs_count = len(records[records["env_label"] == "PROD"]["env_no"].unique()) if "env_no" in records.columns else 2
+_nonprod_envs_count = _tot_envs_count - _prod_envs_count
+
+_st_meta = {}
+for _st_code in STATES:
+    _st_df = records[records["state"] == _st_code]
+    _st_envs = len(_st_df["env_no"].unique()) if "env_no" in _st_df.columns else len(_st_df["environment"].unique())
+    _st_prod = len(_st_df[_st_df["env_label"] == "PROD"]["env_no"].unique()) if "env_no" in _st_df.columns else (1 if _st_code in ["AK", "NH"] else 0)
+    _st_nonprod = _st_envs - _st_prod
+    _st_exp = int((_st_df["days_left"] < 0).sum())
+    _st_hlth = int((_st_df["band"] == "Healthy").sum())
+    _st_pct = (_st_hlth / len(_st_df) * 100.0) if len(_st_df) else 100.0
+    _st_meta[_st_code] = {
+        "envs": _st_envs,
+        "prod": _st_prod,
+        "nonprod": _st_nonprod,
+        "assets": len(_st_df),
+        "pct": f"{_st_pct:.1f}",
+        "exp": _st_exp,
+    }
+
+_chips_html = []
+_is_fleet_active = not active_scope_state
+_fleet_tip = f"Fleet Infrastructure: {_tot_envs_count} distinct environments across 3 states ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) — {len(records)} assets"
+_fleet_bg = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if _is_fleet_active else "background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);"
+_fleet_color = "#38bdf8" if _is_fleet_active else "#94a3b8"
+
+_chips_html.append(
+    f'<a href="?global_state=ALL{_auth_suffix}" target="_self" class="topo-chip{" active" if _is_fleet_active else ""}" '
+    f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:{_fleet_color};{_fleet_bg}text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_fleet_tip}">'
+    f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:#10b981;flex:none;display:inline-block;"></span>'
+    f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:{"#38bdf8" if _is_fleet_active else "#f8fafc"};">FLEET</b> {_tot_envs_count} Envs</a>'
+)
+
+for _st_code in ["AK", "NH", "ND"]:
+    _sm = _st_meta.get(_st_code, {})
+    _is_act = (active_scope_state == _st_code)
+    _dot_color = "#ef4444" if _sm.get("exp", 0) > 0 else "#10b981"
+    _tip = f"{_st_code} Fleet: {_sm.get('envs', 0)} Environments ({_sm.get('prod', 0)} PROD · {_sm.get('nonprod', 0)} Non-Prod) — {_sm.get('assets', 0)} assets, {_sm.get('pct', '100')}% Compliant"
+    _st_bg = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if _is_act else "background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);"
+    _st_color = "#38bdf8" if _is_act else "#94a3b8"
+
+    _chips_html.append(
+        f'<a href="?global_state={_st_code}{_auth_suffix}" target="_self" class="topo-chip{" active" if _is_act else ""}" '
+        f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:{_st_color};{_st_bg}text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_tip}">'
+        f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:{_dot_color};flex:none;display:inline-block;"></span>'
+        f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:{"#38bdf8" if _is_act else "#f8fafc"};">{_st_code}</b> {_sm.get("envs", 0)} Envs</a>'
+    )
+
+_chips_str = "".join(_chips_html)
+
+if active_scope_state in STATES:
+    _sm_act = _st_meta.get(active_scope_state, {})
+    _scope_badge = f'<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">{active_scope_state} SCOPED</span>'
+    _telem_text = f"{active_scope_state}: {_sm_act.get('envs', 0)} Envs ({_sm_act.get('prod', 0)} PROD · {_sm_act.get('nonprod', 0)} Non-Prod) · {_sm_act.get('assets', 0)} Assets"
+else:
+    _scope_badge = '<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">ALL FLEET</span>'
+    _telem_text = f"{_tot_envs_count} Active Envs ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) · {len(records)} Assets"
+
+_utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
+
+st.markdown(f"""
+<div class="global-topo-banner" style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:28px;line-height:1;padding:0 8px;background:#141619;border:1px solid #22252b;border-radius:3px;margin:2px 0 6px;box-sizing:border-box;">
+  <div style="display:flex;align-items:center;gap:6px;flex:none;">
+    <div style="width:3px;height:14px;background:#f59e0b;border-radius:1px;flex:none;"></div>
+    <span style="font-size:10px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">ETS WATCHTOWER</span>
+    {_scope_badge}
+  </div>
+  <div style="display:flex;align-items:center;gap:4px;flex:none;">
+    {_chips_str}
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex:none;">
+    <span style="font-size:8px;font-weight:700;color:#94a3b8;font-family:var(--mono);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.5px 6px;border-radius:2px;white-space:nowrap;">{_telem_text}</span>
+    <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac, tab_oncall = st.tabs([
     "Schedule Release Plan",

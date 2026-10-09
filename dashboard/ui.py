@@ -397,8 +397,132 @@ def css() -> str:
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
 [data-testid="stVerticalBlock"] {{ gap:.5rem; }}
-iframe:not([data-testid="stCustomComponentV1"]) {{ display:block; border:0; width: 100% !important; height: calc(100vh - 46px) !important; }}
+iframe:not([data-testid="stCustomComponentV1"]) {{ display:block; border:0; width: 100% !important; height: calc(100vh - 78px) !important; }}
 iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100% !important; }}
+
+/* Global Fixed Top Banner (State & Environment Fleet Topology) */
+.global-topo-banner {{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 28px;
+  line-height: 1;
+  padding: 0 8px;
+  background: #141619;
+  border: 1px solid #22252b;
+  border-radius: 3px;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+}}
+.topo-brand-group {{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}}
+.topo-bar-accent {{
+  width: 3px;
+  height: 14px;
+  background: #f59e0b;
+  border-radius: 1px;
+  flex: none;
+}}
+.topo-title {{
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
+  white-space: nowrap;
+}}
+.topo-scope-pill {{
+  font-size: 7.5px;
+  font-weight: 800;
+  background: rgba(56,189,248,0.14);
+  color: #38bdf8;
+  border: 1px solid rgba(56,189,248,0.35);
+  padding: 1px 5px;
+  border-radius: 2px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}}
+.topo-chips {{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}}
+.topo-chip {{
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  height: 20px;
+  padding: 0 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  font-family: var(--ui);
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--slate);
+  cursor: pointer;
+  transition: all .1s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}}
+.topo-chip:hover {{
+  background: rgba(56,189,248,0.12);
+  border-color: rgba(56,189,248,0.45);
+  color: var(--ink);
+}}
+.topo-chip.active {{
+  background: rgba(56,189,248,0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+  font-weight: 700;
+  box-shadow: 0 0 6px rgba(56,189,248,0.3);
+}}
+.topo-chip b {{
+  font-family: var(--mono);
+  font-weight: 800;
+  font-size: 8.5px;
+  color: var(--ink);
+}}
+.topo-chip.active b {{
+  color: #38bdf8;
+}}
+.topo-dot {{
+  width: 4.5px;
+  height: 4.5px;
+  border-radius: 50%;
+  background: #10b981;
+  flex: none;
+}}
+.topo-dot.warn {{ background: #f59e0b; }}
+.topo-dot.crit {{ background: #ef4444; }}
+.topo-telem {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}}
+.topo-telem-pill {{
+  font-size: 8px;
+  font-weight: 700;
+  color: #94a3b8;
+  font-family: var(--mono);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  padding: 1.5px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+}}
+.topo-clock {{
+  font-size: 8px;
+  color: #64748b;
+  font-family: var(--mono);
+  white-space: nowrap;
+}}
 
 /* Screen Viewport Layout: Fallback scroll prevents permanent content loss on scaled viewports */
 [data-testid="stMain"] {{

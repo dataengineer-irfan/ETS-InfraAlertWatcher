@@ -304,6 +304,29 @@ PATCH_SCRIPT = """
             }
             return;
           }
+
+          // Track active tab clicks for persistence
+          const tabEl = e.target ? e.target.closest('[data-testid="stTabs"] [role="tab"]') : null;
+          if (tabEl && tabEl.parentElement) {
+            const allTabs = Array.from(tabEl.parentElement.querySelectorAll('[role="tab"]'));
+            const tIdx = allTabs.indexOf(tabEl);
+            if (tIdx !== -1) {
+              sessionStorage.setItem('ets_active_tab_idx', tIdx);
+            }
+          }
+
+          // Save current tab when clicking global topology chips
+          const chipEl = e.target ? e.target.closest('.topo-chip') : null;
+          if (chipEl) {
+            const activeTab = document.querySelector('[data-testid="stTabs"] [role="tab"][aria-selected="true"]');
+            if (activeTab && activeTab.parentElement) {
+              const allTabs = Array.from(activeTab.parentElement.querySelectorAll('[role="tab"]'));
+              const tIdx = allTabs.indexOf(activeTab);
+              if (tIdx !== -1) {
+                sessionStorage.setItem('ets_active_tab_idx', tIdx);
+              }
+            }
+          }
         }, true);
       }
 
@@ -316,6 +339,9 @@ PATCH_SCRIPT = """
             targetTabIdx = parseInt(p.get('tab'), 10);
           } else if (p.has('op_kpi') || p.has('op_cell') || p.has('op_act_id')) {
             targetTabIdx = 2; // Operations Hub
+          } else if (p.has('global_state')) {
+            const saved = sessionStorage.getItem('ets_active_tab_idx');
+            if (saved !== null) targetTabIdx = parseInt(saved, 10);
           }
           if (targetTabIdx !== null && !isNaN(targetTabIdx)) {
             let tries = 0;
@@ -458,8 +484,8 @@ def patch_index_html() -> bool:
 
         content = idx_path.read_text(encoding="utf-8")
         if PATCH_MARKER in content:
-            if "initFormSanitizer" in content:
-                print("[+] Streamlit static index.html is already patched with initFormSanitizer.")
+            if "ets_active_tab_idx" in content:
+                print("[+] Streamlit static index.html is already patched with latest tab persistence.")
                 return True
             import re
             cleaned = re.sub(r'<!-- ETS Watchtower Resilience Watchdog & Hotkey Sanitizer -->[\s\S]*?</script>', '', content)
