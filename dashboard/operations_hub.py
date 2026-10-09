@@ -54,7 +54,11 @@ def _on_reset_operations_hub() -> None:
     st.session_state["op_tree_open"] = set()
     st.session_state["op_selected_entity_ids"] = set()
     st.session_state["op_batch_page_no"] = 0
-    st.session_state["_override_canvas_state"] = None
+    assigned_st = st.session_state.get("assigned_state")
+    if assigned_st in STATES:
+        st.session_state["_override_canvas_state"] = assigned_st
+    else:
+        st.session_state["_override_canvas_state"] = None
     st.session_state["confirm_action"] = None
     for k in list(st.session_state.keys()):
         if any(k.startswith(p) for p in ["op_state_", "op_team_", "op_comp_", "op_health_", "op_search_"]):
@@ -228,8 +232,15 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     with c_f1:
         q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search...", label_visibility="collapsed", autocomplete="off")
     with c_f2:
-        state_opts = ["All States"] + STATES
-        state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
+        assigned_st = st.session_state.get("assigned_state")
+        if assigned_st in STATES:
+            state_opts = [assigned_st]
+            if op_st_key not in st.session_state or st.session_state[op_st_key] != assigned_st:
+                st.session_state[op_st_key] = assigned_st
+            state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed", disabled=True)
+        else:
+            state_opts = ["All States"] + STATES
+            state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
     with c_f3:
         team_filter = st.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
     with c_f4:

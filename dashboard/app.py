@@ -2130,11 +2130,23 @@ with st.sidebar:
         st.session_state["assigned_state"] = None
         st.rerun()
 
-    _sb_tot = len(records)
-    _sb_hlth = int((records["band"] == "Healthy").sum()) if _sb_tot else 0
-    _sb_crit = int((records["band"].isin(["Expired", "Critical"])).sum()) if _sb_tot else 0
+    _assigned_state = st.session_state.get("assigned_state")
+    _is_siloed = (_assigned_state in STATES)
+
+    if _is_siloed:
+        records_scoped = records[records["state"] == _assigned_state].copy()
+        _sb_envs = len(records_scoped["env_no"].unique()) if "env_no" in records_scoped.columns else len(records_scoped["environment"].unique())
+        _sb_prod = len(records_scoped[records_scoped["env_label"] == "PROD"]["env_no"].unique()) if "env_no" in records_scoped.columns else (1 if _assigned_state in ["AK", "NH"] else 0)
+        _sb_topo_str = f"{_sb_envs} ({_sb_prod} PROD · {_sb_envs - _sb_prod} Non-Prod)"
+    else:
+        records_scoped = records.copy()
+        _sb_topo_str = "25 (8 AK · 8 ND · 9 NH)"
+
+    _sb_tot = len(records_scoped)
+    _sb_hlth = int((records_scoped["band"] == "Healthy").sum()) if _sb_tot else 0
+    _sb_crit = int((records_scoped["band"].isin(["Expired", "Critical"])).sum()) if _sb_tot else 0
     _sb_sla = f"{(_sb_hlth / _sb_tot * 100.0):.1f}% OK" if _sb_tot else "100% OK"
-    _sb_prod_exp = int(((records["days_left"] < 0) & (records["env_label"] == "PROD")).sum()) if _sb_tot else 0
+    _sb_prod_exp = int(((records_scoped["days_left"] < 0) & (records_scoped["env_label"] == "PROD")).sum()) if _sb_tot else 0
     _sb_resil = "100% OK" if _sb_prod_exp == 0 else f"{_sb_prod_exp} At-Risk"
 
     st.markdown(f"""
@@ -2148,7 +2160,7 @@ with st.sidebar:
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(56,189,248,0.08);border-radius:4px;border:1px solid rgba(56,189,248,0.2);">
           <span style="color:#38bdf8;">Topology (Envs)</span>
-          <b style="color:#38bdf8;font-family:var(--mono);">25 (8 AK · 8 ND · 9 NH)</b>
+          <b style="color:#38bdf8;font-family:var(--mono);">{_sb_topo_str}</b>
         </div>
         <div style="display:flex;justify-content:space-between;padding:4px 7px;background:rgba(16,185,129,0.08);border-radius:4px;border:1px solid rgba(16,185,129,0.2);">
           <span style="color:#34d399;">Fleet SLA</span>
@@ -2170,36 +2182,51 @@ with st.sidebar:
 
 
 # --- Global Query Param & Cross-Workspace State Synchronization ---
+_assigned_state = st.session_state.get("assigned_state")
+_is_siloed = (_assigned_state in STATES)
+
 _qp_gst = st.query_params.get("global_state")
-if _qp_gst is not None:
-    if _qp_gst in STATES:
-        if st.session_state.get("_override_canvas_state") == _qp_gst:
-            # Toggle off if already active
+
+if _is_siloed:
+    # Strict Multi-Tenant Siloing: Permanent lockdown to assigned state
+    active_scope_state = _assigned_state
+    st.session_state["_override_canvas_state"] = _assigned_state
+    st.session_state["gov_state_filter"] = _assigned_state
+    _r_idx = st.session_state.get("op_reset_idx", 0)
+    st.session_state[f"op_state_{_r_idx}"] = _assigned_state
+    _st_labels = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
+    st.session_state["sl_state_clean"] = _st_labels.get(_assigned_state, "All States")
+    if _qp_gst is not None:
+        del st.query_params["global_state"]
+    records_workspace = records_scoped.copy()
+else:
+    if _qp_gst is not None:
+        if _qp_gst in STATES:
+            if st.session_state.get("_override_canvas_state") == _qp_gst:
+                st.session_state["_override_canvas_state"] = None
+                st.session_state["gov_state_filter"] = "All"
+                _r_idx = st.session_state.get("op_reset_idx", 0)
+                st.session_state[f"op_state_{_r_idx}"] = "All States"
+                st.session_state["sl_state_clean"] = "All States"
+            else:
+                st.session_state["_override_canvas_state"] = _qp_gst
+                st.session_state["gov_state_filter"] = _qp_gst
+                _r_idx = st.session_state.get("op_reset_idx", 0)
+                st.session_state[f"op_state_{_r_idx}"] = _qp_gst
+                _st_labels = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
+                st.session_state["sl_state_clean"] = _st_labels.get(_qp_gst, "All States")
+        elif _qp_gst in ["ALL", "Fleet", "fleet", "clear", ""]:
             st.session_state["_override_canvas_state"] = None
             st.session_state["gov_state_filter"] = "All"
             _r_idx = st.session_state.get("op_reset_idx", 0)
             st.session_state[f"op_state_{_r_idx}"] = "All States"
             st.session_state["sl_state_clean"] = "All States"
-        else:
-            st.session_state["_override_canvas_state"] = _qp_gst
-            st.session_state["gov_state_filter"] = _qp_gst
-            _r_idx = st.session_state.get("op_reset_idx", 0)
-            st.session_state[f"op_state_{_r_idx}"] = _qp_gst
-            _st_labels = {"AK": "Alaska (AK)", "ND": "North Dakota (ND)", "NH": "New Hampshire (NH)"}
-            st.session_state["sl_state_clean"] = _st_labels.get(_qp_gst, "All States")
-    elif _qp_gst in ["ALL", "Fleet", "fleet", "clear", ""]:
-        st.session_state["_override_canvas_state"] = None
-        st.session_state["gov_state_filter"] = "All"
-        _r_idx = st.session_state.get("op_reset_idx", 0)
-        st.session_state[f"op_state_{_r_idx}"] = "All States"
-        st.session_state["sl_state_clean"] = "All States"
-    del st.query_params["global_state"]
+        del st.query_params["global_state"]
 
-active_scope_state = st.session_state.get("_override_canvas_state")
+    active_scope_state = st.session_state.get("_override_canvas_state")
+    records_workspace = records.copy()
+
 global_sel = st.session_state.get("global_release_selection")
-
-# Retain full unmutated records so workspace filters (State, Team, Comp, Health) operate across all 500 records
-records_full = records.copy()
 
 # ==========================================================================
 # Global Fixed Top Banner (State & Environment Fleet Topology)
@@ -2230,43 +2257,76 @@ for _st_code in STATES:
     }
 
 _chips_html = []
-_is_fleet_active = not active_scope_state
-_fleet_tip = f"Fleet Infrastructure: {_tot_envs_count} distinct environments across 3 states ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) — {len(records)} assets"
-_fleet_bg = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if _is_fleet_active else "background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);"
-_fleet_color = "#38bdf8" if _is_fleet_active else "#94a3b8"
 
-_chips_html.append(
-    f'<a href="?global_state=ALL{_auth_suffix}" target="_self" class="topo-chip{" active" if _is_fleet_active else ""}" '
-    f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:{_fleet_color};{_fleet_bg}text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_fleet_tip}">'
-    f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:#10b981;flex:none;display:inline-block;"></span>'
-    f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:{"#38bdf8" if _is_fleet_active else "#f8fafc"};">FLEET</b> {_tot_envs_count} Envs</a>'
-)
+if _is_siloed:
+    # Strict Multi-Tenant Siloed Mode: Lock down non-assigned states with 🔒
+    _sm_silo = _st_meta.get(_assigned_state, {})
+    _scope_badge = f'<span style="font-size:7.5px;font-weight:800;background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">🔒 {_assigned_state} SILOED</span>'
+    _telem_text = f"{_assigned_state} Fleet: {_sm_silo.get('envs', 0)} Envs ({_sm_silo.get('prod', 0)} PROD · {_sm_silo.get('nonprod', 0)} Non-Prod) · {_sm_silo.get('assets', 0)} Assets"
 
-for _st_code in ["AK", "NH", "ND"]:
-    _sm = _st_meta.get(_st_code, {})
-    _is_act = (active_scope_state == _st_code)
-    _dot_color = "#ef4444" if _sm.get("exp", 0) > 0 else "#10b981"
-    _tip = f"{_st_code} Fleet: {_sm.get('envs', 0)} Environments ({_sm.get('prod', 0)} PROD · {_sm.get('nonprod', 0)} Non-Prod) — {_sm.get('assets', 0)} assets, {_sm.get('pct', '100')}% Compliant"
-    _st_bg = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if _is_act else "background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);"
-    _st_color = "#38bdf8" if _is_act else "#94a3b8"
-
+    # FLEET chip disabled
     _chips_html.append(
-        f'<a href="?global_state={_st_code}{_auth_suffix}" target="_self" class="topo-chip{" active" if _is_act else ""}" '
-        f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:{_st_color};{_st_bg}text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_tip}">'
-        f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:{_dot_color};flex:none;display:inline-block;"></span>'
-        f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:{"#38bdf8" if _is_act else "#f8fafc"};">{_st_code}</b> {_sm.get("envs", 0)} Envs</a>'
+        f'<span class="topo-chip disabled" style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:#64748b;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.12);cursor:not-allowed;white-space:nowrap;" title="Restricted by policy: Your assigned role scope is {_assigned_state}">'
+        f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:#475569;flex:none;display:inline-block;"></span>'
+        f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:#64748b;">FLEET</b> 🔒</span>'
     )
 
-_chips_str = "".join(_chips_html)
+    for _st_code in ["AK", "NH", "ND"]:
+        _sm = _st_meta.get(_st_code, {})
+        if _st_code == _assigned_state:
+            _dot_color = "#ef4444" if _sm.get("exp", 0) > 0 else "#10b981"
+            _tip = f"{_st_code} Fleet (Siloed Scope): {_sm.get('envs', 0)} Environments ({_sm.get('prod', 0)} PROD · {_sm.get('nonprod', 0)} Non-Prod) — {_sm.get('assets', 0)} assets, {_sm.get('pct', '100')}% Compliant"
+            _chips_html.append(
+                f'<a href="?global_state={_st_code}{_auth_suffix}" target="_self" class="topo-chip active" '
+                f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:#38bdf8;background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_tip}">'
+                f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:{_dot_color};flex:none;display:inline-block;"></span>'
+                f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:#38bdf8;">{_st_code}</b> {_sm.get("envs", 0)} Envs 🔒</a>'
+            )
+        else:
+            _chips_html.append(
+                f'<span class="topo-chip disabled" style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:#64748b;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.12);cursor:not-allowed;white-space:nowrap;" title="Restricted by policy: Your assigned role scope is {_assigned_state}">'
+                f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:#475569;flex:none;display:inline-block;"></span>'
+                f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:#64748b;">{_st_code}</b> 🔒</span>'
+            )
 
-if active_scope_state in STATES:
-    _sm_act = _st_meta.get(active_scope_state, {})
-    _scope_badge = f'<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">{active_scope_state} SCOPED</span>'
-    _telem_text = f"{active_scope_state}: {_sm_act.get('envs', 0)} Envs ({_sm_act.get('prod', 0)} PROD · {_sm_act.get('nonprod', 0)} Non-Prod) · {_sm_act.get('assets', 0)} Assets"
 else:
-    _scope_badge = '<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">ALL FLEET</span>'
-    _telem_text = f"{_tot_envs_count} Active Envs ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) · {len(records)} Assets"
+    # Global Admin / Unrestricted Mode
+    _is_fleet_active = not active_scope_state
+    _fleet_tip = f"Fleet Infrastructure: {_tot_envs_count} distinct environments across 3 states ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) — {len(records)} assets"
+    _fleet_bg = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if _is_fleet_active else "background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);"
+    _fleet_color = "#38bdf8" if _is_fleet_active else "#94a3b8"
 
+    _chips_html.append(
+        f'<a href="?global_state=ALL{_auth_suffix}" target="_self" class="topo-chip{" active" if _is_fleet_active else ""}" '
+        f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:{_fleet_color};{_fleet_bg}text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_fleet_tip}">'
+        f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:#10b981;flex:none;display:inline-block;"></span>'
+        f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:{"#38bdf8" if _is_fleet_active else "#f8fafc"};">FLEET</b> {_tot_envs_count} Envs</a>'
+    )
+
+    for _st_code in ["AK", "NH", "ND"]:
+        _sm = _st_meta.get(_st_code, {})
+        _is_act = (active_scope_state == _st_code)
+        _dot_color = "#ef4444" if _sm.get("exp", 0) > 0 else "#10b981"
+        _tip = f"{_st_code} Fleet: {_sm.get('envs', 0)} Environments ({_sm.get('prod', 0)} PROD · {_sm.get('nonprod', 0)} Non-Prod) — {_sm.get('assets', 0)} assets, {_sm.get('pct', '100')}% Compliant"
+        _st_bg = "background:rgba(56,189,248,0.18);border:1px solid #38bdf8;box-shadow:0 0 6px rgba(56,189,248,0.25);" if _is_act else "background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);"
+        _st_color = "#38bdf8" if _is_act else "#94a3b8"
+
+        _chips_html.append(
+            f'<a href="?global_state={_st_code}{_auth_suffix}" target="_self" class="topo-chip{" active" if _is_act else ""}" '
+            f'style="display:inline-flex;align-items:center;gap:3.5px;height:20px;padding:0 6px;border-radius:3px;font-family:var(--ui);font-size:8.5px;font-weight:600;color:{_st_color};{_st_bg}text-decoration:none;white-space:nowrap;cursor:pointer;" title="{_tip}">'
+            f'<span style="width:4.5px;height:4.5px;border-radius:50%;background:{_dot_color};flex:none;display:inline-block;"></span>'
+            f'<b style="font-family:var(--mono);font-size:8.5px;font-weight:800;color:{"#38bdf8" if _is_act else "#f8fafc"};">{_st_code}</b> {_sm.get("envs", 0)} Envs</a>'
+        )
+
+    if active_scope_state in STATES:
+        _sm_act = _st_meta.get(active_scope_state, {})
+        _scope_badge = f'<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">{active_scope_state} SCOPED</span>'
+        _telem_text = f"{active_scope_state}: {_sm_act.get('envs', 0)} Envs ({_sm_act.get('prod', 0)} PROD · {_sm_act.get('nonprod', 0)} Non-Prod) · {_sm_act.get('assets', 0)} Assets"
+    else:
+        _scope_badge = '<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">ALL FLEET</span>'
+        _telem_text = f"{_tot_envs_count} Active Envs ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) · {len(records)} Assets"
+
+_chips_str = "".join(_chips_html)
 _utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
 
 st.markdown(f"""
@@ -2305,10 +2365,10 @@ with tab_overview:
         canvas("all", None, CANVAS_OVERVIEW)
 
 with tab_operations:
-    render_operations_hub(records_full)
+    render_operations_hub(records_workspace)
 
 with tab_governance:
-    render_governance_center(records_full)
+    render_governance_center(records_workspace)
 
 with tab_rbac:
     render_rbac_workspace()
