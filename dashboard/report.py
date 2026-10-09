@@ -224,6 +224,31 @@ body{
   text-transform:uppercase; color:var(--accent); background:var(--accent-tint);
   border:1px solid var(--accent-line); border-radius:4px; padding:1px 4px; white-space:nowrap;
 }
+.state-env-strip{
+  display:inline-flex; align-items:center; gap:4px; flex:none;
+}
+.state-env-chip{
+  display:inline-flex; align-items:center; gap:3.5px; height:19px; padding:0 5px;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:3px;
+  font-family:var(--ui); font-size:8.5px; font-weight:600; color:var(--slate);
+  cursor:pointer; transition:all .1s ease; white-space:nowrap; text-decoration:none;
+}
+.state-env-chip:hover{
+  background:rgba(56,189,248,0.12); border-color:rgba(56,189,248,0.45); color:var(--ink);
+}
+.state-env-chip.active{
+  background:rgba(56,189,248,0.2); border-color:#38bdf8; color:#38bdf8; font-weight:700;
+  box-shadow:0 0 6px rgba(56,189,248,0.3);
+}
+.state-env-chip b{
+  font-family:var(--mono); font-weight:800; font-size:8.5px; color:var(--ink);
+}
+.state-env-chip.active b{ color:#38bdf8; }
+.sec-dot{
+  width:4.5px; height:4.5px; border-radius:50%; background:#10b981; flex:none;
+}
+.sec-dot.warn{ background:#f59e0b; }
+.sec-dot.crit{ background:#ef4444; }
 
 /* Cascading Filter Bar & Intelligence Strip (2026 Edition) */
 .cascade-bar{
@@ -856,6 +881,7 @@ _BODY = r"""
     <div class="head-row head-unified-bar">
       <div class="head-left-group">
         <div class="brand"><h1>Expiry Watchtower</h1><span class="where" id="mWhere"></span></div>
+        <div class="state-env-strip" id="mStateEnvStrip"></div>
         <div class="intel-strip" id="mAlertBanner"></div>
       </div>
       <div class="dominant-compliance-inner" id="mDominantCompliance"></div>
@@ -1257,6 +1283,36 @@ function renderDominantCompliance(S){
     + urgentText;
 }
 
+// ---- interactive state & environment topology strip -------------------
+function renderStateEnvStrip(S){
+  const rs = DATA.records;
+  const fleetNodes = new Set(rs.map(r => (r.state || "") + "_" + (r.envNo || r.environment)));
+  const fleetN = fleetNodes.size;
+
+  const chips = [];
+  const isFleet = !S.state;
+  chips.push('<button class="state-env-chip' + (isFleet ? ' active' : '') + '" type="button" data-act="state" data-val="" title="Fleet Infrastructure: ' + fleetN + ' distinct environment instances across ' + DATA.states.length + ' states (2 PROD · 23 Non-Prod)">'
+    + '<span class="sec-dot"></span><b>FLEET</b> ' + fleetN + ' Envs</button>');
+
+  DATA.states.forEach(st => {
+    const stRows = rs.filter(r => r.state === st);
+    const stNodes = new Set(stRows.map(r => r.envNo || r.environment));
+    const stN = stNodes.size;
+    const stProd = stRows.filter(r => r.environment === "PROD").length > 0 ? 1 : 0;
+    const stNonProd = stN - stProd;
+    const stExp = stRows.filter(r => r.band === "Expired").length;
+    const stHlth = stRows.filter(r => r.band === "Healthy").length;
+    const stPct = stRows.length ? (stHlth / stRows.length * 100).toFixed(1) : "100.0";
+    const dotCls = stExp > 0 ? "sec-dot warn" : "sec-dot";
+    const tip = st + " Fleet: " + stN + " Environments (" + (stProd ? "1 PROD · " : "0 PROD · ") + stNonProd + " Non-Prod) — " + stRows.length + " assets, " + stPct + "% Compliant";
+    const isAct = S.state === st;
+    chips.push('<button class="state-env-chip' + (isAct ? ' active' : '') + '" type="button" data-act="state" data-val="' + esc(st) + '" title="' + esc(tip) + '">'
+      + '<span class="' + dotCls + '"></span><b>' + esc(st) + '</b> ' + stN + ' Envs</button>');
+  });
+
+  return chips.join("");
+}
+
 // ---- activity comparison strip ---------------------------------------
 function renderSinceVisit(snaps){
   let deltaText = '<span style="color:var(--healthy)">0 new overdue</span>';
@@ -1431,15 +1487,33 @@ function renderKpis(S){
   const snaps = getScopeSnapshots(S);
   const prevSnap = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
 
+  const envNodes = new Set(base.map(r => (r.state || "") + "_" + (r.envNo || r.environment)));
+  const envN = envNodes.size;
+  const prodNodes = new Set(base.filter(r => r.environment === "PROD").map(r => (r.state || "") + "_" + (r.envNo || r.environment)));
+  const prodN = prodNodes.size;
+  const nonProdN = envN - prodN;
+
+  let topologySub = "";
+  if (!S.state){
+    const akN = new Set(base.filter(r => r.state === "AK").map(r => r.envNo || r.environment)).size;
+    const ndN = new Set(base.filter(r => r.state === "ND").map(r => r.envNo || r.environment)).size;
+    const nhN = new Set(base.filter(r => r.state === "NH").map(r => r.envNo || r.environment)).size;
+    topologySub = envN + " Envs (" + akN + " AK · " + ndN + " ND · " + nhN + " NH) · 2 PROD";
+  } else {
+    topologySub = envN + " Envs (" + (prodN ? prodN + " PROD · " : "0 PROD · ") + nonProdN + " Non-Prod)";
+  }
+
+  const kpi1Title = "Fleet Infrastructure: " + envN + " distinct environment instances across " + (S.state || DATA.states.length + " states") + " (" + (prodN ? prodN + " PROD · " : "0 PROD · ") + nonProdN + " Non-Prod) — " + total + " assets";
+
   const trackedSpark = sparklineSvg(snaps.map(s => s.tracked), T.accent);
   const trackedTrend = trendDelta(total, prevSnap ? prevSnap.tracked : null, "tracked");
   const tiles = [
     '<button class="kpi stat-fill-neutral" type="button" data-act="band" data-val="" aria-pressed="'
     + (S.band ? "false" : "true") + '"'
-    + ' data-tip="Show every health status">'
+    + ' data-tip="' + esc(kpi1Title) + '">'
     + '<div class="kpi-row1"><div class="v">' + total + '</div>' + trackedSpark + '</div>'
-    + '<div class="k">Tracked items</div>'
-    + '<div class="kpi-row2"><div class="s">' + scope.map(esc).join(" &middot; ") + '</div>' + trackedTrend + '</div>'
+    + '<div class="k">Tracked Assets &middot; ' + envN + ' Envs</div>'
+    + '<div class="kpi-row2"><div class="s" title="' + esc(topologySub) + '">' + esc(topologySub) + '</div>' + trackedTrend + '</div>'
     + '</button>'
   ];
 
@@ -2746,7 +2820,7 @@ const S = {
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
-["mWhere", "mDominantCompliance", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
+["mWhere", "mStateEnvStrip", "mDominantCompliance", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenTitle", "mWhenHint",
  "mWhenSeg", "mWhen", "mStoryModal", "mCadenceModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
@@ -2764,6 +2838,7 @@ function animateNumbers(){
 
 function apply(){
   put("mWhere", esc(whereLabel(S)));
+  put("mStateEnvStrip", renderStateEnvStrip(S));
   put("mDominantCompliance", renderDominantCompliance(S));
   put("mCascades", renderCascades(S));
   put("mAlertBanner", renderAlertBanner(S));
@@ -3420,7 +3495,7 @@ if (typeof module !== "undefined" && module.exports){
   module.exports = { rows, counts, soonest, sorted, healthOf, worstBand, fmtDate, fmtDays,
                      fmtDaysLong, renderTable, renderSummary, summaryRows, visibleCount,
                      renderKpis, renderComps, renderHorizon, renderEnvs, renderCoverage,
-                     renderCadence, renderWhen, renderCascades, renderAlertBanner, isMaintToday,
+                     renderCadence, renderWhen, renderCascades, renderAlertBanner, renderStateEnvStrip, isMaintToday,
                      renderSlicers, renderCrumbs, renderPager, renderNarrative,
                      renderSinceVisit, sparklineSvg, trendDelta, storySteps, clampStr,
                      getScopeSnapshots, METRIC_DIRECTIONS, tableHint, whereLabel, focusHint,

@@ -49,7 +49,7 @@ function loadEngine(file) {
     ";Object.assign(module.exports,{DATA,rows,counts,soonest,sorted,healthOf,worstBand," +
     "fmtDate,fmtDays,fmtDaysLong,renderTable,renderSummary,summaryRows,visibleCount," +
     "renderKpis,renderComps,renderHorizon,renderEnvs,renderCoverage,renderCadence,renderWhen," +
-    "renderCascades,renderAlertBanner,isMaintToday,renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
+    "renderCascades,renderAlertBanner,renderStateEnvStrip,isMaintToday,renderSlicers,renderCrumbs,renderPager,renderNarrative,renderSinceVisit,sparklineSvg," +
     "trendDelta,storySteps,clampStr,getScopeSnapshots,METRIC_DIRECTIONS,tableHint," +
     "whereLabel,focusHint,whenHint,quarters,qOrd,COLS,SUM_COLS,SORTS});",
     ctx, { filename: path.basename(file) }
@@ -557,6 +557,18 @@ eq("story mode returns 4 sequential steps", steps.length, 4);
 steps.forEach((st, idx) => {
   ok("story step " + (idx + 1) + " desc fits <= 80 chars", st.desc.length <= 80, "got length " + st.desc.length + ": " + st.desc);
 });
+
+// =========================================================================
+// 23. state & environment topology strip
+// =========================================================================
+const envStrip = E.renderStateEnvStrip(base());
+ok("env strip contains FLEET 25 Envs", envStrip.includes("FLEET</b> 25 Envs"));
+ok("env strip contains AK 8 Envs", envStrip.includes("AK</b> 8 Envs"));
+ok("env strip contains ND 8 Envs", envStrip.includes("ND</b> 8 Envs"));
+ok("env strip contains NH 9 Envs", envStrip.includes("NH</b> 9 Envs"));
+const akStrip = E.renderStateEnvStrip(withS({ state: "AK" }));
+ok("env strip highlights active state", akStrip.includes('data-val="AK"') && akStrip.includes("active"));
+
 
 // =========================================================================
 // report

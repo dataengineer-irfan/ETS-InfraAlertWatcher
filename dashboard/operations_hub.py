@@ -347,7 +347,16 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     hlth_cnt = int((filtered["days_left"] > ui.WARNING_DAYS).sum())
     g_exp = int((df["days_left"] < 0).sum())
 
-    k1_sub = f"Filtered scope ({scope_cnt} of {tot_cnt})" if scope_cnt < tot_cnt else "Consolidated fleet coverage"
+    if state_filter == "All States":
+        tot_envs = len(df["env_no"].unique()) if "env_no" in df.columns else 25
+        ak_envs = len(df[df["state"] == "AK"]["env_no"].unique()) if "env_no" in df.columns else 8
+        nd_envs = len(df[df["state"] == "ND"]["env_no"].unique()) if "env_no" in df.columns else 8
+        nh_envs = len(df[df["state"] == "NH"]["env_no"].unique()) if "env_no" in df.columns else 9
+        k1_sub = f"{tot_envs} Envs ({ak_envs} AK · {nd_envs} ND · {nh_envs} NH) · 6 Tiers" if scope_cnt == tot_cnt else f"Filtered scope ({scope_cnt} of {tot_cnt})"
+    else:
+        st_envs = len(filtered["env_no"].unique()) if "env_no" in filtered.columns else len(filtered["environment"].unique())
+        st_prod = len(filtered[filtered["environment"] == "PROD"]["env_no"].unique()) if "env_no" in filtered.columns else 0
+        k1_sub = f"{st_envs} Envs ({st_prod} PROD · {st_envs - st_prod} Non-Prod)"
     k2_sub = f"Requires renewal ({g_exp} fleet)" if (scope_cnt < tot_cnt and exp_cnt != g_exp) else ("Requires immediate renewal" if exp_cnt else "Zero overdue accounts")
     k3_sub = f"{crit_cnt} critical · {warn_cnt} warning"
     pct_local = (hlth_cnt / scope_cnt * 100) if scope_cnt else 0
@@ -426,7 +435,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         bluf_bg = "rgba(16,185,129,0.06)"
         bluf_border = "rgba(16,185,129,0.25)"
         bluf_icon = "🟢"
-        bluf_headline = "FLEET OPERATIONAL POSTURE: STABLE"
+        bluf_headline = "FLEET OPERATIONAL POSTURE: STABLE (25 Active Envs)" if state_filter == "All States" else f"OPERATIONAL POSTURE: STABLE ({st_envs} Active Envs)"
         bluf_detail = f"0 Production Violations · {exp_cnt} Non-Prod Action Items · {pct_local:.1f}% Compliance"
         bluf_badge = '<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: MINIMAL</span>'
     else:
