@@ -562,8 +562,8 @@ def render_rbac_workspace(db_path: str) -> None:
             tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No enterprise accounts match active filters.</td></tr>'
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 275px);min-height:360px;overflow-y:auto;">
-              <table style="width:100%;border-collapse:collapse;text-align:left;">
+            <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 275px);max-height:calc(100vh - 275px);min-height:clamp(220px, calc(100vh - 275px), 360px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+              <table style="width:100%;min-width:680px;border-collapse:collapse;text-align:left;">
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
                     <th style="padding:4px 6px;">Username</th>
@@ -733,8 +733,8 @@ def render_rbac_workspace(db_path: str) -> None:
         audit_body = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No security audit records match active filter criteria.</td></tr>'
 
         st.markdown(f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;max-height:calc(100vh - 275px);min-height:360px;overflow-y:auto;">
-          <table style="width:100%;border-collapse:collapse;text-align:left;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 275px);max-height:calc(100vh - 275px);min-height:clamp(220px, calc(100vh - 275px), 360px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+          <table style="width:100%;min-width:680px;border-collapse:collapse;text-align:left;">
             <thead>
               <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
                 <th style="padding:4px 6px;">Timestamp (UTC)</th>
@@ -794,8 +794,8 @@ def render_rbac_workspace(db_path: str) -> None:
                 )
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#181b1f;">
-              <table style="width:100%;border-collapse:collapse;text-align:left;">
+            <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+              <table style="width:100%;min-width:560px;border-collapse:collapse;text-align:left;">
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;">
                     <th style="padding:5px 8px;">Capability / Entitlement</th>

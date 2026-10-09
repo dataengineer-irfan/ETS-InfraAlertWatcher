@@ -393,7 +393,7 @@ def css() -> str:
 }}
 
 /* Viewport layout & Ultrawide / 4K Centering */
-.block-container {{ max-width:1800px !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
+.block-container {{ max-width:min(2400px, 98vw) !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
 [data-testid="stVerticalBlock"] {{ gap:.5rem; }}
@@ -450,7 +450,15 @@ iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}}
+.topo-chips::-webkit-scrollbar {{
+  display: none;
+  width: 0;
+  height: 0;
 }}
 .topo-chip {{
   display: inline-flex;
@@ -522,6 +530,24 @@ iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100
   color: #64748b;
   font-family: var(--mono);
   white-space: nowrap;
+}}
+@media (max-width: 1024px) {{
+  .global-topo-banner {{
+    gap: 4px !important;
+    padding: 0 4px !important;
+  }}
+  .topo-chip {{
+    padding: 0 4px !important;
+    font-size: 8px !important;
+  }}
+  .topo-clock {{
+    display: none !important;
+  }}
+}}
+@media (max-width: 980px) {{
+  .topo-telem-pill {{
+    display: none !important;
+  }}
 }}
 
 /* Screen Viewport Layout: Fallback scroll prevents permanent content loss on scaled viewports */
@@ -712,7 +738,11 @@ code, kbd, .mono, .num {{
   font-variant-numeric: tabular-nums !important;
 }}
 
-/* Custom scrollbars */
+/* Custom scrollbars (WebKit & Firefox Gecko) */
+* {{
+  scrollbar-width: thin;
+  scrollbar-color: #38bdf8 #181b1f;
+}}
 ::-webkit-scrollbar {{ width:6px; height:6px; }}
 ::-webkit-scrollbar-track {{ background:var(--bg); }}
 ::-webkit-scrollbar-thumb {{ background:var(--rule); border-radius:2px; }}

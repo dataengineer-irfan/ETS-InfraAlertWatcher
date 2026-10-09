@@ -17,11 +17,13 @@ body {
     border: 1px solid #2c3235;
     border-radius: 4px;
     box-sizing: border-box;
-    overflow-x: hidden;
+    overflow-x: auto;
     overflow-y: auto;
     height: 100%;
-    min-height: 380px;
+    min-height: clamp(200px, 100%, 380px);
     max-height: 440px;
+    scrollbar-width: thin;
+    scrollbar-color: #38bdf8 #181b1f;
 }
 table {
     width: 100%;

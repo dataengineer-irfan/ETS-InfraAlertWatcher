@@ -862,12 +862,18 @@ body{
 .cluster-card.stable{ border-left-color:var(--healthy); background:rgba(16,185,129,0.05); }
 
 @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+@media (max-width:1150px){
+  .kpis{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
 @media (max-width:920px){
   .kpis{ grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .shell{ grid-template-rows:auto auto minmax(96px,.9fr) minmax(132px,1.5fr) minmax(142px,1.8fr); }
+  .shell{ grid-template-rows:auto auto minmax(140px,1.2fr) minmax(160px,1.4fr); }
 }
 @media (max-width:820px){
   .rowB,.rowC{ grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:640px){
+  .kpis{ grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 """
 

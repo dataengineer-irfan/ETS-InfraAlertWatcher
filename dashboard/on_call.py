@@ -542,19 +542,17 @@ def render_on_call_workspace(db_path: str) -> None:
     # High-Density CSS
     st.markdown("""
     <style>
-    .block-container {
-        padding-top: 0.3rem !important;
-        padding-bottom: 0 !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
-        max-width: 100% !important;
-    }
     .oc-kpi-row {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 5px;
         margin-bottom: 4px;
         margin-top: 2px;
+    }
+    @media (max-width: 960px) {
+        .oc-kpi-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
     }
     .oc-stat-card {
         background: #181b1f;
@@ -611,8 +609,9 @@ def render_on_call_workspace(db_path: str) -> None:
         border: 1px solid #2c3235;
         border-radius: 3px;
         background: #141619;
-        height: 380px !important;
-        max-height: 380px !important;
+        height: calc(100vh - 270px) !important;
+        max-height: calc(100vh - 270px) !important;
+        min-height: clamp(220px, calc(100vh - 270px), 380px) !important;
         overflow-y: auto !important;
         overflow-x: auto !important;
         scrollbar-width: thin;

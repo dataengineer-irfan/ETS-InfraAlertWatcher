@@ -643,7 +643,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         overflow-y: scroll !important;
         overflow-x: auto;
         height: calc(100vh - 435px);
-        min-height: 330px;
+        min-height: clamp(160px, calc(100vh - 435px), 330px);
         max-height: 520px;
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #141619;

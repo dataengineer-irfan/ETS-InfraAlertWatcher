@@ -864,8 +864,9 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: 432px;
-        max-height: 432px;
+        height: calc(100vh - 270px);
+        max-height: calc(100vh - 270px);
+        min-height: 220px;
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
     }
@@ -2331,17 +2332,17 @@ _utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
 
 st.markdown(f"""
 <div class="global-topo-banner" style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:28px;line-height:1;padding:0 8px;background:#141619;border:1px solid #22252b;border-radius:3px;margin:2px 0 6px;box-sizing:border-box;">
-  <div style="display:flex;align-items:center;gap:6px;flex:none;">
+  <div class="topo-brand-group" style="display:flex;align-items:center;gap:6px;flex:none;">
     <div style="width:3px;height:14px;background:#f59e0b;border-radius:1px;flex:none;"></div>
     <span style="font-size:10px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">ETS WATCHTOWER</span>
     {_scope_badge}
   </div>
-  <div style="display:flex;align-items:center;gap:4px;flex:none;">
+  <div class="topo-chips" style="display:flex;align-items:center;gap:4px;min-width:0;">
     {_chips_str}
   </div>
-  <div style="display:flex;align-items:center;gap:8px;flex:none;">
-    <span style="font-size:8px;font-weight:700;color:#94a3b8;font-family:var(--mono);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.5px 6px;border-radius:2px;white-space:nowrap;">{_telem_text}</span>
-    <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
+  <div class="topo-telem" style="display:flex;align-items:center;gap:8px;flex:none;">
+    <span class="topo-telem-pill" style="font-size:8px;font-weight:700;color:#94a3b8;font-family:var(--mono);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.5px 6px;border-radius:2px;white-space:nowrap;">{_telem_text}</span>
+    <span class="topo-clock" style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
   </div>
 </div>
 """, unsafe_allow_html=True)

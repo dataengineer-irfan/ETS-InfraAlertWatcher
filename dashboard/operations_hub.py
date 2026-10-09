@@ -469,7 +469,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     _render_html(f"""
     {bluf_html}
-    <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:6px;margin-bottom:4px;">
+    <div class="op-kpi-grid">
       {c_k1}
       {c_k2}
       {c_k3}
@@ -536,6 +536,17 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     # ==========================================================================
     st.markdown("""
     <style>
+    .op-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    @media (max-width: 960px) {
+        .op-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
     .op-master-table-box {
         background: #181b1f;
         border: 1px solid #2c3235;
@@ -545,7 +556,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         overflow-x: auto;
         height: calc(100vh - 275px);
         max-height: calc(100vh - 275px);
-        min-height: 440px;
+        min-height: clamp(240px, calc(100vh - 275px), 440px);
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
     }
@@ -576,6 +587,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         box-sizing: border-box !important;
         height: calc(100vh - 275px) !important;
         max-height: calc(100vh - 275px) !important;
+        min-height: clamp(240px, calc(100vh - 275px), 440px) !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         scrollbar-width: thin !important;
@@ -591,6 +603,19 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     div.st-key-op_detail_box::-webkit-scrollbar-thumb {
         background: #334155;
         border-radius: 3px;
+    }
+    div.st-key-op_detail_box div[data-testid="stHorizontalBlock"] button {
+        padding: 0 3px !important;
+        font-size: 9.5px !important;
+        min-height: 24px !important;
+        height: 24px !important;
+    }
+    @media (max-width: 1200px) {
+        div[data-testid="stHorizontalBlock"] [data-baseweb="select"] > div {
+            padding-left: 4px !important;
+            padding-right: 2px !important;
+            font-size: 10px !important;
+        }
     }
     div.st-key-op_subtabs_container div[data-testid="stTabs"] {
         position: relative !important;
