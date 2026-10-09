@@ -222,16 +222,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         st.session_state[op_st_key] = active_scope
 
     # ==========================================================================
-    # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | 5 Slicers | Telemetry & Actions)
+    # 1. UNIVERSAL 2-TIER COMMAND RIBBON (Tier 1: Brand & Telemetry | Tier 2: Slicers)
     # ==========================================================================
-    c_brand, c_f1, c_f2, c_f3, c_f4, c_f5, c_telem, c_csv, c_reset = st.columns(
-        [1.35, 1.4, 1.05, 1.15, 1.15, 1.05, 1.25, 0.5, 0.35],
+    top_hdr_container = st.container()
+
+    c_srch, c_f_st, c_f_tm, c_f_comp, c_f_hlth = st.columns(
+        [2.8, 1.3, 1.5, 1.5, 1.3],
         gap="small"
     )
 
-    with c_f1:
-        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search...", label_visibility="collapsed", autocomplete="off")
-    with c_f2:
+    with c_srch:
+        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search schema, env, comp...", label_visibility="collapsed", autocomplete="off")
+    with c_f_st:
         assigned_st = st.session_state.get("assigned_state")
         if assigned_st in STATES:
             state_opts = [assigned_st]
@@ -241,9 +243,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         else:
             state_opts = ["All States"] + STATES
             state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
-    with c_f3:
+    with c_f_tm:
         team_filter = st.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
-    with c_f4:
+    with c_f_comp:
         comp_filter = st.selectbox(
             "Component",
             ["All Components"] + COMPONENT_ORDER,
@@ -251,7 +253,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             label_visibility="collapsed",
             format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
         )
-    with c_f5:
+    with c_f_hlth:
         health_filter = st.selectbox("Health", ["All Health"] + ui.BANDS, key=f"op_health_{reset_idx}", label_visibility="collapsed")
 
     # Apply slicer filters across the complete dataset
@@ -317,35 +319,40 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     debt_cnt = sc_dr_exp + sc_mo_exp
     debt_callout = f'<span style="font-size:8px;font-weight:700;background:rgba(255,152,48,0.15);color:#ff9830;border:1px solid rgba(255,152,48,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">⚠️ Debt: {debt_cnt}</span>' if debt_cnt > 0 else ''
 
-    with c_brand:
-        _brand_html = f'<div style="display:flex;align-items:center;gap:6px;height:30px;padding-top:2px;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory"><div style="width:3px;height:18px;background:#f59e0b;border-radius:1px;flex:none;"></div><span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">OPERATIONS HUB</span><span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;">LIVE</span><span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;">({len(filtered)}/{len(df)})</span></div>'
-        st.markdown(_brand_html, unsafe_allow_html=True)
-
-    with c_telem:
-        _telem_parts = [p for p in [sla_callout, debt_callout, f'<span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>'] if p]
-        _telem_html = f'<div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:30px;line-height:1;box-sizing:border-box;">{" ".join(_telem_parts)}</div>'
-        st.markdown(_telem_html, unsafe_allow_html=True)
-
-    with c_csv:
-        st.markdown(
-            ui.csv_download_button(
-                df=filtered,
-                filename=f"expiry_operations_{date.today().isoformat()}.csv",
-                label="📥 CSV",
-                key=f"op_export_csv_{reset_idx}",
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with c_reset:
-        st.button(
-            "↺",
-            key=f"op_sc_reset_btn_{reset_idx}",
-            on_click=_on_reset_operations_hub,
-            use_container_width=True,
-            type="secondary",
-            help="Reset all filters and restore full fleet coverage",
-        )
+    # Populate Top Control Bar Container
+    with top_hdr_container:
+        c_brand, c_telem, c_csv, c_reset = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
+        with c_brand:
+            _brand_html = f'''<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">
+                <div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>
+                <span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;flex:none;">OPERATIONS HUB</span>
+                <span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>
+                <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(filtered)}/{len(df)} Assets)</span>
+                {sla_callout}
+                {debt_callout}
+            </div>'''
+            st.markdown(_brand_html, unsafe_allow_html=True)
+        with c_telem:
+            st.markdown(f'<div style="display:flex;align-items:center;justify-content:flex-end;height:26px;"><span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span></div>', unsafe_allow_html=True)
+        with c_csv:
+            st.markdown(
+                ui.csv_download_button(
+                    df=filtered,
+                    filename=f"expiry_operations_{date.today().isoformat()}.csv",
+                    label="📥 CSV",
+                    key=f"op_export_csv_{reset_idx}",
+                ),
+                unsafe_allow_html=True,
+            )
+        with c_reset:
+            st.button(
+                "↺",
+                key=f"op_sc_reset_btn_{reset_idx}",
+                on_click=_on_reset_operations_hub,
+                use_container_width=True,
+                type="secondary",
+                help="Reset all filters and restore full fleet coverage",
+            )
 
     # ==========================================================================
     # 2. DYNAMIC 4-KPI RIBBON (Single 48px row with click-to-filter)
@@ -460,7 +467,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     scope_bluf_txt = f"[{state_filter}] " if state_filter != "All States" else ""
 
-    bluf_html = f'''<div style="display:flex;align-items:center;justify-content:space-between;background:{bluf_bg};border:1px solid {bluf_border};border-left:3px solid {bluf_color};border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:9.5px;font-weight:800;color:{bluf_color};letter-spacing:0.04em;white-space:nowrap;">{bluf_icon} EXECUTIVE BLUF:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;">{scope_bluf_txt}{bluf_headline}</span><span style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {bluf_detail}</span></div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">EST. REMEDIATION: ~{rem_hours}h</span>{bluf_badge}</div></div>'''
+    bluf_html = f'''<div class="op-bluf-banner" style="display:flex;align-items:center;justify-content:space-between;background:{bluf_bg};border:1px solid {bluf_border};border-left:3px solid {bluf_color};border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;"><span style="font-size:9.5px;font-weight:800;color:{bluf_color};letter-spacing:0.04em;white-space:nowrap;flex:none;">{bluf_icon} EXECUTIVE BLUF:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;flex:none;">{scope_bluf_txt}{bluf_headline}</span><span class="bluf-detail-txt" style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {bluf_detail}</span></div><div class="bluf-badge-grp" style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span class="bluf-rem-badge" style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">EST. REMEDIATION: ~{rem_hours}h</span>{bluf_badge}</div></div>'''
 
     c_k1 = _make_kpi_card_html("Portfolio Scope", f"{scope_cnt} / {tot_cnt}", k1_sub, "ALL FLEET" if k1_active else "SCOPED", "ok", k1_active, "All", spark_vals=_scope_trend)
     c_k2 = _make_kpi_card_html("Expired Items", exp_cnt, k2_sub, "FIRING" if exp_cnt else "CLEAR", "firing" if exp_cnt else "ok", k2_active, "Expired", spark_vals=_exp_trend)
@@ -538,13 +545,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     <style>
     .op-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 6px;
         margin-bottom: 4px;
     }
-    @media (max-width: 960px) {
-        .op-kpi-grid {
-            grid-template-columns: repeat(2, 1fr);
+    @media (max-width: 1100px) {
+        .bluf-rem-badge {
+            display: none !important;
+        }
+    }
+    @media (max-width: 860px) {
+        .bluf-detail-txt {
+            display: none !important;
         }
     }
     .op-master-table-box {
@@ -554,9 +566,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: calc(100vh - 275px);
-        max-height: calc(100vh - 275px);
-        min-height: clamp(240px, calc(100vh - 275px), 440px);
+        height: calc(100vh - 295px);
+        max-height: calc(100vh - 295px);
+        min-height: clamp(220px, calc(100vh - 295px), 430px);
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
     }
@@ -583,11 +595,11 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         background: #181b1f !important;
         border: 1px solid #2c3235 !important;
         border-radius: 3px !important;
-        padding: 8px 10px !important;
+        padding: 6px 10px !important;
         box-sizing: border-box !important;
-        height: calc(100vh - 275px) !important;
-        max-height: calc(100vh - 275px) !important;
-        min-height: clamp(240px, calc(100vh - 275px), 440px) !important;
+        height: calc(100vh - 295px) !important;
+        max-height: calc(100vh - 295px) !important;
+        min-height: clamp(220px, calc(100vh - 295px), 430px) !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         scrollbar-width: thin !important;
@@ -754,7 +766,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
                       <div style="display:flex;align-items:center;gap:6px;min-width:0;">
                         <span style="font-size:16px;">{cp_icon}</span>
                         <div style="min-width:0;">
-                          <div style="font-size:12px;font-weight:800;color:#f8fafc;font-family:var(--mono);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          <div style="font-size:clamp(10.5px, 1.1vw, 12.5px);font-weight:800;color:#f8fafc;font-family:var(--mono);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="#{rec['id']} {rec['schema_name']}">
                             #{rec['id']} {rec['schema_name']}
                           </div>
                           <div style="font-size:9px;color:#94a3b8;margin-top:1px;">

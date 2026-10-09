@@ -738,6 +738,40 @@ code, kbd, .mono, .num {{
   font-variant-numeric: tabular-nums !important;
 }}
 
+/* Alert chip badges across enterprise workspaces */
+.alert-chip {{
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 1.5px 6px;
+  border-radius: 2px;
+  white-space: nowrap !important;
+  text-transform: uppercase;
+  line-height: 1.2;
+}}
+.alert-chip.firing {{
+  background: rgba(239,68,68,0.18) !important;
+  border: 1px solid rgba(239,68,68,0.4) !important;
+  color: #f87171 !important;
+}}
+.alert-chip.pending {{
+  background: rgba(245,158,11,0.18) !important;
+  border: 1px solid rgba(245,158,11,0.4) !important;
+  color: #fbbf24 !important;
+}}
+.alert-chip.ok {{
+  background: rgba(16,185,129,0.18) !important;
+  border: 1px solid rgba(16,185,129,0.4) !important;
+  color: #34d399 !important;
+}}
+
+[data-testid="column"] {{
+  min-width: 0 !important;
+}}
+
 /* Custom scrollbars (WebKit & Firefox Gecko) */
 * {{
   scrollbar-width: thin;
@@ -1209,9 +1243,19 @@ div[data-baseweb="select"] > div {{
   border: 1px solid var(--rule) !important;
   color: var(--ink) !important;
   font-family: var(--ui) !important;
-  font-size: 12px;
+  font-size: 11.5px !important;
   border-radius: 2px !important;
   box-shadow: none !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 1px 8px !important;
+}}
+div[data-baseweb="select"] {{
+  min-height: 28px !important;
+}}
+div[data-baseweb="select"] > div > div {{
+  font-size: 11px !important;
+  line-height: 26px !important;
 }}
 div[data-baseweb="popover"], ul[role="listbox"] {{
   background: var(--card) !important;

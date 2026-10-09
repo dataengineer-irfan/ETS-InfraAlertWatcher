@@ -332,22 +332,58 @@ def render_rbac_workspace(db_path: str) -> None:
             del st.query_params["rbac_user"]
 
     # ==========================================================================
-    # 1. UNIVERSAL 1-LINE COMMAND BAR
+    # 1. UNIVERSAL 2-TIER COMMAND RIBBON (Tier 1: Brand & Telemetry | Tier 2: Slicers)
     # ==========================================================================
-    c_brand, c_srch, c_role, c_st, c_act, c_telem, c_csv, c_rst = st.columns(
-        [1.65, 1.45, 1.10, 1.00, 1.25, 1.20, 0.50, 0.35],
-        gap="small"
-    )
+    now_str = datetime.now(timezone.utc).strftime("%H:%M UTC")
+
+    # Tier 1: Brand Title, PBKDF2 badge, UTC Clock, CSV, Reset
+    c_brand, c_telem, c_csv, c_rst = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
 
     with c_brand:
         st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:5px;height:28px;padding-top:2px;" title="Access Control & Security Audit (Zero-Trust RBAC)">
+        <div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Access Control & Security Audit (Zero-Trust RBAC)">
             <div style="width:3px;height:16px;background:#ec4899;border-radius:1px;flex:none;"></div>
-            <span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;">RBAC HUB</span>
-            <span style="font-size:7.5px;font-weight:800;background:rgba(236,72,153,0.18);color:#f472b6;border:1px solid rgba(236,72,153,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;">ZERO-TRUST</span>
-            <span style="font-size:8px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;">({len(all_users)} Users)</span>
+            <span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;flex:none;">RBAC HUB</span>
+            <span style="font-size:7.5px;font-weight:800;background:rgba(236,72,153,0.18);color:#f472b6;border:1px solid rgba(236,72,153,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;flex:none;">ZERO-TRUST</span>
+            <span style="font-size:8px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(all_users)} Users)</span>
+            <span style="font-size:7.5px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:2px;padding:1px 5px;font-family:var(--mono);white-space:nowrap;flex:none;">PBKDF2-SHA256</span>
         </div>
         """, unsafe_allow_html=True)
+
+    with c_telem:
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:flex-end;height:26px;">
+          <span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{now_str}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_csv:
+        conn_csv = get_connection(db_path)
+        df_audit_full = pd.read_sql_query(
+            "SELECT timestamp, actor, role, action, target_entity, details, ip_address FROM audit_log ORDER BY id DESC LIMIT 500",
+            conn_csv
+        )
+        conn_csv.close()
+        st.markdown(
+            ui.csv_download_button(
+                df=df_audit_full,
+                filename=f"ets_security_audit_{date.today().isoformat()}.csv",
+                label="📥 CSV",
+                key="rbac_audit_top_csv_btn",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    with c_rst:
+        if st.button("↺", key="rbac_top_reset_btn", help="Reset all filters to Fleet view", use_container_width=True):
+            ss["rbac_search"] = ""
+            ss["rbac_role_filter"] = "All Roles"
+            ss["rbac_state_filter"] = "All States"
+            ss["rbac_action_filter"] = "ALL"
+            st.rerun()
+
+    # Tier 2: Search Box + Role + State Scope + Action Slicers
+    c_srch, c_role, c_st, c_act = st.columns([3.0, 2.0, 2.0, 2.0], gap="small")
 
     with c_srch:
         srch_val = st.text_input(
@@ -396,40 +432,6 @@ def render_rbac_workspace(db_path: str) -> None:
         )
         if picked_act != ss["rbac_action_filter"]:
             ss["rbac_action_filter"] = picked_act
-
-    with c_telem:
-        now_str = datetime.now(timezone.utc).strftime("%H:%M UTC")
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:28px;padding-top:2px;">
-          <span style="font-size:7.5px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:2px;padding:1.5px 4px;font-family:var(--mono);">PBKDF2-SHA256</span>
-          <span style="font-size:8px;color:#94a3b8;font-family:var(--mono);">{now_str}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c_csv:
-        conn_csv = get_connection(db_path)
-        df_audit_full = pd.read_sql_query(
-            "SELECT timestamp, actor, role, action, target_entity, details, ip_address FROM audit_log ORDER BY id DESC LIMIT 500",
-            conn_csv
-        )
-        conn_csv.close()
-        st.markdown(
-            ui.csv_download_button(
-                df=df_audit_full,
-                filename=f"ets_security_audit_{date.today().isoformat()}.csv",
-                label="📥 CSV",
-                key="rbac_audit_top_csv_btn",
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with c_rst:
-        if st.button("↺", key="rbac_top_reset_btn", help="Reset all filters to Fleet view", use_container_width=True):
-            ss["rbac_search"] = ""
-            ss["rbac_role_filter"] = "All Roles"
-            ss["rbac_state_filter"] = "All States"
-            ss["rbac_action_filter"] = "ALL"
-            st.rerun()
 
     # ==========================================================================
     # 2. BACKEND FILTER ENGINE (Strict Master-Detail Cohesion)
@@ -525,10 +527,40 @@ def render_rbac_workspace(db_path: str) -> None:
     ])
 
     # ==========================================================================
-    # TAB 1: USER DIRECTORY & MASTER-DETAIL (58% / 42% Split)
+    # TAB 1: USER DIRECTORY & MASTER-DETAIL (50% / 50% Balanced Split)
     # ==========================================================================
     with tab_dir:
-        col_master, col_detail = st.columns([5.8, 4.2], gap="small")
+        st.markdown("""
+        <style>
+        div.st-key-rbac_detail_scroll_box {
+            background: #181b1f !important;
+            border: 1px solid #2c3235 !important;
+            border-radius: 3px !important;
+            padding: 6px 10px !important;
+            box-sizing: border-box !important;
+            height: calc(100vh - 295px) !important;
+            max-height: calc(100vh - 295px) !important;
+            min-height: clamp(220px, calc(100vh - 295px), 380px) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            scrollbar-width: thin !important;
+            scrollbar-color: #38bdf8 #181b1f !important;
+        }
+        div.st-key-rbac_detail_scroll_box::-webkit-scrollbar {
+            width: 6px;
+            display: block;
+        }
+        div.st-key-rbac_detail_scroll_box::-webkit-scrollbar-track {
+            background: #181b1f;
+        }
+        div.st-key-rbac_detail_scroll_box::-webkit-scrollbar-thumb {
+            background: #38bdf8;
+            border-radius: 3px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        col_master, col_detail = st.columns([5.0, 5.0], gap="small")
 
         with col_master:
             user_rows_html = []
@@ -546,14 +578,14 @@ def render_rbac_workspace(db_path: str) -> None:
                 btn_style = "background:#38bdf8;color:#040e1a;font-weight:800;" if is_sel else "background:rgba(56,189,248,0.08);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);"
 
                 user_rows_html.append(
-                    f"<tr style='{row_bg}border-bottom:1px solid #22252b;font-size:10.5px;'>"
-                    f"<td style='padding:4px 6px;font-family:var(--mono);font-weight:700;color:#f8fafc;'>{escape(un)}</td>"
+                    f"<tr style='{row_bg}border-bottom:1px solid #22252b;font-size:10px;'>"
+                    f"<td style='padding:4px 6px;font-family:var(--mono);font-weight:700;color:#f8fafc;white-space:nowrap;'>{escape(un)}</td>"
                     f"<td style='padding:4px 6px;color:#cbd5e1;white-space:nowrap;'>{escape(fn)}</td>"
-                    f"<td style='padding:4px 6px;color:#94a3b8;font-size:9.5px;font-family:var(--mono);'>{escape(em)}</td>"
-                    f"<td style='padding:4px 6px;'>{badge}</td>"
-                    f"<td style='padding:4px 6px;font-family:var(--mono);font-size:9.5px;color:#38bdf8;'>{escape(st_sc)}</td>"
-                    f"<td style='padding:4px 6px;font-family:var(--mono);font-size:9.5px;color:#64748b;'>{cr}</td>"
-                    f"<td style='padding:4px 6px;text-align:right;'>"
+                    f"<td style='padding:4px 6px;color:#94a3b8;font-size:9px;font-family:var(--mono);white-space:nowrap;'>{escape(em)}</td>"
+                    f"<td style='padding:4px 6px;white-space:nowrap;'>{badge}</td>"
+                    f"<td style='padding:4px 6px;font-family:var(--mono);font-size:9px;color:#38bdf8;white-space:nowrap;'>{escape(st_sc)}</td>"
+                    f"<td style='padding:4px 6px;font-family:var(--mono);font-size:9px;color:#64748b;white-space:nowrap;'>{cr}</td>"
+                    f"<td style='padding:4px 6px;text-align:right;white-space:nowrap;'>"
                     f"<a href='?rbac_user={escape(un)}{auth_suffix}' target='_self' style='text-decoration:none;display:inline-block;padding:2px 7px;border-radius:2px;font-size:8.5px;font-weight:700;{btn_style}'>"
                     f"{'● ACTIVE' if is_sel else 'INSPECT ↗'}</a></td>"
                     f"</tr>"
@@ -562,17 +594,17 @@ def render_rbac_workspace(db_path: str) -> None:
             tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No enterprise accounts match active filters.</td></tr>'
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 275px);max-height:calc(100vh - 275px);min-height:clamp(220px, calc(100vh - 275px), 360px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
-              <table style="width:100%;min-width:680px;border-collapse:collapse;text-align:left;">
+            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 295px);max-height:calc(100vh - 295px);min-height:clamp(220px, calc(100vh - 295px), 380px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+              <table style="width:100%;min-width:620px;border-collapse:collapse;text-align:left;">
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
-                    <th style="padding:4px 6px;">Username</th>
-                    <th style="padding:4px 6px;">Full Name</th>
-                    <th style="padding:4px 6px;">Email</th>
-                    <th style="padding:4px 6px;">Role</th>
-                    <th style="padding:4px 6px;">State Scope</th>
-                    <th style="padding:4px 6px;">Created</th>
-                    <th style="padding:4px 6px;text-align:right;">Action</th>
+                    <th style="padding:4px 6px;width:95px;">Username</th>
+                    <th style="padding:4px 6px;width:110px;">Full Name</th>
+                    <th style="padding:4px 6px;width:125px;">Email</th>
+                    <th style="padding:4px 6px;width:85px;white-space:nowrap;">Role</th>
+                    <th style="padding:4px 6px;width:75px;white-space:nowrap;">State Scope</th>
+                    <th style="padding:4px 6px;width:75px;white-space:nowrap;">Created</th>
+                    <th style="padding:4px 6px;width:65px;text-align:right;">Action</th>
                   </tr>
                 </thead>
                 <tbody>{tbody_content}</tbody>
@@ -581,32 +613,33 @@ def render_rbac_workspace(db_path: str) -> None:
             """, unsafe_allow_html=True)
 
         with col_detail:
-            # Person Switcher Dropdown (Restricted to in-scope users)
-            if in_scope_unames:
-                picked_u = st.selectbox(
-                    "Inspect Account",
-                    in_scope_unames,
-                    index=in_scope_unames.index(cur_selected) if cur_selected in in_scope_unames else 0,
-                    key="rbac_detail_user_sync_select",
-                    label_visibility="collapsed",
-                    help="Switch inspected enterprise account",
-                )
-                if picked_u != cur_selected:
-                    ss["rbac_selected_user"] = picked_u
-                    cur_selected = picked_u
+            with st.container(key="rbac_detail_scroll_box"):
+                # Person Switcher Dropdown (Restricted to in-scope users)
+                if in_scope_unames:
+                    picked_u = st.selectbox(
+                        "Inspect Account",
+                        in_scope_unames,
+                        index=in_scope_unames.index(cur_selected) if cur_selected in in_scope_unames else 0,
+                        key="rbac_detail_user_sync_select",
+                        label_visibility="collapsed",
+                        help="Switch inspected enterprise account",
+                    )
+                    if picked_u != cur_selected:
+                        ss["rbac_selected_user"] = picked_u
+                        cur_selected = picked_u
 
-                target_dict = next((u for u in filtered_users if u["username"] == cur_selected), filtered_users[0])
-                _render_user_detail_inspector(
-                    target_user=target_dict,
-                    all_users=all_users,
-                    user_audit_logs=audit_logs,
-                    is_active_admin=is_admin,
-                    active_user=active_user,
-                    db_path=db_path,
-                    auth_suffix=auth_suffix,
-                )
-            else:
-                st.info("No matching accounts to inspect.")
+                    target_dict = next((u for u in filtered_users if u["username"] == cur_selected), filtered_users[0])
+                    _render_user_detail_inspector(
+                        target_user=target_dict,
+                        all_users=all_users,
+                        user_audit_logs=audit_logs,
+                        is_active_admin=is_admin,
+                        active_user=active_user,
+                        db_path=db_path,
+                        auth_suffix=auth_suffix,
+                    )
+                else:
+                    st.info("No matching accounts to inspect.")
 
     # ==========================================================================
     # TAB 2: PROVISION ENTERPRISE ACCOUNT

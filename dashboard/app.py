@@ -864,8 +864,8 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: calc(100vh - 270px);
-        max-height: calc(100vh - 270px);
+        height: calc(100vh - 295px);
+        max-height: calc(100vh - 295px);
         min-height: 220px;
         scrollbar-width: thin;
         scrollbar-color: #38bdf8 #181b1f;
@@ -1005,13 +1005,18 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
     if active_scope and active_scope in STATES and gov_st_key not in st.session_state:
         st.session_state[gov_st_key] = active_scope
 
-    c_brand, c_srch, c_st, c_tm, c_risk, c_telem, c_csv, c_reset = st.columns(
-        [1.4, 1.4, 1.15, 1.2, 1.2, 1.2, 0.5, 0.35],
+    # --------------------------------------------------------------------------
+    # 1. UNIVERSAL 2-TIER COMMAND RIBBON (Tier 1: Brand & Actions | Tier 2: Slicers)
+    # --------------------------------------------------------------------------
+    top_hdr_container = st.container()
+
+    c_srch, c_st, c_tm, c_risk = st.columns(
+        [3.0, 2.0, 2.0, 2.0],
         gap="small"
     )
 
     with c_srch:
-        q = st.text_input("Filter", key=gov_srch_key, placeholder="🔍 Search...", label_visibility="collapsed", autocomplete="off")
+        q = st.text_input("Filter", key=gov_srch_key, placeholder="🔍 Search component, schema, team...", label_visibility="collapsed", autocomplete="off")
     with c_st:
         state_opts = ["All States"] + STATES
         state_filter = st.selectbox("State", state_opts, key=gov_st_key, label_visibility="collapsed")
@@ -1053,41 +1058,43 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
 
     _utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
 
-    with c_brand:
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:6px;height:30px;padding-top:2px;" title="Governance & Alerts Center · Automated Policy Enforcement & Multi-Team Alerts">
-            <div style="width:3px;height:18px;background:#8b5cf6;border-radius:1px;flex:none;"></div>
-            <span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">GOVERNANCE &amp; ALERTS</span>
-            <span style="font-size:7.5px;font-weight:800;background:rgba(139,92,246,0.18);color:#a78bfa;border:1px solid rgba(139,92,246,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;">POLICY</span>
-            <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;">({len(scoped_records)}/{len(base_df)})</span>
-        </div>
-        """, unsafe_allow_html=True)
+    with top_hdr_container:
+        c_brand, c_telem, c_csv, c_reset = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
+        with c_brand:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Governance &amp; Alerts Center · Automated Policy Enforcement &amp; Multi-Team Alerts">
+                <div style="width:3px;height:16px;background:#8b5cf6;border-radius:1px;flex:none;"></div>
+                <span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;flex:none;">GOVERNANCE &amp; ALERTS</span>
+                <span style="font-size:7.5px;font-weight:800;background:rgba(139,92,246,0.18);color:#a78bfa;border:1px solid rgba(139,92,246,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">POLICY</span>
+                <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(scoped_records)}/{len(base_df)})</span>
+                <span style="font-size:8px;font-weight:700;background:rgba(115,191,105,0.16);color:#73bf69;border:1px solid rgba(115,191,105,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">🛡️ PROD 100%</span>
+                <span style="font-size:8px;font-weight:700;background:rgba(242,73,92,0.18);color:#f2495c;border:1px solid rgba(242,73,92,0.4);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">⚠️ {n_total_risk_fleet} Debt</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    with c_telem:
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:30px;line-height:1;box-sizing:border-box;">
-            <span style="font-size:8px;font-weight:700;background:rgba(115,191,105,0.16);color:#73bf69;border:1px solid rgba(115,191,105,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">🛡️ PROD 100%</span>
-            <span style="font-size:8px;font-weight:700;background:rgba(242,73,92,0.18);color:#f2495c;border:1px solid rgba(242,73,92,0.4);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">⚠️ {n_total_risk_fleet} Debt</span>
-            <span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        with c_telem:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;justify-content:flex-end;height:26px;line-height:1;box-sizing:border-box;">
+                <span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    with c_csv:
-        st.markdown(
-            ui.csv_download_button(
-                df=scoped_records,
-                filename=f"governance_audit_{date.today().isoformat()}.csv",
-                label="📥 CSV",
-                key=f"gov_export_csv_{reset_idx}",
-            ),
-            unsafe_allow_html=True
-        )
+        with c_csv:
+            st.markdown(
+                ui.csv_download_button(
+                    df=scoped_records,
+                    filename=f"governance_audit_{date.today().isoformat()}.csv",
+                    label="📥 CSV",
+                    key=f"gov_export_csv_{reset_idx}",
+                ),
+                unsafe_allow_html=True
+            )
 
-    with c_reset:
-        if st.button("↺", key=f"gov_reset_btn_{reset_idx}", help="Reset all filters and scope", use_container_width=True):
-            st.session_state["gov_reset_idx"] = reset_idx + 1
-            st.session_state.pop("gov_target_tab", None)
-            rerun()
+        with c_reset:
+            if st.button("↺", key=f"gov_reset_btn_{reset_idx}", help="Reset all filters and scope", use_container_width=True):
+                st.session_state["gov_reset_idx"] = reset_idx + 1
+                st.session_state.pop("gov_target_tab", None)
+                rerun()
 
     # --------------------------------------------------------------------------
     # 2. ACTION DIRECTIVE TICKER (Compact 24px Bar)
