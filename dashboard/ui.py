@@ -396,9 +396,15 @@ def css() -> str:
 .block-container {{ max-width:min(2400px, 98vw) !important; margin:0 auto !important; padding:.3rem .6rem 0 !important; }}
 #MainMenu, footer, header[data-testid="stHeader"] {{ visibility:hidden; height:0; }}
 [data-testid="stToolbar"], div[data-testid="stDialog"], div[role="dialog"], [data-testid="stToast"], [data-testid="stNotification"], [data-testid="stDecoration"] {{ display:none !important; }}
-[data-testid="stVerticalBlock"] {{ gap:.5rem; }}
-iframe:not([data-testid="stCustomComponentV1"]) {{ display:block; border:0; width: 100% !important; height: calc(100vh - 78px) !important; }}
-iframe[data-testid="stCustomComponentV1"] {{ display:block; border:0; width: 100% !important; }}
+div[data-testid="stCustomComponentV1"]:has(iframe:not([height="0"])) iframe,
+div[data-testid="stCustomComponentV1"]:has(iframe:not([height="0"])) {{
+  display: block !important;
+  border: 0 !important;
+  width: 100% !important;
+  height: calc(100vh - 84px) !important;
+  max-height: calc(100vh - 84px) !important;
+  min-height: 480px !important;
+}}
 
 /* Global Fixed Top Banner (State & Environment Fleet Topology) */
 .global-topo-banner {{

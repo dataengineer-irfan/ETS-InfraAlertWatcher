@@ -128,49 +128,40 @@ def _render_user_detail_inspector(
     for label, has_ent in entitlements:
         if has_ent:
             ent_pills.append(
-                f'<div style="display:flex;align-items:center;gap:4px;background:rgba(16,185,129,0.08);'
-                f'border:1px solid rgba(16,185,129,0.25);border-radius:2px;padding:2px 6px;font-size:9px;'
-                f'color:#34d399;font-weight:600;"><span style="color:#10b981;font-weight:800;">✓</span> {label}</div>'
+                f'<span class="alert-chip ok" style="font-size:7.5px;padding:1px 4px;white-space:nowrap;">'
+                f'<b style="color:#10b981;">✓</b> {label}</span>'
             )
         else:
             ent_pills.append(
-                f'<div style="display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.02);'
-                f'border:1px solid rgba(255,255,255,0.06);border-radius:2px;padding:2px 6px;font-size:9px;'
-                f'color:#64748b;"><span style="color:#64748b;">✕</span> {label}</div>'
+                f'<span style="font-size:7.5px;padding:1px 4px;color:#64748b;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:2px;white-space:nowrap;">'
+                f'✕ {label}</span>'
             )
 
-    # Inspector card container
+    # Inspector card container (Compact, no vertical blow-out)
     st.markdown(f"""
-    <div style="background:#181b1f;border:1px solid #2c3235;border-top:2px solid {role_color};border-radius:2px;padding:8px 10px;margin-bottom:6px;">
+    <div style="background:#181b1f;border:1px solid #2c3235;border-top:2px solid {role_color};border-radius:2px;padding:6px 8px;margin-bottom:4px;">
       <!-- Profile Header -->
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid #22252b;padding-bottom:8px;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid #22252b;padding-bottom:5px;margin-bottom:5px;">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0;">
           {avatar_html}
           <div style="min-width:0;">
-            <div style="font-size:12px;font-weight:800;color:#f8fafc;font-family:var(--mono);display:flex;align-items:center;gap:6px;">
+            <div style="font-size:11px;font-weight:800;color:#f8fafc;font-family:var(--mono);display:flex;align-items:center;gap:5px;">
               <span>{escape(u_name)}</span>
               {role_chip}
             </div>
-            <div style="font-size:9.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <div style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               {escape(u_full)} &bull; <span style="font-family:var(--mono);">{escape(u_email)}</span>
             </div>
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#64748b;">State Scope</div>
-          <div style="font-size:10px;font-weight:800;color:#38bdf8;font-family:var(--mono);">{escape(u_state)}</div>
+          <div style="font-size:7.5px;font-weight:700;text-transform:uppercase;color:#64748b;">SCOPE: <b style="color:#38bdf8;font-family:var(--mono);">{escape(u_state)}</b></div>
+          <div style="font-size:7.5px;color:#64748b;font-family:var(--mono);">Last: {u_last_login[:16]}</div>
         </div>
       </div>
 
-      <!-- Metadata Strip -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#141619;border:1px solid #22252b;border-radius:2px;padding:5px 8px;margin-bottom:8px;font-size:9px;font-family:var(--mono);">
-        <div><span style="color:#64748b;">Provisioned:</span> <b style="color:#cbd5e1;">{u_created}</b></div>
-        <div><span style="color:#64748b;">Last Login:</span> <b style="color:#cbd5e1;">{u_last_login}</b></div>
-      </div>
-
-      <!-- Entitlements Grid -->
-      <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;margin-bottom:4px;">Effective Security Entitlements</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;">
+      <!-- Compact Entitlements Row -->
+      <div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;">
         {''.join(ent_pills)}
       </div>
     </div>
@@ -179,7 +170,7 @@ def _render_user_detail_inspector(
     # 4. Privileged Admin Action Console
     if is_active_admin:
         st.markdown("""
-        <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#f59e0b;margin-bottom:4px;">
+        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#f59e0b;margin-bottom:2px;">
           ⚙️ Account Administration &amp; Governance
         </div>
         """, unsafe_allow_html=True)
@@ -196,7 +187,7 @@ def _render_user_detail_inspector(
                 label_visibility="collapsed",
             )
             if new_role_val != u_role:
-                if st.button(f"Update to {new_role_val}", key=f"rbac_apply_role_{u_name}", type="primary", use_container_width=True):
+                if st.button(f"Set {new_role_val}", key=f"rbac_apply_role_{u_name}", type="primary", use_container_width=True):
                     conn_m = get_connection(db_path)
                     update_user_role(conn_m, u_name, new_role_val)
                     log_audit_event(
@@ -241,7 +232,7 @@ def _render_user_detail_inspector(
             if u_name == "admin":
                 st.button("🔒 Root Protected", disabled=True, use_container_width=True, help="Default root administrator cannot be revoked")
             else:
-                if st.button("🗑️ Revoke Account", key=f"rbac_del_btn_{u_name}", type="secondary", use_container_width=True):
+                if st.button("🗑️ Revoke", key=f"rbac_del_btn_{u_name}", type="secondary", use_container_width=True):
                     conn_m = get_connection(db_path)
                     delete_user(conn_m, u_name)
                     log_audit_event(
@@ -263,7 +254,7 @@ def _render_user_detail_inspector(
     ][:5]
 
     st.markdown("""
-    <div style="font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#94a3b8;margin:6px 0 3px;">
+    <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#94a3b8;margin:5px 0 2px;">
       Recent Activity Trail for this User
     </div>
     """, unsafe_allow_html=True)
@@ -272,24 +263,29 @@ def _render_user_detail_inspector(
         ev_rows = []
         for e in user_events:
             ts = str(e.get("timestamp", ""))[:19].replace("T", " ")
-            chip = _ACTION_CHIPS.get(e.get("action", ""), f'<span class="alert-chip ok" style="font-size:8.5px;">{e.get("action")}</span>')
+            chip = _ACTION_CHIPS.get(e.get("action", ""), f'<span class="alert-chip ok" style="font-size:8px;">{e.get("action")}</span>')
             ev_rows.append(
-                f"<tr style='border-bottom:1px solid #22252b;font-size:9.5px;'>"
-                f"<td style='padding:3px 5px;font-family:var(--mono);color:#64748b;white-space:nowrap;'>{ts}</td>"
-                f"<td style='padding:3px 5px;'>{chip}</td>"
-                f"<td style='padding:3px 5px;color:#cbd5e1;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{escape(str(e.get('details') or '—'))}</td>"
+                f"<tr style='border-bottom:1px solid #22252b;font-size:9px;'>"
+                f"<td style='padding:2.5px 4px;font-family:var(--mono);color:#64748b;white-space:nowrap;'>{ts}</td>"
+                f"<td style='padding:2.5px 4px;white-space:nowrap;'>{chip}</td>"
+                f"<td style='padding:2.5px 4px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{escape(str(e.get('details') or '—'))}</td>"
                 f"</tr>"
             )
         st.markdown(f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow:hidden;background:#141619;max-height:110px;overflow-y:auto;">
-          <table style="width:100%;border-collapse:collapse;text-align:left;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:hidden;overflow-y:auto;background:#141619;max-height:115px;scrollbar-width:thin;scrollbar-color:#38bdf8 #141619;">
+          <table style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:left;">
+            <colgroup>
+              <col style="width:125px;">
+              <col style="width:75px;">
+              <col>
+            </colgroup>
             <tbody>{''.join(ev_rows)}</tbody>
           </table>
         </div>
         """, unsafe_allow_html=True)
     else:
         st.markdown("""
-        <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:6px 8px;font-size:9.5px;color:#64748b;text-align:center;">
+        <div style="background:#141619;border:1px solid #2c3235;border-radius:2px;padding:5px 8px;font-size:9px;color:#64748b;text-align:center;">
           No audit entries recorded for this user yet.
         </div>
         """, unsafe_allow_html=True)
@@ -519,15 +515,15 @@ def render_rbac_workspace(db_path: str) -> None:
     # 4. MASTER 5-TAB WORKSPACE
     # ==========================================================================
     tab_dir, tab_prov, tab_audit, tab_policy, tab_telemetry = st.tabs([
-        "👥 Live User Directory & Master-Detail",
-        "➕ Provision Enterprise Account",
-        "🛡️ Compliance & Immutable Audit Ledger",
-        "🔐 Zero-Trust Policy Matrix & Session Security",
-        "📊 Access Analytics & Security Telemetry",
+        "👥 User Directory",
+        "➕ Provision User",
+        "🛡️ Compliance Ledger",
+        "🔐 Policy Matrix",
+        "📊 Access Analytics",
     ])
 
     # ==========================================================================
-    # TAB 1: USER DIRECTORY & MASTER-DETAIL (50% / 50% Balanced Split)
+    # TAB 1: USER DIRECTORY & MASTER-DETAIL (53% / 47% Balanced Split)
     # ==========================================================================
     with tab_dir:
         st.markdown("""
@@ -540,7 +536,6 @@ def render_rbac_workspace(db_path: str) -> None:
             box-sizing: border-box !important;
             height: calc(100vh - 295px) !important;
             max-height: calc(100vh - 295px) !important;
-            min-height: clamp(220px, calc(100vh - 295px), 380px) !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             scrollbar-width: thin !important;
@@ -560,7 +555,7 @@ def render_rbac_workspace(db_path: str) -> None:
         </style>
         """, unsafe_allow_html=True)
 
-        col_master, col_detail = st.columns([5.0, 5.0], gap="small")
+        col_master, col_detail = st.columns([5.3, 4.7], gap="small")
 
         with col_master:
             user_rows_html = []
@@ -570,7 +565,6 @@ def render_rbac_workspace(db_path: str) -> None:
                 em = u.get("email") or "—"
                 ro = u.get("role", "Viewer")
                 st_sc = u.get("assigned_state") or "Global"
-                cr = str(u.get("created_at") or "")[:10]
                 is_sel = (un == cur_selected)
 
                 badge = _ROLE_BADGES.get(ro, _ROLE_BADGES["Viewer"])
@@ -579,32 +573,38 @@ def render_rbac_workspace(db_path: str) -> None:
 
                 user_rows_html.append(
                     f"<tr style='{row_bg}border-bottom:1px solid #22252b;font-size:10px;'>"
-                    f"<td style='padding:4px 6px;font-family:var(--mono);font-weight:700;color:#f8fafc;white-space:nowrap;'>{escape(un)}</td>"
-                    f"<td style='padding:4px 6px;color:#cbd5e1;white-space:nowrap;'>{escape(fn)}</td>"
-                    f"<td style='padding:4px 6px;color:#94a3b8;font-size:9px;font-family:var(--mono);white-space:nowrap;'>{escape(em)}</td>"
-                    f"<td style='padding:4px 6px;white-space:nowrap;'>{badge}</td>"
-                    f"<td style='padding:4px 6px;font-family:var(--mono);font-size:9px;color:#38bdf8;white-space:nowrap;'>{escape(st_sc)}</td>"
-                    f"<td style='padding:4px 6px;font-family:var(--mono);font-size:9px;color:#64748b;white-space:nowrap;'>{cr}</td>"
-                    f"<td style='padding:4px 6px;text-align:right;white-space:nowrap;'>"
-                    f"<a href='?rbac_user={escape(un)}{auth_suffix}' target='_self' style='text-decoration:none;display:inline-block;padding:2px 7px;border-radius:2px;font-size:8.5px;font-weight:700;{btn_style}'>"
+                    f"<td style='padding:4px 5px;font-family:var(--mono);font-weight:700;color:#f8fafc;white-space:nowrap;'>{escape(un)}</td>"
+                    f"<td style='padding:4px 5px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{escape(fn)}</td>"
+                    f"<td style='padding:4px 5px;color:#94a3b8;font-size:9px;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{escape(em)}</td>"
+                    f"<td style='padding:4px 5px;white-space:nowrap;'>{badge}</td>"
+                    f"<td style='padding:4px 5px;font-family:var(--mono);font-size:9px;color:#38bdf8;white-space:nowrap;'>{escape(st_sc)}</td>"
+                    f"<td style='padding:4px 5px;text-align:right;white-space:nowrap;'>"
+                    f"<a href='?rbac_user={escape(un)}{auth_suffix}' target='_self' style='text-decoration:none;display:inline-block;padding:2px 6px;border-radius:2px;font-size:8.5px;font-weight:700;{btn_style}'>"
                     f"{'● ACTIVE' if is_sel else 'INSPECT ↗'}</a></td>"
                     f"</tr>"
                 )
 
-            tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No enterprise accounts match active filters.</td></tr>'
+            tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="6" style="text-align:center;padding:16px;color:#64748b;">No enterprise accounts match active filters.</td></tr>'
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 295px);max-height:calc(100vh - 295px);min-height:clamp(220px, calc(100vh - 295px), 380px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
-              <table style="width:100%;min-width:620px;border-collapse:collapse;text-align:left;">
+            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:hidden;overflow-y:auto;background:#181b1f;height:calc(100vh - 295px);max-height:calc(100vh - 295px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+              <table style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:left;">
+                <colgroup>
+                  <col style="width:19%;">
+                  <col style="width:26%;">
+                  <col style="width:23%;">
+                  <col style="width:14%;">
+                  <col style="width:9%;">
+                  <col style="width:9%;">
+                </colgroup>
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
-                    <th style="padding:4px 6px;width:95px;">Username</th>
-                    <th style="padding:4px 6px;width:110px;">Full Name</th>
-                    <th style="padding:4px 6px;width:125px;">Email</th>
-                    <th style="padding:4px 6px;width:85px;white-space:nowrap;">Role</th>
-                    <th style="padding:4px 6px;width:75px;white-space:nowrap;">State Scope</th>
-                    <th style="padding:4px 6px;width:75px;white-space:nowrap;">Created</th>
-                    <th style="padding:4px 6px;width:65px;text-align:right;">Action</th>
+                    <th style="padding:4px 5px;">Username</th>
+                    <th style="padding:4px 5px;">Full Name</th>
+                    <th style="padding:4px 5px;">Email</th>
+                    <th style="padding:4px 5px;white-space:nowrap;">Role</th>
+                    <th style="padding:4px 5px;white-space:nowrap;">Scope</th>
+                    <th style="padding:4px 5px;text-align:right;">Action</th>
                   </tr>
                 </thead>
                 <tbody>{tbody_content}</tbody>
