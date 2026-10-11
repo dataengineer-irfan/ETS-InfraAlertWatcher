@@ -563,7 +563,7 @@ def render_on_call_workspace(db_path: str) -> None:
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        height: 46px;
+        height: 38px;
         box-sizing: border-box;
     }
     .oc-stat-fill-blue {
@@ -583,27 +583,27 @@ def render_on_call_workspace(db_path: str) -> None:
         border-top: 2px solid #a855f7;
     }
     .oc-stat-label {
-        font-size: 9.5px;
+        font-size: 8px;
         color: #94a3b8;
         text-transform: uppercase;
         font-weight: 700;
-        letter-spacing: .03em;
+        letter-spacing: .04em;
         line-height: 1;
     }
     .oc-stat-val {
-        font-size: 16px;
+        font-size: 13px;
         font-weight: 800;
         line-height: 1.1;
         color: #fff;
-        font-family: var(--mono);
+        font-family: var(--ui);
         font-variant-numeric: tabular-nums;
         display: flex;
         align-items: baseline;
         gap: 4px;
     }
     .oc-stat-sub {
-        font-size: 8.5px;
-        color: #94a3b8;
+        font-size: 7.5px;
+        color: #64748b;
         line-height: 1;
         white-space: nowrap;
         overflow: hidden;
@@ -613,9 +613,9 @@ def render_on_call_workspace(db_path: str) -> None:
         border: 1px solid #2c3235;
         border-radius: 3px;
         background: #141619;
-        height: calc(100vh - 285px) !important;
-        max-height: calc(100vh - 285px) !important;
-        min-height: clamp(200px, calc(100vh - 285px), 420px) !important;
+        height: calc(100vh - 260px) !important;
+        max-height: calc(100vh - 260px) !important;
+        min-height: clamp(220px, calc(100vh - 260px), 430px) !important;
         overflow-y: auto !important;
         overflow-x: auto !important;
         scrollbar-width: thin;
@@ -760,17 +760,7 @@ def render_on_call_workspace(db_path: str) -> None:
     with top_hdr_container:
         c_brand, c_telem, c_tz, c_sync, c_rst = st.columns([6.2, 1.8, 0.8, 0.6, 0.6], gap="small")
         with c_brand:
-            if ss["oncall_state_filter"] != "All States":
-                _oc_st_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {ss["oncall_state_filter"]} SCOPED</span>'
-            else:
-                _oc_st_chips = (
-                    f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:3px;">'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;">● FLEET 30 Domains</span>'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● NH</span>'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● ND</span>'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● AK</span>'
-                    f'</span>'
-                )
+            _oc_st_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {ss["oncall_state_filter"]} SCOPED</span>' if ss["oncall_state_filter"] != "All States" else ""
 
             _brand_oc_html = (
                 f'<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="24/7 On-Call Operations Command Hub">'
@@ -898,13 +888,9 @@ def render_on_call_workspace(db_path: str) -> None:
     n_engineers_in_scope = len(in_scope_engineers)
 
     # ==========================================================================
-    # 3. EXECUTIVE ON-CALL BLUF & DYNAMIC 4-KPI METRIC RIBBON (46px Power BI Grade)
+    # 3. DYNAMIC 4-KPI METRIC RIBBON (38px Slim)
     # ==========================================================================
-    scope_oc_txt = f"[{ss['oncall_state_filter']}] " if ss["oncall_state_filter"] != "All States" else ""
-    bluf_oncall_html = f'''<div class="oc-bluf-banner" style="display:flex;align-items:center;justify-content:space-between;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-left:3px solid #10b981;border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;"><span style="font-size:9.5px;font-weight:800;color:#10b981;letter-spacing:0.04em;white-space:nowrap;flex:none;">🟢 ON-CALL POSTURE:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;flex:none;">{scope_oc_txt}100% COVERAGE ACTIVE ({n_total_in_scope} Domains Staffed)</span><span class="bluf-detail-txt" style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {n_active_now} Engineers On-Duty · Slot {cur_slot} Handover Ready · Zero Escalation Gaps</span></div><div class="bluf-badge-grp" style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span class="bluf-rem-badge" style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">ESCALATION SLA: 100%</span><span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: MINIMAL</span></div></div>'''
-
     st.markdown(f"""
-    {bluf_oncall_html}
     <div class="oc-kpi-row">
       <div class="oc-stat-card oc-stat-fill-blue">
         <span class="oc-stat-label">Fleet in Scope</span>

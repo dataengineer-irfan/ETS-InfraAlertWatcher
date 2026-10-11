@@ -323,21 +323,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     with top_hdr_container:
         c_brand, c_telem, c_csv, c_reset = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
         with c_brand:
-            if state_filter != "All States":
-                _op_state_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {state_filter} SCOPED</span>'
-            else:
-                _tot_e = len(df["env_no"].unique()) if "env_no" in df.columns else 25
-                _ak_e = len(df[df["state"] == "AK"]["env_no"].unique()) if "env_no" in df.columns else 8
-                _nd_e = len(df[df["state"] == "ND"]["env_no"].unique()) if "env_no" in df.columns else 8
-                _nh_e = len(df[df["state"] == "NH"]["env_no"].unique()) if "env_no" in df.columns else 9
-                _op_state_chips = (
-                    f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:3px;">'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;">● FLEET {_tot_e} Envs</span>'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● AK {_ak_e}</span>'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● NH {_nh_e}</span>'
-                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● ND {_nd_e}</span>'
-                    f'</span>'
-                )
+            _op_state_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {state_filter} SCOPED</span>' if state_filter != "All States" else ""
 
             _brand_html = (
                 f'<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">'
@@ -466,28 +452,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         </a>
         """
 
-    rem_hours = max(2, exp_cnt * 2)
-    if sc_prod_exp == 0:
-        bluf_color = "#10b981"
-        bluf_bg = "rgba(16,185,129,0.06)"
-        bluf_border = "rgba(16,185,129,0.25)"
-        bluf_icon = "🟢"
-        bluf_headline = "FLEET OPERATIONAL POSTURE: STABLE (25 Active Envs)" if state_filter == "All States" else f"OPERATIONAL POSTURE: STABLE ({st_envs} Active Envs)"
-        bluf_detail = f"0 Production Violations · {exp_cnt} Non-Prod Action Items · {pct_local:.1f}% Compliance"
-        bluf_badge = '<span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: MINIMAL</span>'
-    else:
-        bluf_color = "#ef4444"
-        bluf_bg = "rgba(239,68,68,0.08)"
-        bluf_border = "rgba(239,68,68,0.3)"
-        bluf_icon = "🔴"
-        bluf_headline = f"FLEET OPERATIONAL POSTURE: ELEVATED RISK ({sc_prod_exp} PROD BREACHES)"
-        bluf_detail = f"{sc_prod_exp} Live Production Violations Breaching SLA · Immediate Escalation Required"
-        bluf_badge = '<span style="font-size:8px;font-weight:700;color:#ef4444;background:rgba(239,68,68,0.2);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: CRITICAL</span>'
-
-    scope_bluf_txt = f"[{state_filter}] " if state_filter != "All States" else ""
-
-    bluf_html = f'''<div class="op-bluf-banner" style="display:flex;align-items:center;justify-content:space-between;background:{bluf_bg};border:1px solid {bluf_border};border-left:3px solid {bluf_color};border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;"><span style="font-size:9.5px;font-weight:800;color:{bluf_color};letter-spacing:0.04em;white-space:nowrap;flex:none;">{bluf_icon} EXECUTIVE BLUF:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;flex:none;">{scope_bluf_txt}{bluf_headline}</span><span class="bluf-detail-txt" style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {bluf_detail}</span></div><div class="bluf-badge-grp" style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span class="bluf-rem-badge" style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">EST. REMEDIATION: ~{rem_hours}h</span>{bluf_badge}</div></div>'''
-
     if sc_prod_exp == 0:
         k2_title = "Non-Prod Overdue"
         k2_sub = f"0 PROD · {exp_cnt} Debt" if exp_cnt else "0 PROD · 0 Debt"
@@ -507,7 +471,6 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     c_k4 = _make_kpi_card_html("Healthy Entities", hlth_cnt, k4_sub, "COMPLIANT", "ok", k4_active, "Healthy", donut_val=pct_local)
 
     _render_html(f"""
-    {bluf_html}
     <div class="op-kpi-grid">
       {c_k1}
       {c_k2}
