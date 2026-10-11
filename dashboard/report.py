@@ -167,7 +167,7 @@ body{
 .shell{
   max-width:2400px; margin:0 auto;
   height:100%; padding:var(--gap); display:grid; gap:var(--gap);
-  grid-template-rows:auto 62px minmax(140px,1.25fr) minmax(135px,1.15fr);
+  grid-template-rows:auto 62px minmax(150px,1.35fr) minmax(140px,1.2fr);
   box-sizing:border-box; overflow:hidden;
 }
 .rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,0.44fr) minmax(0,1.56fr);
@@ -226,7 +226,7 @@ body{
   border:1px solid var(--accent-line); border-radius:4px; padding:1px 4px; white-space:nowrap;
 }
 .state-env-strip{
-  display:none;
+  display:inline-flex; align-items:center; gap:3px; margin-left:3px;
 }
 .state-env-chip{
   display:inline-flex; align-items:center; gap:3.5px; height:19px; padding:0 5px;

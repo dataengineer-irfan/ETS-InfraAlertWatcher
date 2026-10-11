@@ -604,9 +604,9 @@ def render_on_call_workspace(db_path: str) -> None:
         border: 1px solid #2c3235;
         border-radius: 3px;
         background: #141619;
-        height: calc(100vh - 295px) !important;
-        max-height: calc(100vh - 295px) !important;
-        min-height: clamp(220px, calc(100vh - 295px), 380px) !important;
+        height: calc(100vh - 260px) !important;
+        max-height: calc(100vh - 260px) !important;
+        min-height: clamp(220px, calc(100vh - 260px), 420px) !important;
         overflow-y: auto !important;
         overflow-x: auto !important;
         scrollbar-width: thin;

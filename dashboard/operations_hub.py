@@ -566,9 +566,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: calc(100vh - 295px);
-        max-height: calc(100vh - 295px);
-        min-height: clamp(220px, calc(100vh - 295px), 430px);
+        height: calc(100vh - 260px);
+        max-height: calc(100vh - 260px);
+        min-height: clamp(220px, calc(100vh - 260px), 460px);
         scrollbar-width: thin;
         scrollbar-color: #334155 #181b1f;
     }
@@ -597,9 +597,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         border-radius: 3px !important;
         padding: 6px 10px !important;
         box-sizing: border-box !important;
-        height: calc(100vh - 295px) !important;
-        max-height: calc(100vh - 295px) !important;
-        min-height: clamp(220px, calc(100vh - 295px), 430px) !important;
+        height: calc(100vh - 260px) !important;
+        max-height: calc(100vh - 260px) !important;
+        min-height: clamp(220px, calc(100vh - 260px), 460px) !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         scrollbar-width: thin !important;

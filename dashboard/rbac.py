@@ -534,8 +534,8 @@ def render_rbac_workspace(db_path: str) -> None:
             border-radius: 3px !important;
             padding: 6px 10px !important;
             box-sizing: border-box !important;
-            height: calc(100vh - 295px) !important;
-            max-height: calc(100vh - 295px) !important;
+            height: calc(100vh - 260px) !important;
+            max-height: calc(100vh - 260px) !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             scrollbar-width: thin !important;
@@ -587,7 +587,7 @@ def render_rbac_workspace(db_path: str) -> None:
             tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="6" style="text-align:center;padding:16px;color:#94a3b8;">No enterprise accounts match active filters.</td></tr>'
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:hidden;overflow-y:auto;background:#181b1f;height:calc(100vh - 295px);max-height:calc(100vh - 295px);scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
+            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:hidden;overflow-y:auto;background:#181b1f;height:calc(100vh - 260px);max-height:calc(100vh - 260px);scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
               <table style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:left;">
                 <colgroup>
                   <col style="width:19%;">
@@ -766,7 +766,7 @@ def render_rbac_workspace(db_path: str) -> None:
         audit_body = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#94a3b8;">No security audit records match active filter criteria.</td></tr>'
 
         st.markdown(f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 275px);max-height:calc(100vh - 275px);min-height:clamp(220px, calc(100vh - 275px), 360px);scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 240px);max-height:calc(100vh - 240px);min-height:clamp(220px, calc(100vh - 240px), 400px);scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
           <table style="width:100%;min-width:680px;border-collapse:collapse;text-align:left;">
             <thead>
               <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;position:sticky;top:0;z-index:2;">

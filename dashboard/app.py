@@ -864,11 +864,11 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: calc(100vh - 295px);
-        max-height: calc(100vh - 295px);
+        height: calc(100vh - 260px);
+        max-height: calc(100vh - 260px);
         min-height: 220px;
         scrollbar-width: thin;
-        scrollbar-color: #38bdf8 #181b1f;
+        scrollbar-color: #334155 #181b1f;
     }
     .gov-table-container::-webkit-scrollbar {
         width: 7px;
@@ -880,9 +880,9 @@ def render_governance_center(records_df: pd.DataFrame | None = None) -> None:
         border-left: 1px solid #2c3235;
     }
     .gov-table-container::-webkit-scrollbar-thumb {
-        background: #38bdf8;
+        background: #334155;
         border-radius: 3px;
-        border: 1px solid #0284c7;
+        border: 1px solid #1e293b;
     }
     div.st-key-gov_workspace_subtabs_box div[data-testid="stTabs"] {
         position: relative !important;
@@ -2333,26 +2333,6 @@ else:
     else:
         _scope_badge = '<span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;text-transform:uppercase;">ALL FLEET</span>'
         _telem_text = f"{_tot_envs_count} Active Envs ({_prod_envs_count} PROD · {_nonprod_envs_count} Non-Prod) · {len(records)} Assets"
-
-_chips_str = "".join(_chips_html)
-_utc_now = datetime.now(timezone.utc).strftime("%H:%M UTC")
-
-st.markdown(f"""
-<div class="global-topo-banner" style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:28px;line-height:1;padding:0 8px;background:#141619;border:1px solid #22252b;border-radius:3px;margin:2px 0 6px;box-sizing:border-box;">
-  <div class="topo-brand-group" style="display:flex;align-items:center;gap:6px;flex:none;">
-    <div style="width:3px;height:14px;background:#f59e0b;border-radius:1px;flex:none;"></div>
-    <span style="font-size:10px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;">ETS WATCHTOWER</span>
-    {_scope_badge}
-  </div>
-  <div class="topo-chips" style="display:flex;align-items:center;gap:4px;min-width:0;">
-    {_chips_str}
-  </div>
-  <div class="topo-telem" style="display:flex;align-items:center;gap:8px;flex:none;">
-    <span class="topo-telem-pill" style="font-size:8px;font-weight:700;color:#94a3b8;font-family:var(--mono);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.5px 6px;border-radius:2px;white-space:nowrap;">{_telem_text}</span>
-    <span class="topo-clock" style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
 
 tab_releases, tab_overview, tab_operations, tab_governance, tab_rbac, tab_oncall = st.tabs([
     "Schedule Release Plan",

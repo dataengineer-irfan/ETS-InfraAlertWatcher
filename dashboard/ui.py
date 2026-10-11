@@ -401,8 +401,8 @@ div[data-testid="stCustomComponentV1"]:has(iframe:not([height="0"])) {{
   display: block !important;
   border: 0 !important;
   width: 100% !important;
-  height: calc(100vh - 84px) !important;
-  max-height: calc(100vh - 84px) !important;
+  height: calc(100vh - 48px) !important;
+  max-height: calc(100vh - 48px) !important;
   min-height: 480px !important;
 }}
 
