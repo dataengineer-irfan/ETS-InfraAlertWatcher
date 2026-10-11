@@ -323,14 +323,33 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     with top_hdr_container:
         c_brand, c_telem, c_csv, c_reset = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
         with c_brand:
-            _brand_html = f'''<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">
-                <div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>
-                <span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;flex:none;">OPERATIONS HUB</span>
-                <span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>
-                <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(filtered)}/{len(df)} Assets)</span>
-                {sla_callout}
-                {debt_callout}
-            </div>'''
+            if state_filter != "All States":
+                _op_state_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {state_filter} SCOPED</span>'
+            else:
+                _tot_e = len(df["env_no"].unique()) if "env_no" in df.columns else 25
+                _ak_e = len(df[df["state"] == "AK"]["env_no"].unique()) if "env_no" in df.columns else 8
+                _nd_e = len(df[df["state"] == "ND"]["env_no"].unique()) if "env_no" in df.columns else 8
+                _nh_e = len(df[df["state"] == "NH"]["env_no"].unique()) if "env_no" in df.columns else 9
+                _op_state_chips = (
+                    f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:3px;">'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;">● FLEET {_tot_e} Envs</span>'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● AK {_ak_e}</span>'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● NH {_nh_e}</span>'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● ND {_nd_e}</span>'
+                    f'</span>'
+                )
+
+            _brand_html = (
+                f'<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">'
+                f'<div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>'
+                f'<span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;flex:none;">OPERATIONS HUB</span>'
+                f'<span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>'
+                f'<span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(filtered)}/{len(df)} Assets)</span>'
+                f'{_op_state_chips}'
+                f'{sla_callout}'
+                f'{debt_callout}'
+                f'</div>'
+            )
             st.markdown(_brand_html, unsafe_allow_html=True)
         with c_telem:
             st.markdown(f'<div style="display:flex;align-items:center;justify-content:flex-end;height:26px;"><span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span></div>', unsafe_allow_html=True)
@@ -469,8 +488,21 @@ def render_operations_hub(df: pd.DataFrame) -> None:
 
     bluf_html = f'''<div class="op-bluf-banner" style="display:flex;align-items:center;justify-content:space-between;background:{bluf_bg};border:1px solid {bluf_border};border-left:3px solid {bluf_color};border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;"><span style="font-size:9.5px;font-weight:800;color:{bluf_color};letter-spacing:0.04em;white-space:nowrap;flex:none;">{bluf_icon} EXECUTIVE BLUF:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;flex:none;">{scope_bluf_txt}{bluf_headline}</span><span class="bluf-detail-txt" style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {bluf_detail}</span></div><div class="bluf-badge-grp" style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span class="bluf-rem-badge" style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">EST. REMEDIATION: ~{rem_hours}h</span>{bluf_badge}</div></div>'''
 
-    c_k1 = _make_kpi_card_html("Portfolio Scope", f"{scope_cnt} / {tot_cnt}", k1_sub, "ALL FLEET" if k1_active else "SCOPED", "ok", k1_active, "All", spark_vals=_scope_trend)
-    c_k2 = _make_kpi_card_html("Expired Items", exp_cnt, k2_sub, "FIRING" if exp_cnt else "CLEAR", "firing" if exp_cnt else "ok", k2_active, "Expired", spark_vals=_exp_trend)
+    if sc_prod_exp == 0:
+        k2_title = "Non-Prod Overdue"
+        k2_sub = f"0 PROD · {exp_cnt} Debt" if exp_cnt else "0 PROD · 0 Debt"
+        k2_badge = "DEBT" if exp_cnt else "CLEAR"
+        k2_state = "pending" if exp_cnt else "ok"
+    else:
+        k2_title = "Prod Overdue"
+        k2_sub = f"{sc_prod_exp} PROD Breached · {exp_cnt - sc_prod_exp} Non-Prod"
+        k2_badge = "FIRING"
+        k2_state = "firing"
+
+    k3_sub = f"{crit_cnt} crit (≤15d) · {warn_cnt} warn (≤30d)"
+
+    c_k1 = _make_kpi_card_html("Tracked Assets" if k1_active else "Portfolio Scope", f"{scope_cnt} / {tot_cnt}", k1_sub, "ALL FLEET" if k1_active else "SCOPED", "ok", k1_active, "All", spark_vals=_scope_trend)
+    c_k2 = _make_kpi_card_html(k2_title, exp_cnt, k2_sub, k2_badge, k2_state, k2_active, "Expired", spark_vals=_exp_trend)
     c_k3 = _make_kpi_card_html("Critical & Warning", crit_cnt + warn_cnt, k3_sub, "PENDING" if (crit_cnt + warn_cnt) else "STABLE", "pending" if (crit_cnt + warn_cnt) else "ok", k3_active, "Urgent", spark_vals=_cw_trend)
     c_k4 = _make_kpi_card_html("Healthy Entities", hlth_cnt, k4_sub, "COMPLIANT", "ok", k4_active, "Healthy", donut_val=pct_local)
 

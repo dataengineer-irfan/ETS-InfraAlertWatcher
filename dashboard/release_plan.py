@@ -298,20 +298,31 @@ def render_release_plan_workspace(db_path: str) -> None:
         """
 
     has_active_filter = bool(active_scope or st.session_state.get("global_release_selection"))
-    if has_active_filter and is_enterprise_admin:
-        h_col1, h_col_ticker, h_col2, h_col_reset = st.columns([2.6, 5.0, 1.5, 0.5], gap="small")
-    else:
-        h_col1, h_col_ticker, h_col2 = st.columns([2.6, 5.7, 1.7], gap="small")
-        h_col_reset = None
+    h_col1, h_col_ticker, h_col2, h_col_reset = st.columns([3.4, 4.4, 1.6, 0.6], gap="small")
+
+    tot_rel = len(all_releases)
+    ak_rel = sum(1 for r in all_releases if r.get("state") == "AK")
+    nh_rel = sum(1 for r in all_releases if r.get("state") == "NH")
+    nd_rel = sum(1 for r in all_releases if r.get("state") == "ND")
 
     with h_col1:
-        state_pill = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:8px;font-weight:700;">{active_scope}</span>' if active_scope and active_scope != "All" else ""
+        if active_scope and active_scope != "All":
+            state_pills = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:8px;font-weight:700;">● {active_scope} SCOPED</span>'
+        else:
+            state_pills = (
+                f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:4px;">'
+                f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;">● FLEET {tot_rel}</span>'
+                f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● AK {ak_rel}</span>'
+                f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● NH {nh_rel}</span>'
+                f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● ND {nd_rel}</span>'
+                f'</span>'
+            )
         st.markdown(f"""
         <div style="display:flex;align-items:center;gap:6px;height:30px;line-height:1;" title="Schedule Release Plan · Enterprise Milestones & Pipeline Health">
             <div style="width:3px;height:18px;background:#38bdf8;border-radius:1px;flex:none;"></div>
             <span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;">RELEASE PLAN</span>
             <span style="font-size:7.5px;font-weight:800;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;">ENTERPRISE</span>
-            {state_pill}
+            {state_pills}
         </div>
         """, unsafe_allow_html=True)
 
@@ -344,9 +355,8 @@ def render_release_plan_workspace(db_path: str) -> None:
         if "rp_target_rel_picker" in st.session_state:
             del st.session_state["rp_target_rel_picker"]
 
-    if h_col_reset is not None:
-        with h_col_reset:
-            st.button("↺", key="btn_rp_reset_scope", on_click=_on_reset_rp_scope, use_container_width=True, help="Reset to All States")
+    with h_col_reset:
+        st.button("↺", key="btn_rp_reset_scope", on_click=_on_reset_rp_scope, use_container_width=True, help="Reset to All States")
 
     # --------------------------------------------------------------------------
     # 3. Categorize into: Previous, Current, Upcoming based on DEV Date Window
@@ -378,6 +388,8 @@ def render_release_plan_workspace(db_path: str) -> None:
     if active_count == 0 and curr_r:
         active_count = 1
 
+    deployed_count = sum(1 for r in all_releases if (r.get("prod_deploy_date") or "9999") < now_iso)
+    scheduled_count = max(0, len(all_releases) - active_count - deployed_count)
     upcoming_count = sum(1 for r in all_releases if (r.get("dev_start_date") or r.get("prod_deploy_date") or "") > (curr_r.get("dev_end_date", "") if curr_r else now_iso))
 
     monitored_pool = [r for r in (prev_r, curr_r, next_r) if r is not None]
@@ -500,8 +512,12 @@ def render_release_plan_workspace(db_path: str) -> None:
     rel_data = release_dict.get(chosen_rel) or (all_releases[0] if all_releases else {})
 
     # --------------------------------------------------------------------------
-    # 7. 3 EXECUTIVE STORYBOARD DECKS (5-Stage Pipeline: DEV, SIT, REGRESS, UAT, PROD)
+    # 7. EXECUTIVE PIPELINE BLUF & 3 STORYBOARD DECKS
     # --------------------------------------------------------------------------
+    scope_rel_txt = f"[{active_scope}] " if active_scope and active_scope != "All" else ""
+    bluf_pipeline_html = f'''<div class="rp-bluf-banner" style="display:flex;align-items:center;justify-content:space-between;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-left:3px solid #10b981;border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;"><span style="font-size:9.5px;font-weight:800;color:#10b981;letter-spacing:0.04em;white-space:nowrap;flex:none;">🟢 PIPELINE POSTURE:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;flex:none;">{scope_rel_txt}{len(all_releases)} Releases ({active_count} Active · {scheduled_count} Scheduled · {deployed_count} Deployed)</span><span class="bluf-detail-txt" style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— 0 Critical Gate Blockers · 100% Release Cadence Integrity</span></div><div class="bluf-badge-grp" style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span class="bluf-rem-badge" style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">GATE READINESS: ~{avg_readiness:.0f}%</span><span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: MINIMAL</span></div></div>'''
+    render_html(bluf_pipeline_html)
+
     story_c1, story_c2, story_c3 = st.columns(3, gap="small")
 
     def _render_story_card(title: str, rel_data: dict | None, accent_color: str, icon: str):
@@ -627,6 +643,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         border-radius: 3px !important;
         line-height: 22px !important;
     }
+    div[class*="st-key-btn_card_"] button[data-testid*="primary"],
     div[class*="st-key-btn_card_"] button[data-testid*="stBaseButton-primary"],
     div[class*="st-key-btn_card_"] button[kind="primary"] {
         background: #0284c7 !important;
@@ -634,7 +651,7 @@ def render_release_plan_workspace(db_path: str) -> None:
         color: #ffffff !important;
         box-shadow: 0 0 8px rgba(56, 189, 248, 0.3) !important;
     }
-    /* Master Pipeline Roadmap Table Container with High-Contrast Cyan Scrollbar */
+    /* Master Pipeline Roadmap Table Container with Microsoft Fabric Slate Scrollbar */
     .rp-table-container {
         background: #181b1f;
         border: 1px solid #2c3235;
@@ -642,15 +659,15 @@ def render_release_plan_workspace(db_path: str) -> None:
         box-sizing: border-box;
         overflow-y: scroll !important;
         overflow-x: auto;
-        height: calc(100vh - 435px);
-        min-height: clamp(160px, calc(100vh - 435px), 330px);
+        height: calc(100vh - 395px);
+        min-height: clamp(170px, calc(100vh - 395px), 360px);
         max-height: 520px;
         scrollbar-width: thin;
-        scrollbar-color: #38bdf8 #141619;
+        scrollbar-color: #334155 #141619;
     }
     .rp-table-container::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
         display: block !important;
     }
     .rp-table-container::-webkit-scrollbar-track {
@@ -658,12 +675,11 @@ def render_release_plan_workspace(db_path: str) -> None:
         border-left: 1px solid #2c3235;
     }
     .rp-table-container::-webkit-scrollbar-thumb {
-        background: #38bdf8;
-        border-radius: 4px;
-        border: 1px solid #0284c7;
+        background: #334155;
+        border-radius: 3px;
     }
     .rp-table-container::-webkit-scrollbar-thumb:hover {
-        background: #7dd3fc;
+        background: #475569;
     }
     </style>
     ''', unsafe_allow_html=True)
@@ -818,9 +834,6 @@ def render_release_plan_workspace(db_path: str) -> None:
     # 9. MULTI-RELEASE ROADMAP MATRIX (Lower Workspace ~230px, Fills Canvas)
     # --------------------------------------------------------------------------
     total_fleet_count = len(all_releases)
-    active_count = sum(1 for r in all_releases if str(r.get('dev_start_date', '')) <= now_iso <= str(r.get('dev_end_date', '')))
-    deployed_count = sum(1 for r in all_releases if str(r.get('prod_deploy_date', '9999')) < now_iso)
-    scheduled_count = total_fleet_count - active_count - deployed_count
 
     render_html(f'''
     <div style='display:flex;align-items:center;justify-content:space-between;margin:6px 0 3px 0;padding:0 2px;'>

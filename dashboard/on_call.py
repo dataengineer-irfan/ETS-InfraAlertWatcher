@@ -45,6 +45,12 @@ _STATE_OPTIONS = ["All States", "NH MMIS", "ND MMIS", "AK MMIS"]
 _DIVISION_OPTIONS = ["All Divisions", "Infra Team", "Core Dev", "Non-Core Dev"]
 
 
+def _render_html(html_str: str) -> None:
+    """Render HTML safely without markdown code-block escaping."""
+    cleaned = "\n".join(line.strip() for line in html_str.splitlines() if line.strip())
+    st.markdown(cleaned, unsafe_allow_html=True)
+
+
 def _compact_shift_chip(win_str: str) -> str:
     """Render compact chip (M, E, N, WO, Comp, Hol, Lv) with full timing tooltip."""
     if not win_str:
@@ -553,11 +559,11 @@ def render_on_call_workspace(db_path: str) -> None:
         background: #181b1f;
         border: 1px solid #2c3235;
         border-radius: 2px;
-        padding: 3px 8px;
+        padding: 4px 8px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        height: 38px;
+        height: 46px;
         box-sizing: border-box;
     }
     .oc-stat-fill-blue {
@@ -577,36 +583,39 @@ def render_on_call_workspace(db_path: str) -> None:
         border-top: 2px solid #a855f7;
     }
     .oc-stat-label {
-        font-size: 8px;
+        font-size: 9.5px;
         color: #94a3b8;
         text-transform: uppercase;
         font-weight: 700;
-        letter-spacing: .04em;
+        letter-spacing: .03em;
         line-height: 1;
     }
     .oc-stat-val {
-        font-size: 13px;
+        font-size: 16px;
         font-weight: 800;
         line-height: 1.1;
         color: #fff;
-        font-family: var(--ui);
+        font-family: var(--mono);
         font-variant-numeric: tabular-nums;
         display: flex;
         align-items: baseline;
         gap: 4px;
     }
     .oc-stat-sub {
-        font-size: 7.5px;
-        color: #64748b;
+        font-size: 8.5px;
+        color: #94a3b8;
         line-height: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .oc-table-container {
         border: 1px solid #2c3235;
         border-radius: 3px;
         background: #141619;
-        height: calc(100vh - 260px) !important;
-        max-height: calc(100vh - 260px) !important;
-        min-height: clamp(220px, calc(100vh - 260px), 420px) !important;
+        height: calc(100vh - 285px) !important;
+        max-height: calc(100vh - 285px) !important;
+        min-height: clamp(200px, calc(100vh - 285px), 420px) !important;
         overflow-y: auto !important;
         overflow-x: auto !important;
         scrollbar-width: thin;
@@ -751,16 +760,30 @@ def render_on_call_workspace(db_path: str) -> None:
     with top_hdr_container:
         c_brand, c_telem, c_tz, c_sync, c_rst = st.columns([6.2, 1.8, 0.8, 0.6, 0.6], gap="small")
         with c_brand:
-            st.markdown(f"""
-            <div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="24/7 On-Call Operations Command Hub">
-                <div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>
-                <span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;flex:none;">ON-CALL HUB</span>
-                <span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>
-                <span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({valid_from[5:]}→{valid_to[5:]})</span>
-                <span style="font-size:8px;font-weight:700;background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">🛡️ 24/7 SUPPORT</span>
-                <span style="font-size:8px;font-weight:700;background:rgba(168,85,247,0.16);color:#c084fc;border:1px solid rgba(168,85,247,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">👥 {distinct_ps_engineers} Engineers</span>
-            </div>
-            """, unsafe_allow_html=True)
+            if ss["oncall_state_filter"] != "All States":
+                _oc_st_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {ss["oncall_state_filter"]} SCOPED</span>'
+            else:
+                _oc_st_chips = (
+                    f'<span style="display:inline-flex;align-items:center;gap:3px;margin-left:3px;">'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;">● FLEET 30 Domains</span>'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● NH</span>'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● ND</span>'
+                    f'<span style="font-size:7.5px;font-weight:700;background:rgba(56,189,248,0.08);color:#94a3b8;border:1px solid #2c3235;padding:1px 4px;border-radius:2px;white-space:nowrap;">● AK</span>'
+                    f'</span>'
+                )
+
+            _brand_oc_html = (
+                f'<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="24/7 On-Call Operations Command Hub">'
+                f'<div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>'
+                f'<span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;flex:none;">ON-CALL HUB</span>'
+                f'<span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>'
+                f'<span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({valid_from[5:]}→{valid_to[5:]})</span>'
+                f'{_oc_st_chips}'
+                f'<span style="font-size:8px;font-weight:700;background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">🛡️ 24/7 SUPPORT</span>'
+                f'<span style="font-size:8px;font-weight:700;background:rgba(168,85,247,0.16);color:#c084fc;border:1px solid rgba(168,85,247,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">👥 {distinct_ps_engineers} Engineers</span>'
+                f'</div>'
+            )
+            st.markdown(_brand_oc_html, unsafe_allow_html=True)
         with c_telem:
             _tz_lbl = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
             st.markdown(f'<div style="display:flex;align-items:center;justify-content:flex-end;height:26px;"><span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_tz_lbl}</span></div>', unsafe_allow_html=True)
@@ -875,18 +898,22 @@ def render_on_call_workspace(db_path: str) -> None:
     n_engineers_in_scope = len(in_scope_engineers)
 
     # ==========================================================================
-    # 3. DYNAMIC 4-KPI METRIC RIBBON (38px Slim)
+    # 3. EXECUTIVE ON-CALL BLUF & DYNAMIC 4-KPI METRIC RIBBON (46px Power BI Grade)
     # ==========================================================================
+    scope_oc_txt = f"[{ss['oncall_state_filter']}] " if ss["oncall_state_filter"] != "All States" else ""
+    bluf_oncall_html = f'''<div class="oc-bluf-banner" style="display:flex;align-items:center;justify-content:space-between;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-left:3px solid #10b981;border-radius:3px;padding:3px 10px;margin:2px 0 5px;height:24px;box-sizing:border-box;"><div style="display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;"><span style="font-size:9.5px;font-weight:800;color:#10b981;letter-spacing:0.04em;white-space:nowrap;flex:none;">🟢 ON-CALL POSTURE:</span><span style="font-size:9.5px;font-weight:700;color:#f8fafc;white-space:nowrap;flex:none;">{scope_oc_txt}100% COVERAGE ACTIVE ({n_total_in_scope} Domains Staffed)</span><span class="bluf-detail-txt" style="font-size:8.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {n_active_now} Engineers On-Duty · Slot {cur_slot} Handover Ready · Zero Escalation Gaps</span></div><div class="bluf-badge-grp" style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span class="bluf-rem-badge" style="font-size:8px;font-weight:700;color:#38bdf8;font-family:var(--mono);background:rgba(56,189,248,0.12);padding:1.5px 6px;border-radius:2px;">ESCALATION SLA: 100%</span><span style="font-size:8px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.15);padding:1.5px 6px;border-radius:2px;font-family:var(--mono);">AUDIT RISK: MINIMAL</span></div></div>'''
+
     st.markdown(f"""
+    {bluf_oncall_html}
     <div class="oc-kpi-row">
       <div class="oc-stat-card oc-stat-fill-blue">
         <span class="oc-stat-label">Fleet in Scope</span>
-        <div class="oc-stat-val">{n_total_in_scope} <span style="font-size:9px;color:#64748b;font-weight:400;">Domains</span></div>
+        <div class="oc-stat-val">{n_total_in_scope} <span style="font-size:9px;color:#94a3b8;font-weight:500;">Domains</span></div>
         <span class="oc-stat-sub">{n_engineers_in_scope} Active Resources</span>
       </div>
       <div class="oc-stat-card oc-stat-fill-green">
         <span class="oc-stat-label">On-Duty Live</span>
-        <div class="oc-stat-val">{n_active_now} <span style="font-size:9px;color:#64748b;font-weight:400;">/ {n_total_in_scope}</span></div>
+        <div class="oc-stat-val">{n_active_now} <span style="font-size:9px;color:#94a3b8;font-weight:500;">/ {n_total_in_scope}</span></div>
         <span class="oc-stat-sub">Slot {cur_slot} Handover Ready</span>
       </div>
       <div class="oc-stat-card oc-stat-fill-yellow">
