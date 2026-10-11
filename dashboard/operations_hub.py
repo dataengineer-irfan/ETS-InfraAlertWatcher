@@ -222,18 +222,16 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         st.session_state[op_st_key] = active_scope
 
     # ==========================================================================
-    # 1. UNIVERSAL 2-TIER COMMAND RIBBON (Tier 1: Brand & Telemetry | Tier 2: Slicers)
+    # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | 5 Slicers | Telemetry & Actions)
     # ==========================================================================
-    top_hdr_container = st.container()
-
-    c_srch, c_f_st, c_f_tm, c_f_comp, c_f_hlth = st.columns(
-        [2.8, 1.3, 1.5, 1.5, 1.3],
+    c_brand, c_f1, c_f2, c_f3, c_f4, c_f5, c_telem, c_csv, c_reset = st.columns(
+        [1.35, 1.4, 1.05, 1.15, 1.15, 1.05, 1.25, 0.5, 0.35],
         gap="small"
     )
 
-    with c_srch:
-        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search schema, env, comp...", label_visibility="collapsed", autocomplete="off")
-    with c_f_st:
+    with c_f1:
+        q = st.text_input("Filter", key=f"op_search_{reset_idx}", placeholder="🔍 Search...", label_visibility="collapsed", autocomplete="off")
+    with c_f2:
         assigned_st = st.session_state.get("assigned_state")
         if assigned_st in STATES:
             state_opts = [assigned_st]
@@ -243,9 +241,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         else:
             state_opts = ["All States"] + STATES
             state_filter = st.selectbox("State", state_opts, key=op_st_key, label_visibility="collapsed")
-    with c_f_tm:
+    with c_f3:
         team_filter = st.selectbox("Team", ["All Teams"] + ui.TEAMS, key=f"op_team_{reset_idx}", label_visibility="collapsed")
-    with c_f_comp:
+    with c_f4:
         comp_filter = st.selectbox(
             "Component",
             ["All Components"] + COMPONENT_ORDER,
@@ -253,7 +251,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
             label_visibility="collapsed",
             format_func=lambda c: ui.COMPONENT_CODE.get(c, c) if c != "All Components" else "All Components",
         )
-    with c_f_hlth:
+    with c_f5:
         health_filter = st.selectbox("Health", ["All Health"] + ui.BANDS, key=f"op_health_{reset_idx}", label_visibility="collapsed")
 
     # Apply slicer filters across the complete dataset
@@ -319,45 +317,44 @@ def render_operations_hub(df: pd.DataFrame) -> None:
     debt_cnt = sc_dr_exp + sc_mo_exp
     debt_callout = f'<span style="font-size:8px;font-weight:700;background:rgba(255,152,48,0.15);color:#ff9830;border:1px solid rgba(255,152,48,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;">⚠️ Debt: {debt_cnt}</span>' if debt_cnt > 0 else ''
 
-    # Populate Top Control Bar Container
-    with top_hdr_container:
-        c_brand, c_telem, c_csv, c_reset = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
-        with c_brand:
-            _op_state_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {state_filter} SCOPED</span>' if state_filter != "All States" else ""
+    with c_brand:
+        _op_state_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {state_filter}</span>' if state_filter != "All States" else ""
+        _brand_html = (
+            f'<div style="display:flex;align-items:center;gap:5px;height:28px;line-height:1;min-width:0;overflow:hidden;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">'
+            f'<div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>'
+            f'<span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;flex:none;">OPERATIONS HUB</span>'
+            f'<span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>'
+            f'<span style="font-size:8.5px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(filtered)}/{len(df)})</span>'
+            f'{_op_state_chips}'
+            f'</div>'
+        )
+        st.markdown(_brand_html, unsafe_allow_html=True)
 
-            _brand_html = (
-                f'<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Portfolio Operations Hub · Cross-Tab Multi-Team Expiry & Asset Inventory">'
-                f'<div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>'
-                f'<span style="font-size:11px;font-weight:800;letter-spacing:0.04em;color:#f8fafc;white-space:nowrap;flex:none;">OPERATIONS HUB</span>'
-                f'<span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>'
-                f'<span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(filtered)}/{len(df)} Assets)</span>'
-                f'{_op_state_chips}'
-                f'{sla_callout}'
-                f'{debt_callout}'
-                f'</div>'
-            )
-            st.markdown(_brand_html, unsafe_allow_html=True)
-        with c_telem:
-            st.markdown(f'<div style="display:flex;align-items:center;justify-content:flex-end;height:26px;"><span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span></div>', unsafe_allow_html=True)
-        with c_csv:
-            st.markdown(
-                ui.csv_download_button(
-                    df=filtered,
-                    filename=f"expiry_operations_{date.today().isoformat()}.csv",
-                    label="📥 CSV",
-                    key=f"op_export_csv_{reset_idx}",
-                ),
-                unsafe_allow_html=True,
-            )
-        with c_reset:
-            st.button(
-                "↺",
-                key=f"op_sc_reset_btn_{reset_idx}",
-                on_click=_on_reset_operations_hub,
-                use_container_width=True,
-                type="secondary",
-                help="Reset all filters and restore full fleet coverage",
-            )
+    with c_telem:
+        _telem_parts = [p for p in [sla_callout, debt_callout, f'<span style="font-size:8px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_utc_now}</span>'] if p]
+        _telem_html = f'<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;height:28px;line-height:1;box-sizing:border-box;">{" ".join(_telem_parts)}</div>'
+        st.markdown(_telem_html, unsafe_allow_html=True)
+
+    with c_csv:
+        st.markdown(
+            ui.csv_download_button(
+                df=filtered,
+                filename=f"expiry_operations_{date.today().isoformat()}.csv",
+                label="📥 CSV",
+                key=f"op_export_csv_{reset_idx}",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    with c_reset:
+        st.button(
+            "↺",
+            key=f"op_sc_reset_btn_{reset_idx}",
+            on_click=_on_reset_operations_hub,
+            use_container_width=True,
+            type="secondary",
+            help="Reset all filters and restore full fleet coverage",
+        )
 
     # ==========================================================================
     # 2. DYNAMIC 4-KPI RIBBON (Single 48px row with click-to-filter)
@@ -430,22 +427,18 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         elif spark_vals:
             vis_html = ui.grafana_sparkline(spark_vals, val_col, height=16, width=44)
 
-        b_html = f'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:2px;background:{bg_col};color:{fg_col};">{"ACTIVE: " if is_active else ""}{badge}</span>'
+        b_html = f'<span style="font-size:7.5px;font-weight:700;padding:1px 4px;border-radius:2px;background:{bg_col};color:{fg_col};white-space:nowrap;">{"ACTIVE: " if is_active else ""}{badge}</span>'
 
         return f"""
         <a href="?op_kpi={kpi_param}{auth_suffix}" target="_self" style="text-decoration:none;display:block;">
-          <div class="panel stat-panel grafana-card {fill_cls}" style="{active_style}border-radius:2px;padding:4px 8px;min-height:48px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:center;justify-content:space-between;line-height:1;margin-bottom:2px;">
-                <span style="font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.02em;">{label}</span>
-                {b_html}
-              </div>
-              <div style="display:flex;align-items:baseline;gap:6px;">
-                <span style="font-size:17px;font-weight:800;font-family:var(--mono);color:{val_col};line-height:1;">{val}</span>
-                <span style="font-size:8.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{subtext}</span>
-              </div>
+          <div class="panel stat-panel grafana-card {fill_cls}" style="{active_style}border-radius:2px;padding:2px 7px;min-height:34px;height:34px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;">
+              <span style="font-size:8.5px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;flex:none;">{label}</span>
+              <span style="font-size:15px;font-weight:800;font-family:var(--mono);color:{val_col};line-height:1;flex:none;">{val}</span>
+              <span style="font-size:8px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{subtext}</span>
             </div>
-            <div style="flex:none;margin-left:4px;">
+            <div style="display:flex;align-items:center;gap:5px;flex:none;margin-left:4px;">
+              {b_html}
               {vis_html}
             </div>
           </div>
@@ -561,9 +554,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         box-sizing: border-box;
         overflow-y: auto;
         overflow-x: auto;
-        height: calc(100vh - 260px);
-        max-height: calc(100vh - 260px);
-        min-height: clamp(220px, calc(100vh - 260px), 460px);
+        height: calc(100vh - 215px);
+        max-height: calc(100vh - 215px);
+        min-height: clamp(250px, calc(100vh - 215px), 520px);
         scrollbar-width: thin;
         scrollbar-color: #334155 #181b1f;
     }
@@ -592,9 +585,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         border-radius: 3px !important;
         padding: 6px 10px !important;
         box-sizing: border-box !important;
-        height: calc(100vh - 260px) !important;
-        max-height: calc(100vh - 260px) !important;
-        min-height: clamp(220px, calc(100vh - 260px), 460px) !important;
+        height: calc(100vh - 215px) !important;
+        max-height: calc(100vh - 215px) !important;
+        min-height: clamp(250px, calc(100vh - 215px), 520px) !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         scrollbar-width: thin !important;

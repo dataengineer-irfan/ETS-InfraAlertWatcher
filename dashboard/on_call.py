@@ -613,9 +613,9 @@ def render_on_call_workspace(db_path: str) -> None:
         border: 1px solid #2c3235;
         border-radius: 3px;
         background: #141619;
-        height: calc(100vh - 260px) !important;
-        max-height: calc(100vh - 260px) !important;
-        min-height: clamp(220px, calc(100vh - 260px), 430px) !important;
+        height: calc(100vh - 215px) !important;
+        max-height: calc(100vh - 215px) !important;
+        min-height: clamp(250px, calc(100vh - 215px), 520px) !important;
         overflow-y: auto !important;
         overflow-x: auto !important;
         scrollbar-width: thin;
@@ -680,12 +680,10 @@ def render_on_call_workspace(db_path: str) -> None:
     """, unsafe_allow_html=True)
 
     # ==========================================================================
-    # 1. UNIVERSAL 2-TIER COMMAND RIBBON (Tier 1: Brand & Actions | Tier 2: Slicers)
+    # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | Slicers | Actions)
     # ==========================================================================
-    top_hdr_container = st.container()
-
-    c_srch, c_div, c_st, c_day, c_lead = st.columns(
-        [2.6, 1.6, 1.4, 1.6, 2.0],
+    c_brand, c_srch, c_div, c_st, c_day, c_lead, c_tz, c_sync, c_rst = st.columns(
+        [1.65, 1.35, 1.1, 0.95, 1.05, 1.15, 0.7, 0.45, 0.35],
         gap="small"
     )
 
@@ -693,7 +691,7 @@ def render_on_call_workspace(db_path: str) -> None:
         srch_val = st.text_input(
             "Filter",
             value=ss["oncall_search"],
-            placeholder="🔍 Search engineer, domain, lead...",
+            placeholder="🔍 Search...",
             key="oncall_top_search_input",
             label_visibility="collapsed",
             autocomplete="off",
@@ -757,58 +755,53 @@ def render_on_call_workspace(db_path: str) -> None:
         if picked_lead != ss["oncall_sdm_filter"]:
             ss["oncall_sdm_filter"] = picked_lead
 
-    with top_hdr_container:
-        c_brand, c_telem, c_tz, c_sync, c_rst = st.columns([6.2, 1.8, 0.8, 0.6, 0.6], gap="small")
-        with c_brand:
-            _oc_st_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 5px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {ss["oncall_state_filter"]} SCOPED</span>' if ss["oncall_state_filter"] != "All States" else ""
+    with c_brand:
+        _oc_st_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {ss["oncall_state_filter"]}</span>' if ss["oncall_state_filter"] != "All States" else ""
+        _brand_oc_html = (
+            f'<div style="display:flex;align-items:center;gap:5px;height:28px;line-height:1;min-width:0;overflow:hidden;" title="24/7 On-Call Operations Command Hub">'
+            f'<div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>'
+            f'<span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;flex:none;">ON-CALL HUB</span>'
+            f'<span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>'
+            f'<span style="font-size:8.5px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({valid_from[5:]}→{valid_to[5:]})</span>'
+            f'{_oc_st_chips}'
+            f'</div>'
+        )
+        st.markdown(_brand_oc_html, unsafe_allow_html=True)
 
-            _brand_oc_html = (
-                f'<div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="24/7 On-Call Operations Command Hub">'
-                f'<div style="width:3px;height:16px;background:#f59e0b;border-radius:1px;flex:none;"></div>'
-                f'<span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;flex:none;">ON-CALL HUB</span>'
-                f'<span style="font-size:7.5px;font-weight:800;background:rgba(16,185,129,0.18);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:2px;white-space:nowrap;flex:none;">LIVE</span>'
-                f'<span style="font-size:9px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({valid_from[5:]}→{valid_to[5:]})</span>'
-                f'{_oc_st_chips}'
-                f'<span style="font-size:8px;font-weight:700;background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">🛡️ 24/7 SUPPORT</span>'
-                f'<span style="font-size:8px;font-weight:700;background:rgba(168,85,247,0.16);color:#c084fc;border:1px solid rgba(168,85,247,0.3);padding:1.5px 5px;border-radius:2px;white-space:nowrap;flex:none;">👥 {distinct_ps_engineers} Engineers</span>'
-                f'</div>'
+    with c_tz:
+        tz_val = ss["oncall_tz"]
+        if st.button("IST" if tz_val == "IST" else "EST", key="oncall_top_tz_toggle", use_container_width=True, help="Toggle IST / EST"):
+            ss["oncall_tz"] = "EST" if tz_val == "IST" else "IST"
+            st.rerun()
+
+    with c_sync:
+        if st.button("🔄", key="oncall_top_sync_btn", use_container_width=True, help="Sync latest roster from _Input"):
+            input_dir = ROOT / "_Input"
+            target_files = sorted(
+                [f for f in input_dir.glob("*.xlsx") if "on call" in f.name.lower() or "roster" in f.name.lower()],
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
             )
-            st.markdown(_brand_oc_html, unsafe_allow_html=True)
-        with c_telem:
-            _tz_lbl = "IST (UTC+5:30)" if use_ist else "EST (UTC-5)"
-            st.markdown(f'<div style="display:flex;align-items:center;justify-content:flex-end;height:26px;"><span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{_tz_lbl}</span></div>', unsafe_allow_html=True)
-        with c_tz:
-            tz_val = ss["oncall_tz"]
-            if st.button("IST" if tz_val == "IST" else "EST", key="oncall_top_tz_toggle", use_container_width=True, help="Toggle IST / EST"):
-                ss["oncall_tz"] = "EST" if tz_val == "IST" else "IST"
+            if target_files:
+                with st.spinner("Syncing..."):
+                    ingest_roster_file(db_path, target_files[0])
+                    _clear_oncall_cache()
+                st.toast(f"✓ Synced {target_files[0].name}!")
                 st.rerun()
-        with c_sync:
-            if st.button("🔄", key="oncall_top_sync_btn", use_container_width=True, help="Sync latest roster from _Input"):
-                input_dir = ROOT / "_Input"
-                target_files = sorted(
-                    [f for f in input_dir.glob("*.xlsx") if "on call" in f.name.lower() or "roster" in f.name.lower()],
-                    key=lambda f: f.stat().st_mtime,
-                    reverse=True,
-                )
-                if target_files:
-                    with st.spinner("Syncing..."):
-                        ingest_roster_file(db_path, target_files[0])
-                        _clear_oncall_cache()
-                    st.toast(f"✓ Synced {target_files[0].name}!")
-                    st.rerun()
-                else:
-                    st.warning("No files in _Input.")
-        with c_rst:
-            if st.button("↺", key="oncall_top_rst_btn", use_container_width=True, help="Reset all filters"):
-                def_st = f"{active_scope_state} MMIS" if active_scope_state in ["NH", "ND", "AK"] else "All States"
-                ss["oncall_state_filter"] = def_st
-                ss["oncall_div_filter"] = "All Divisions"
-                ss["oncall_sdm_filter"] = "All Leads"
-                ss["oncall_day_filter"] = "All Days"
-                ss["oncall_search"] = ""
-                ss["oncall_selected_eng"] = None
-                ss["oncall_ps_filter"] = "All"
-                st.rerun()
+            else:
+                st.warning("No files in _Input.")
+
+    with c_rst:
+        if st.button("↺", key="oncall_top_rst_btn", use_container_width=True, help="Reset all filters"):
+            def_st = f"{active_scope_state} MMIS" if active_scope_state in ["NH", "ND", "AK"] else "All States"
+            ss["oncall_state_filter"] = def_st
+            ss["oncall_div_filter"] = "All Divisions"
+            ss["oncall_sdm_filter"] = "All Leads"
+            ss["oncall_day_filter"] = "All Days"
+            ss["oncall_search"] = ""
+            ss["oncall_selected_eng"] = None
+            ss["oncall_ps_filter"] = "All"
+            st.rerun()
 
     # ==========================================================================
     # 2. BACKEND FILTER ENGINE (Strict Master-Detail Cohesion)

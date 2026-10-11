@@ -328,58 +328,24 @@ def render_rbac_workspace(db_path: str) -> None:
             del st.query_params["rbac_user"]
 
     # ==========================================================================
-    # 1. UNIVERSAL 2-TIER COMMAND RIBBON (Tier 1: Brand & Telemetry | Tier 2: Slicers)
+    # 1. UNIVERSAL 1-LINE COMMAND BAR (Brand & Scope | Slicers | Actions)
     # ==========================================================================
-    now_str = datetime.now(timezone.utc).strftime("%H:%M UTC")
-
-    # Tier 1: Brand Title, PBKDF2 badge, UTC Clock, CSV, Reset
-    c_brand, c_telem, c_csv, c_rst = st.columns([6.2, 2.0, 1.0, 0.8], gap="small")
+    c_brand, c_srch, c_role, c_st, c_act, c_telem, c_csv, c_rst = st.columns(
+        [1.65, 1.45, 1.10, 1.00, 1.25, 1.20, 0.50, 0.35],
+        gap="small"
+    )
 
     with c_brand:
+        _rbac_st_chips = f'<span style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);padding:1px 4px;border-radius:2px;font-size:7.5px;font-weight:700;white-space:nowrap;">● {ss["rbac_state_filter"]}</span>' if ss["rbac_state_filter"] != "All States" else ""
         st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:6px;height:26px;min-width:0;overflow:hidden;" title="Access Control & Security Audit (Zero-Trust RBAC)">
+        <div style="display:flex;align-items:center;gap:5px;height:28px;line-height:1;min-width:0;overflow:hidden;" title="Access Control & Security Audit (Zero-Trust RBAC)">
             <div style="width:3px;height:16px;background:#ec4899;border-radius:1px;flex:none;"></div>
             <span style="font-size:11px;font-weight:800;letter-spacing:0.03em;color:#f8fafc;white-space:nowrap;flex:none;">RBAC HUB</span>
             <span style="font-size:7.5px;font-weight:800;background:rgba(236,72,153,0.18);color:#f472b6;border:1px solid rgba(236,72,153,0.35);padding:1px 4px;border-radius:2px;white-space:nowrap;flex:none;">ZERO-TRUST</span>
-            <span style="font-size:8px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(all_users)} Users)</span>
-            <span style="font-size:7.5px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:2px;padding:1px 5px;font-family:var(--mono);white-space:nowrap;flex:none;">PBKDF2-SHA256</span>
+            <span style="font-size:8.5px;color:#94a3b8;font-family:var(--mono);white-space:nowrap;flex:none;">({len(all_users)} Users)</span>
+            {_rbac_st_chips}
         </div>
         """, unsafe_allow_html=True)
-
-    with c_telem:
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;justify-content:flex-end;height:26px;">
-          <span style="font-size:8.5px;color:#64748b;font-family:var(--mono);white-space:nowrap;">{now_str}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c_csv:
-        conn_csv = get_connection(db_path)
-        df_audit_full = pd.read_sql_query(
-            "SELECT timestamp, actor, role, action, target_entity, details, ip_address FROM audit_log ORDER BY id DESC LIMIT 500",
-            conn_csv
-        )
-        conn_csv.close()
-        st.markdown(
-            ui.csv_download_button(
-                df=df_audit_full,
-                filename=f"ets_security_audit_{date.today().isoformat()}.csv",
-                label="📥 CSV",
-                key="rbac_audit_top_csv_btn",
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with c_rst:
-        if st.button("↺", key="rbac_top_reset_btn", help="Reset all filters to Fleet view", use_container_width=True):
-            ss["rbac_search"] = ""
-            ss["rbac_role_filter"] = "All Roles"
-            ss["rbac_state_filter"] = "All States"
-            ss["rbac_action_filter"] = "ALL"
-            st.rerun()
-
-    # Tier 2: Search Box + Role + State Scope + Action Slicers
-    c_srch, c_role, c_st, c_act = st.columns([3.0, 2.0, 2.0, 2.0], gap="small")
 
     with c_srch:
         srch_val = st.text_input(
@@ -428,6 +394,40 @@ def render_rbac_workspace(db_path: str) -> None:
         )
         if picked_act != ss["rbac_action_filter"]:
             ss["rbac_action_filter"] = picked_act
+
+    with c_telem:
+        now_str = datetime.now(timezone.utc).strftime("%H:%M UTC")
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;height:28px;line-height:1;box-sizing:border-box;">
+          <span style="font-size:7.5px;font-weight:700;color:#10b981;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);border-radius:2px;padding:1.5px 4px;font-family:var(--mono);">PBKDF2-SHA256</span>
+          <span style="font-size:8px;color:#64748b;font-family:var(--mono);">{now_str}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_csv:
+        conn_csv = get_connection(db_path)
+        df_audit_full = pd.read_sql_query(
+            "SELECT timestamp, actor, role, action, target_entity, details, ip_address FROM audit_log ORDER BY id DESC LIMIT 500",
+            conn_csv
+        )
+        conn_csv.close()
+        st.markdown(
+            ui.csv_download_button(
+                df=df_audit_full,
+                filename=f"ets_security_audit_{date.today().isoformat()}.csv",
+                label="📥 CSV",
+                key="rbac_audit_top_csv_btn",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    with c_rst:
+        if st.button("↺", key="rbac_top_reset_btn", help="Reset all filters to Fleet view", use_container_width=True):
+            ss["rbac_search"] = ""
+            ss["rbac_role_filter"] = "All Roles"
+            ss["rbac_state_filter"] = "All States"
+            ss["rbac_action_filter"] = "ALL"
+            st.rerun()
 
     # ==========================================================================
     # 2. BACKEND FILTER ENGINE (Strict Master-Detail Cohesion)
