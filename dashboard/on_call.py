@@ -610,7 +610,7 @@ def render_on_call_workspace(db_path: str) -> None:
         overflow-y: auto !important;
         overflow-x: auto !important;
         scrollbar-width: thin;
-        scrollbar-color: #38bdf8 #181b1f;
+        scrollbar-color: #334155 #181b1f;
     }
     .oc-insp-container {
         border: 1px solid #2c3235;
@@ -625,7 +625,7 @@ def render_on_call_workspace(db_path: str) -> None:
         display: block;
     }
     .oc-table-container::-webkit-scrollbar-thumb {
-        background: #38bdf8;
+        background: #334155;
         border-radius: 2px;
     }
     .oc-team-tag {

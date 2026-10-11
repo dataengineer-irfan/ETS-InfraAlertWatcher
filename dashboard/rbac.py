@@ -272,7 +272,7 @@ def _render_user_detail_inspector(
                 f"</tr>"
             )
         st.markdown(f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:hidden;overflow-y:auto;background:#141619;max-height:115px;scrollbar-width:thin;scrollbar-color:#38bdf8 #141619;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:hidden;overflow-y:auto;background:#141619;max-height:115px;scrollbar-width:thin;scrollbar-color:#334155 #141619;">
           <table style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:left;">
             <colgroup>
               <col style="width:125px;">
@@ -539,7 +539,7 @@ def render_rbac_workspace(db_path: str) -> None:
             overflow-y: auto !important;
             overflow-x: hidden !important;
             scrollbar-width: thin !important;
-            scrollbar-color: #38bdf8 #181b1f !important;
+            scrollbar-color: #334155 #181b1f !important;
         }
         div.st-key-rbac_detail_scroll_box::-webkit-scrollbar {
             width: 6px;
@@ -549,7 +549,7 @@ def render_rbac_workspace(db_path: str) -> None:
             background: #181b1f;
         }
         div.st-key-rbac_detail_scroll_box::-webkit-scrollbar-thumb {
-            background: #38bdf8;
+            background: #334155;
             border-radius: 3px;
         }
         </style>
@@ -584,10 +584,10 @@ def render_rbac_workspace(db_path: str) -> None:
                     f"</tr>"
                 )
 
-            tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="6" style="text-align:center;padding:16px;color:#64748b;">No enterprise accounts match active filters.</td></tr>'
+            tbody_content = "".join(user_rows_html) if user_rows_html else '<tr><td colspan="6" style="text-align:center;padding:16px;color:#94a3b8;">No enterprise accounts match active filters.</td></tr>'
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:hidden;overflow-y:auto;background:#181b1f;height:calc(100vh - 295px);max-height:calc(100vh - 295px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+            <div style="border:1px solid #2c3235;border-radius:3px;overflow-x:hidden;overflow-y:auto;background:#181b1f;height:calc(100vh - 295px);max-height:calc(100vh - 295px);scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
               <table style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:left;">
                 <colgroup>
                   <col style="width:19%;">
@@ -763,10 +763,10 @@ def render_rbac_workspace(db_path: str) -> None:
                 f"</tr>"
             )
 
-        audit_body = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b;">No security audit records match active filter criteria.</td></tr>'
+        audit_body = "".join(audit_rows_html) if audit_rows_html else '<tr><td colspan="7" style="text-align:center;padding:16px;color:#94a3b8;">No security audit records match active filter criteria.</td></tr>'
 
         st.markdown(f"""
-        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 275px);max-height:calc(100vh - 275px);min-height:clamp(220px, calc(100vh - 275px), 360px);scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+        <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;height:calc(100vh - 275px);max-height:calc(100vh - 275px);min-height:clamp(220px, calc(100vh - 275px), 360px);scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
           <table style="width:100%;min-width:680px;border-collapse:collapse;text-align:left;">
             <thead>
               <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;position:sticky;top:0;z-index:2;">
@@ -827,7 +827,7 @@ def render_rbac_workspace(db_path: str) -> None:
                 )
 
             st.markdown(f"""
-            <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;scrollbar-width:thin;scrollbar-color:#38bdf8 #181b1f;">
+            <div style="border:1px solid #2c3235;border-radius:2px;overflow-x:auto;overflow-y:auto;background:#181b1f;scrollbar-width:thin;scrollbar-color:#334155 #181b1f;">
               <table style="width:100%;min-width:560px;border-collapse:collapse;text-align:left;">
                 <thead>
                   <tr style="background:#141619;border-bottom:1px solid #2c3235;font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;">

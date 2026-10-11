@@ -561,7 +561,7 @@ div[data-testid="stCustomComponentV1"]:has(iframe:not([height="0"])) {{
   overflow-y: auto !important;
   overflow-x: hidden !important;
   scrollbar-width: thin !important;
-  scrollbar-color: #38bdf8 #111217 !important;
+  scrollbar-color: #334155 #111217 !important;
 }}
 
 /* Eliminate Streamlit markdown negative margin collapse */
@@ -589,14 +589,14 @@ div[data-testid="stMarkdownContainer"] > *:last-child {{
   padding: 4px 6px !important;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
   scrollbar-width: thin !important;
-  scrollbar-color: #38bdf8 #181b1f !important;
+  scrollbar-color: #334155 #181b1f !important;
 }}
 
 /* Clear, high-contrast internal scrollbar for Grid & Tree containers */
 .st-key-op_grid_box::-webkit-scrollbar,
 .st-key-op_tree_box::-webkit-scrollbar {{
-  width: 8px !important;
-  height: 8px !important;
+  width: 6px !important;
+  height: 6px !important;
   display: block !important;
 }}
 .st-key-op_grid_box::-webkit-scrollbar-track,
@@ -606,13 +606,13 @@ div[data-testid="stMarkdownContainer"] > *:last-child {{
 }}
 .st-key-op_grid_box::-webkit-scrollbar-thumb,
 .st-key-op_tree_box::-webkit-scrollbar-thumb {{
-  background: #38bdf8 !important;
-  border-radius: 4px !important;
-  border: 1px solid #0284c7 !important;
+  background: #334155 !important;
+  border-radius: 3px !important;
+  border: 1px solid #1e293b !important;
 }}
 .st-key-op_grid_box::-webkit-scrollbar-thumb:hover,
 .st-key-op_tree_box::-webkit-scrollbar-thumb:hover {{
-  background: #60a5fa !important;
+  background: #475569 !important;
 }}
 
 .st-key-op_grid_box [data-testid="stVerticalBlock"],
@@ -781,12 +781,12 @@ code, kbd, .mono, .num {{
 /* Custom scrollbars (WebKit & Firefox Gecko) */
 * {{
   scrollbar-width: thin;
-  scrollbar-color: #38bdf8 #181b1f;
+  scrollbar-color: #334155 #181b1f;
 }}
 ::-webkit-scrollbar {{ width:6px; height:6px; }}
-::-webkit-scrollbar-track {{ background:var(--bg); }}
-::-webkit-scrollbar-thumb {{ background:var(--rule); border-radius:2px; }}
-::-webkit-scrollbar-thumb:hover {{ background:var(--mute); }}
+::-webkit-scrollbar-track {{ background:var(--bg, #111217); }}
+::-webkit-scrollbar-thumb {{ background:#334155; border-radius:3px; }}
+::-webkit-scrollbar-thumb:hover {{ background:#475569; }}
 
 /* ---- primary navigation tabs: hidden since primary navigation is in Left Panel Drawer ---------- */
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stTabs"]:first-of-type > div:first-of-type > [role="tablist"] {{

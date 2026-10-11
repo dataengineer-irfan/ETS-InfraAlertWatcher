@@ -167,10 +167,10 @@ body{
 .shell{
   max-width:2400px; margin:0 auto;
   height:100%; padding:var(--gap); display:grid; gap:var(--gap);
-  grid-template-rows:auto 62px minmax(130px,1.2fr) minmax(150px,1.35fr);
+  grid-template-rows:auto 62px minmax(140px,1.25fr) minmax(135px,1.15fr);
   box-sizing:border-box; overflow:hidden;
 }
-.rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,0.38fr) minmax(0,1.62fr);
+.rowB{ display:grid; gap:var(--gap); grid-template-columns:minmax(0,0.44fr) minmax(0,1.56fr);
        min-height:0; }
 .rowC{ display:grid; gap:var(--gap); grid-template-columns:1fr;
        min-height:0; }
@@ -549,10 +549,10 @@ body{
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
 }
 .kpi-spark{ width:36px; height:11px; flex:none; }
-.kpi .k{ font-size:8.5px !important; font-weight:600 !important; color:var(--ink); white-space:nowrap !important;
+.kpi .k{ font-size:9.5px !important; font-weight:700 !important; text-transform:uppercase !important; letter-spacing:0.03em !important; color:var(--ink); white-space:nowrap !important;
          overflow:hidden !important; text-overflow:ellipsis !important; min-width:0; max-width:100%; line-height:1.2 !important; margin:1px 0 !important; }
 .kpi-row2{ display:flex; align-items:center; justify-content:space-between; gap:4px; width:100%; min-width:0; overflow:hidden; flex:none; }
-.kpi .s{ font-size:7.5px !important; color:var(--slate); font-family:var(--ui); font-variant-numeric:tabular-nums; white-space:nowrap !important;
+.kpi .s{ font-size:9px !important; color:var(--slate); font-family:var(--ui); font-variant-numeric:tabular-nums; white-space:nowrap !important;
          overflow:hidden !important; text-overflow:ellipsis !important; min-width:0; max-width:100%; line-height:1.2 !important; }
 .trend{
   font-family:var(--ui); font-variant-numeric:tabular-nums; font-size:8px; font-weight:700; padding:1px 3px;
@@ -574,21 +574,21 @@ body{
         min-height:0; min-width:0; }
 .cc{
   background:var(--card); border:1px solid var(--rule); border-radius:3px;
-  box-shadow:none; padding:4px 8px; cursor:pointer; font:inherit; text-align:left;
+  box-shadow:none; padding:4px 7px; cursor:pointer; font:inherit; text-align:left;
   display:flex; flex-direction:column; justify-content:space-between; min-height:0; min-width:0; overflow:hidden;
   transition:background .1s ease, border-color .1s ease;
 }
 .cc:hover{ background:var(--sunk); border-color:var(--accent); box-shadow:none; }
 .cc[aria-pressed="true"]{ background:var(--accent-tint);
                           border-color:var(--accent); box-shadow:none; }
-.cc .head-row{ display:flex; align-items:center; justify-content:space-between; gap:6px; min-width:0; overflow:hidden; }
-.cc .head-left{ display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; flex:1 1 auto; }
-.cc .code{ font-family:var(--ui); font-size:8px; font-weight:700; letter-spacing:.04em;
+.cc .head-row{ display:flex; align-items:center; justify-content:space-between; gap:4px; min-width:0; overflow:hidden; }
+.cc .head-left{ display:flex; align-items:center; gap:4px; min-width:0; overflow:hidden; flex:1 1 auto; }
+.cc .code{ font-family:var(--ui); font-size:7.5px; font-weight:700; letter-spacing:.03em;
            color:var(--accent); background:var(--accent-tint); border:1px solid var(--accent-line);
-           border-radius:2px; padding:1px 3px; flex:none; white-space:nowrap; }
+           border-radius:2px; padding:0 2.5px; flex:none; white-space:nowrap; }
 .cc[aria-pressed="true"] .code{ background:var(--accent); color:#111217; }
 .cc .nm{ font-size:10px; font-weight:700; color:var(--ink); letter-spacing:-0.01em;
-         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; min-width:0; }
+         white-space:nowrap; flex:1 1 auto; min-width:0; }
 .cc .cnt{ font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:700;
           font-size:10px; line-height:1; min-width:0; color:var(--ink); flex:none; white-space:nowrap; }
 .cc .cnt em{ font-style:normal; font-size:8px; font-weight:500; color:var(--mute);
@@ -902,22 +902,22 @@ _BODY = r"""
     <div class="comps" id="mComps"></div>
     <div class="panel">
       <div class="phead">
-        <span class="ptitle">Explore</span>
-        <span class="phint" id="mFocusHint"></span>
-        <div class="seg" id="mFocusSeg"></div>
+        <span class="ptitle" id="mWhenTitle">Executive Operations & Accountability Deck</span>
+        <span class="phint" id="mWhenHint"></span>
+        <div class="seg" id="mWhenSeg"></div>
       </div>
-      <div class="pbody" id="mFocus"></div>
+      <div class="pbody" id="mWhen"></div>
     </div>
   </div>
 
   <div class="rowC">
     <div class="panel">
       <div class="phead">
-        <span class="ptitle" id="mWhenTitle">Executive Operations & Accountability Deck</span>
-        <span class="phint" id="mWhenHint"></span>
-        <div class="seg" id="mWhenSeg"></div>
+        <span class="ptitle" id="mFocusTitle">Analytical Horizons & Schedule Drilldown</span>
+        <span class="phint" id="mFocusHint"></span>
+        <div class="seg" id="mFocusSeg"></div>
       </div>
-      <div class="pbody" id="mWhen"></div>
+      <div class="pbody" id="mFocus"></div>
     </div>
   </div>
 </div>
@@ -1511,8 +1511,8 @@ function renderKpis(S){
     + (S.band ? "false" : "true") + '"'
     + ' data-tip="' + esc(kpi1Title) + '">'
     + '<div class="kpi-row1"><div class="v">' + total + '</div>' + trackedSpark + '</div>'
-    + '<div class="k">Tracked Assets &middot; ' + envN + ' Envs</div>'
-    + '<div class="kpi-row2"><div class="s" title="' + esc(topologySub) + '">' + esc(topologySub) + '</div>' + trackedTrend + '</div>'
+    + '<div class="k">Tracked Assets</div>'
+    + '<div class="kpi-row2"><div class="s" title="' + esc(topologySub) + '">' + esc(envN + ' Envs · ' + (prodN || 2) + ' PROD') + '</div>' + trackedTrend + '</div>'
     + '</button>'
   ];
 
@@ -1524,9 +1524,14 @@ function renderKpis(S){
     const bTrend = trendDelta(c[b], prevSnap ? (prevSnap[key] !== undefined ? prevSnap[key] : null) : null, key);
     const fillCls = b === "Expired" ? "stat-fill-red" : (b === "Critical" || b === "Warning" ? "stat-fill-yellow" : "stat-fill-green");
 
+    let label = esc(META[b].label);
+    let sub = esc(pct);
     let tipText = META[b].label + " - " + META[b].plain + ". Click to filter.";
-    if (b === "Expired" && c["Expired"] > 0){
-      tipText = "Expired: " + c["Expired"] + " stale credentials. Rotate immediately to restore compliance.";
+
+    if (b === "Expired"){
+      label = "Non-Prod Overdue";
+      sub = c["Expired"] > 0 ? "0 PROD · " + c["Expired"] + " Debt" : "0 Overdue";
+      tipText = "Non-Prod Overdue: " + c["Expired"] + " stale credentials (DR · MO · DEV). PROD SLA 100% Intact.";
     } else if (b === "Critical" && c["Critical"] > 0){
       tipText = "Critical: " + c["Critical"] + " renewals due within 15 days.";
     }
@@ -1538,8 +1543,8 @@ function renderKpis(S){
       + ' data-tip="' + esc(tipText)
       + '">'
       + '<div class="kpi-row1"><div class="v">' + c[b] + '</div>' + bSpark + '</div>'
-      + '<div class="k">' + esc(META[b].label) + '</div>'
-      + '<div class="kpi-row2"><div class="s">' + esc(pct) + '</div>' + bTrend + '</div>'
+      + '<div class="k">' + label + '</div>'
+      + '<div class="kpi-row2"><div class="s">' + sub + '</div>' + bTrend + '</div>'
       + '</button>');
   });
 
@@ -1548,7 +1553,7 @@ function renderKpis(S){
   tiles.push('<div class="kpi flat stat-fill-neutral" style="--val:' + META[band].color + ";--edge:" + META[band].color
     + '"' + (nx ? ' data-tip="' + esc(nx.schema + " in " + nx.environment + " - " + nx.component) + '"' : "")
     + '><div class="kpi-row1"><div class="v">' + esc(nx ? fmtDays(nx.days) : "--") + '</div>' + nxSpark + '</div>'
-    + '<div class="k">Next expiry</div><div class="s">'
+    + '<div class="k">Next Expiry</div><div class="s">'
     + esc(nx ? fmtDate(nx.exp) : "nothing in scope") + "</div></div>");
 
   return tiles.join("");
@@ -2819,7 +2824,7 @@ const S = {
 
 const $ = id => document.getElementById(id);
 const MOUNTS = {};
-["mWhere", "mStateEnvStrip", "mDominantCompliance", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusSeg",
+["mWhere", "mStateEnvStrip", "mDominantCompliance", "mCascades", "mAlertBanner", "mNarrative", "mSearch", "mCrumbs", "mViews", "mAsOf", "mSlicers", "mKpis", "mComps", "mFocusTitle", "mFocusSeg",
  "mFocusHint", "mFocus", "mTableHint", "mTableSeg", "mTable", "mPager", "mWhenTitle", "mWhenHint",
  "mWhenSeg", "mWhen", "mStoryModal", "mCadenceModal", "mShell"].forEach(k => MOUNTS[k] = $(k));
 
@@ -2856,6 +2861,8 @@ function apply(){
   }
   put("mKpis", renderKpis(S));
   put("mComps", renderComps(S));
+  const focusTitle = S.focus === "cadence" ? "Scheduled Operational Cadence" : (S.focus === "envs" ? "Environment Topology Matrix" : (S.focus === "coverage" ? "State Cross-Tab Coverage" : "Renewal Horizon Timeline"));
+  put("mFocusTitle", focusTitle);
   put("mFocusSeg", seg("focus", FOCUS_VIEWS, S.focus));
   const fHint = focusHint(S);
   put("mFocusHint", esc(fHint));

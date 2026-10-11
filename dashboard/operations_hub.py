@@ -570,7 +570,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         max-height: calc(100vh - 295px);
         min-height: clamp(220px, calc(100vh - 295px), 430px);
         scrollbar-width: thin;
-        scrollbar-color: #38bdf8 #181b1f;
+        scrollbar-color: #334155 #181b1f;
     }
     .op-master-table-box::-webkit-scrollbar {
         width: 7px;
@@ -582,9 +582,9 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         border-left: 1px solid #2c3235;
     }
     .op-master-table-box::-webkit-scrollbar-thumb {
-        background: #38bdf8;
+        background: #334155;
         border-radius: 3px;
-        border: 1px solid #0284c7;
+        border: 1px solid #1e293b;
     }
     .op-master-table-box table tbody tr:hover {
         background: rgba(56, 189, 248, 0.08) !important;
@@ -603,7 +603,7 @@ def render_operations_hub(df: pd.DataFrame) -> None:
         overflow-y: auto !important;
         overflow-x: hidden !important;
         scrollbar-width: thin !important;
-        scrollbar-color: #38bdf8 #181b1f !important;
+        scrollbar-color: #334155 #181b1f !important;
     }
     div.st-key-op_detail_box::-webkit-scrollbar {
         width: 6px;
